@@ -15,13 +15,21 @@
 - 公众号与视频号作为 Channel Task 引用同一 Content Item。公众号默认引用有文案定稿图，视频号默认引用无文案底图；只有确有需要才创建渠道适配版本。
 - 文案确认、图稿验收、视频验收、实际发布必须分别记录和验收，不相互推断。
 
-## DEV-001 的实际实现
+## 已建立的核心领域骨架
 
-当前只实现 Laravel/Inertia/Vue 启动页及 Project/Column 两张表。Topic 及之后的表、服务、状态机和权限界面均留给后续任务。当前尚无用户登录和项目授权流程，因此迁移中的 `project_id` 外键与组合唯一约束只能保证结构归属，不能单独保证跨项目访问隔离；在开放业务 CRUD 前必须补齐服务端 Project 上下文与授权检查。
+DEV-001 建立 Laravel/Inertia/Vue 启动页和 `projects`、旧名 `columns` 两张表。DEV-002 通过新迁移把后者改名为 `content_columns`，并建立 Topic、Content Item、Production Task、Channel Task。六个模型均显式归属 Project；复合外键保证 Topic 的 Column、Content Item 的 Topic/Column、Production Task 的 Content Item、Channel Task 的 Production Task 不会跨 Project 错配。一个 Content Item 在 Lite V1.0 对应一个共享 Production Task，多个 Channel Task 可引用它。
+
+文案状态存于 Content Item，图稿状态存于 Production Task；视频状态和发布状态分别存于 Channel Task。渠道在数据库中使用字符串、在 PHP 中使用可扩展的 `Channel` 枚举控制，首批为 `wechat_official`、`wechat_channels`。当前无用户登录和项目授权流程；数据库约束保证记录关系一致，但不能替代服务端 Project 上下文及访问授权。
+
+### 未来共享视觉资产关系接口（DEV-002 不建表）
+
+一个 Production Task 未来可关联多个共享视觉资产，首批角色为 `clean_master`（无文案定稿底图）和 `copy_master`（有文案定稿图）。资产记录必须与同一个 Project、Content Item、Production Task 对齐，后续迁移需用可验证的关联约束防止跨项目引用，并补对应测试。Channel Task 只引用共享资产，不复制独立母资产：公众号默认选 `copy_master`，视频号默认选 `clean_master`。渠道适配版可作为衍生资产，但不能覆盖共享母资产或正式版本。多页、多版本不应被 Production Task 上两个固定图片 ID 限制。真正的 Asset / AssetVersion / File 结构放到独立任务设计与实现。
 
 ## 架构风险与待决策点
 
-1. **空远端仓库**：GitHub `main` 初始无提交。DEV-001 在独立工作树使用孤儿任务分支建立首个工程提交；审核时需决定如何以此提交建立远端基线，避免与其他并行分支形成无共同祖先的历史。
-2. **隔离尚未运行时强制执行**：Project/Column 迁移没有业务端点。DEV-002 如开放项目选择或栏目操作，必须先明确身份与可访问 Project 的来源。
-3. **版本模型待细化**：正式版本不可覆盖，但版本标识、资产存储与渠道适配的具体表结构不在 DEV-001 定义，避免过早锁死。
-4. **历史 fixtures 待对齐**：现有导入样本包含后续层级及状态字段，属于另一任务。导入前要核对其 Project 归属、状态语义与正式 schema。
+1. **Project 访问授权尚未实现**：六张表的复合外键拒绝错误的跨项目关联，但尚无业务端点与用户授权。开放 CRUD 前必须确定可访问 Project 的来源，并在查询与写入时校验。
+2. **生产任务基数**：Lite V1.0 暂按一篇一套共享生产任务建唯一约束。若后续确需多轮独立生产任务，应先明确版本与历史保留方式，再迁移该约束。
+3. **版本模型待细化**：正式版本不可覆盖，但版本标识、资产存储与渠道适配的具体表结构不在 DEV-002 定义，避免过早锁死。
+4. **历史 fixtures 待对齐**：隔离区及豆包旧分支中的样本属于另一任务。导入前要核对其 Project 归属、状态语义、Column 表名及正式 schema。
+5. **资产关系尚无数据库约束**：本轮仅定义未来接口。实现 Asset 表时必须为 Project / Content Item / Production Task 一致性及跨项目拒绝补测试，不能依赖字符串路径或可覆盖的固定字段。
+6. **阶段顺序尚未由服务层约束**：Channel Task 的数据结构表示渠道衍生任务，但数据库无法判断共享生产是否已验收。后续创建渠道任务的服务须核对图稿验收状态，不能仅以存在 Production Task 推断生产完成。
