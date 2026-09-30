@@ -1,0 +1,20 @@
+{
+  "_meta": {
+    "fixture_version": "DEV-D01",
+    "generated_at": "2026-10-01",
+    "source": "青柠育见历史内容迁移",
+    "note": "项目主数据。仅录入已确认存在的项目，不推断其他产品线。"
+  },
+  "projects": [
+    {
+      "id": "PRJ-QN-001",
+      "name": "青柠育见",
+      "brand": "青柠育见",
+      "operator": "珠海市斗门区青柠文化传媒工作室（个体工商户）",
+      "platforms": ["公众号", "视频号"],
+      "target_audience": "0-6岁家庭",
+      "status": "active",
+      "created_from": "历史品牌资料"
+    }
+  ]
+}
