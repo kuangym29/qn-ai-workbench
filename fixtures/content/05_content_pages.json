@@ -1,0 +1,51 @@
+{
+  "_meta": {
+    "fixture_version": "DEV-D01",
+    "generated_at": "2026-10-01",
+    "total_pages": 37,
+    "note": "逐页内容。／ 表示两行换行，不印在画面上。封底页为固定模板，无本篇新增文案。",
+    "special_handling": "《孩子出门总磨蹭》图文版第09页与动态视频版第09页收尾句不同，视频版单独在 channel_tasks 中记录，不覆盖图文版。"
+  },
+  "pages": [
+    {"id": "PG-LIFE-001-P01", "content_item_id": "CI-LIFE-001", "page_no": 1, "page_type": "cover", "column_label": "生活小能力", "cover_title": "孩子出门／总磨蹭／先别急着催", "cover_subtitle": "把催促换成孩子听得懂的一小步"},
+    {"id": "PG-LIFE-001-P02", "content_item_id": "CI-LIFE-001", "page_no": 2, "page_type": "content", "content_title": "先看孩子／卡在哪一步", "small_text": "先观察孩子停在哪儿，不急着催。"},
+    {"id": "PG-LIFE-001-P03", "content_item_id": "CI-LIFE-001", "page_no": 3, "page_type": "content", "content_title": "把催促换成／具体一步", "small_text": "少说：“快一点！”／试试：“先把这只鞋拿起来。”"},
+    {"id": "PG-LIFE-001-P04", "content_item_id": "CI-LIFE-001", "page_no": 4, "page_type": "content", "content_title": "说完，／停一停", "small_text": "给孩子一点时间，自己拿起鞋。"},
+    {"id": "PG-LIFE-001-P05", "content_item_id": "CI-LIFE-001", "page_no": 5, "page_type": "content", "content_title": "完成一步，／再说下一步", "small_text": "第一只穿好，再准备另一只。"},
+    {"id": "PG-LIFE-001-P06", "content_item_id": "CI-LIFE-001", "page_no": 6, "page_type": "content", "content_title": "第二只鞋／也穿好啦", "small_text": "“妈妈，我穿好啦！”"},
+    {"id": "PG-LIFE-001-P07", "content_item_id": "CI-LIFE-001", "page_no": 7, "page_type": "content", "content_title": "看见这一小步／具体夸一夸", "small_text": "“我看到你把第二只鞋也穿好了，真棒！”"},
+    {"id": "PG-LIFE-001-P08", "content_item_id": "CI-LIFE-001", "page_no": 8, "page_type": "content", "content_title": "准备好了，／一起出门！", "small_text": "穿好鞋，和妈妈高高兴兴走出家门。"},
+    {"id": "PG-LIFE-001-P09", "content_item_id": "CI-LIFE-001", "page_no": 9, "page_type": "column_closing", "closing_line_version": "image_carousel", "closing_line": "你在身边，／“我自己来”更有底气。", "closing_source": "历史固定栏目句"},
+    {"id": "PG-LIFE-001-P10", "content_item_id": "CI-LIFE-001", "page_no": 10, "page_type": "fixed_back_cover", "note": "固定封底，调用用户原稿，无本篇新增文案"},
+
+    {"id": "PG-EMO-001-P01", "content_item_id": "CI-EMO-001", "page_no": 1, "page_type": "cover", "column_label": "看见小情绪", "cover_title": "积木倒了／孩子哭了／先别急着搭", "cover_subtitle": "他搭了好久的／小房子，散了一地。"},
+    {"id": "PG-EMO-001-P02", "content_item_id": "CI-EMO-001", "page_no": 2, "page_type": "content", "content_title": "妈妈先蹲下／没去扶积木", "small_text": "确认没有受伤，她先把注意力放在孩子身上。"},
+    {"id": "PG-EMO-001-P03", "content_item_id": "CI-EMO-001", "page_no": 3, "page_type": "content", "content_title": "他握起屋顶／小声说“我的……”", "small_text": "妈妈没有接过积木，等他把话说完。"},
+    {"id": "PG-EMO-001-P04", "content_item_id": "CI-EMO-001", "page_no": 4, "page_type": "content", "content_title": "“你搭了好久，／倒了很难过吧？”", "small_text": "先接住他的失落，不急着讲办法。"},
+    {"id": "PG-EMO-001-P05", "content_item_id": "CI-EMO-001", "page_no": 5, "page_type": "content", "content_title": "“想先歇一会儿，／还是一起再搭？”", "small_text": "等他能听进去，妈妈才把选择交给他。"},
+    {"id": "PG-EMO-001-P06", "content_item_id": "CI-EMO-001", "page_no": 6, "page_type": "content", "content_title": "他自己挑一块／轻轻放稳了", "small_text": "妈妈说：“你自己挑的这块，放得很稳。”"},
+    {"id": "PG-EMO-001-P07", "content_item_id": "CI-EMO-001", "page_no": 7, "page_type": "content", "content_title": "屋顶重新放好／他笑着看妈妈", "small_text": "这一次，是他自己选了“再试试”。"},
+    {"id": "PG-EMO-001-P08", "content_item_id": "CI-EMO-001", "page_no": 8, "page_type": "column_closing", "closing_line_version": "image_carousel", "closing_line": "你肯听，情绪就有了出口。", "closing_source": "历史固定栏目句"},
+    {"id": "PG-EMO-001-P09", "content_item_id": "CI-EMO-001", "page_no": 9, "page_type": "fixed_back_cover", "note": "固定封底，调用用户原稿，无本篇新增文案"},
+
+    {"id": "PG-SOC-001-P01", "content_item_id": "CI-SOC-001", "page_no": 1, "page_type": "cover", "column_label": "相处小智慧", "cover_title": "弟弟想玩车／姐姐还没玩完／先别催她让", "cover_subtitle": "一辆小车，两个孩子；／先别急着判谁该让。"},
+    {"id": "PG-SOC-001-P02", "content_item_id": "CI-SOC-001", "page_no": 2, "page_type": "content", "content_title": "弟弟伸手拿／姐姐抱紧车", "small_text": "争抢刚起，妈妈先走近两个孩子。"},
+    {"id": "PG-SOC-001-P03", "content_item_id": "CI-SOC-001", "page_no": 3, "page_type": "content", "content_title": "妈妈蹲下来／“先不抢。”", "small_text": "先挡住拿车的动作，不从姐姐手里夺车。"},
+    {"id": "PG-SOC-001-P04", "content_item_id": "CI-SOC-001", "page_no": 4, "page_type": "content", "content_title": "妈妈先听见／两个人的需要", "small_text": "姐姐还在玩，弟弟也想玩。怎么办？"},
+    {"id": "PG-SOC-001-P05", "content_item_id": "CI-SOC-001", "page_no": 5, "page_type": "content", "content_title": "“再开一圈，／就给弟弟玩。”", "small_text": "姐姐说出顺序，妈妈再让弟弟知道。"},
+    {"id": "PG-SOC-001-P06", "content_item_id": "CI-SOC-001", "page_no": 6, "page_type": "content", "content_title": "弟弟等得急／妈妈陪他等", "small_text": "“你很想玩呀，我陪你等她开完。”"},
+    {"id": "PG-SOC-001-P07", "content_item_id": "CI-SOC-001", "page_no": 7, "page_type": "content", "content_title": "姐姐玩好了／把车递给弟弟", "small_text": "姐姐的这一圈没被打断；弟弟也等到了。"},
+    {"id": "PG-SOC-001-P08", "content_item_id": "CI-SOC-001", "page_no": 8, "page_type": "content", "content_title": "弟弟开着车／姐姐在旁指路", "small_text": "愿意时一起玩，不想一起也不用勉强。"},
+    {"id": "PG-SOC-001-P09", "content_item_id": "CI-SOC-001", "page_no": 9, "page_type": "column_closing", "closing_line_version": "article_specific", "closing_line": "轮流不是催姐姐让，／而是让两个孩子都被听见。", "closing_source": "本篇专属"},
+    {"id": "PG-SOC-001-P10", "content_item_id": "CI-SOC-001", "page_no": 10, "page_type": "fixed_back_cover", "note": "固定封底，调用用户原稿，无本篇新增文案"},
+
+    {"id": "PG-GROW-001-P01", "content_item_id": "CI-GROW-001", "page_no": 1, "page_type": "cover", "column_label": "原来在长大", "cover_title": "一只纸箱／开了家水果店", "cover_subtitle": "孩子在玩什么？先听听他的设定。"},
+    {"id": "PG-GROW-001-P02", "content_item_id": "CI-GROW-001", "page_no": 2, "page_type": "content", "content_title": "纸箱成了小店／他在玩假装游戏", "small_text": "他让纸箱当小店，自己当卖水果的人。"},
+    {"id": "PG-GROW-001-P03", "content_item_id": "CI-GROW-001", "page_no": 3, "page_type": "content", "content_title": "他招呼爸爸／“来买苹果吧”", "small_text": "游戏由孩子发起，爸爸先听他的安排。"},
+    {"id": "PG-GROW-001-P04", "content_item_id": "CI-GROW-001", "page_no": 4, "page_type": "content", "content_title": "爸爸坐下来／当第一位顾客", "small_text": "“你好，我想买一个苹果。”"},
+    {"id": "PG-GROW-001-P05", "content_item_id": "CI-GROW-001", "page_no": 5, "page_type": "content", "content_title": "他挑出苹果／递到爸爸面前", "small_text": "“给你。”爸爸回应：“谢谢你，店长。”"},
+    {"id": "PG-GROW-001-P06", "content_item_id": "CI-GROW-001", "page_no": 6, "page_type": "content", "content_title": "爸爸拿着苹果／弟弟挥手说再见", "small_text": "孩子邀请时，先听设定，再接一句。"},
+    {"id": "PG-GROW-001-P07", "content_item_id": "CI-GROW-001", "page_no": 7, "page_type": "column_closing", "closing_line_version": "article_specific", "closing_line": "他把纸箱当成小店，／你认真走进他的想象。", "closing_source": "本篇专属"},
+    {"id": "PG-GROW-001-P08", "content_item_id": "CI-GROW-001", "page_no": 8, "page_type": "fixed_back_cover", "note": "固定封底，调用用户原稿，无本篇新增文案"}
+  ]
+}
