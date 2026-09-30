@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "fixture_version": "DEV-D01",
+    "generated_at": "2026-10-01",
+    "note": "测试样本（Test Samples）。用于查重引擎、状态机、渠道版本管理的单元测试输入。所有样本为构造数据，不代表真实发布内容。"
+  },
+  "samples": [
+    {"id": "TS-001", "category": "exact_copy_duplicate", "name": "完全文案重复——两篇逐页文字一字不差", "expected_detection": "exact_match", "reference_item_id": "CI-LIFE-001"},
+    {"id": "TS-002", "category": "highly_similar_not_exact", "name": "高度相似但非完全重复——仅换一两个词", "expected_detection": "high_similarity_warning", "reference_item_id": "CI-LIFE-001"},
+    {"id": "TS-003", "category": "common_words_only", "name": "只有常见词重复——不判为重复", "expected_detection": "no_duplicate"},
+    {"id": "TS-004", "category": "closing_line_exact_duplicate", "name": "收尾句完全重复——应判为复用违规", "expected_detection": "closing_line_exact_duplicate"},
+    {"id": "TS-005", "category": "closing_line_similar_duplicate", "name": "收尾句近似重复——换词/倒装/换标点不算新文案", "expected_detection": "closing_line_similar_warning"},
+    {"id": "TS-006", "category": "same_content_multi_channel", "name": "同一内容不同渠道版本——收尾句不同，独立保存", "expected_behavior": "two_independent_channel_tasks", "content_item_id": "CI-LIFE-001"},
+    {"id": "TS-007", "category": "copy_confirmed_artwork_pending", "name": "已确认文案但图稿未完成——状态机边界测试", "reference_item": "CI-SOC-001"},
+    {"id": "TS-008", "category": "artwork_done_video_pending", "name": "已完成图稿但视频未完成——状态机边界测试", "reference_item": "CI-EMO-001"}
+  ]
+}
