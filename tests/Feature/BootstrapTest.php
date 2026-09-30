@@ -19,6 +19,6 @@ class BootstrapTest extends TestCase
     public function test_project_and_column_tables_exist(): void
     {
         $this->assertTrue(Schema::hasColumns('projects', ['id', 'name', 'slug']));
-        $this->assertTrue(Schema::hasColumns('columns', ['id', 'project_id', 'name', 'slug']));
+        $this->assertTrue(Schema::hasColumns('content_columns', ['id', 'project_id', 'name', 'slug']));
     }
 }
