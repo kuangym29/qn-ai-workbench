@@ -113,7 +113,7 @@ Project
 ### 篇 3：《弟弟想玩车，姐姐还没玩完》CI-SOC-001（相处小智慧，10 页）
 
 | 旧对象 | 正式归属 | 说明 |
-| --- | | --- |
+| --- | --- | --- |
 | ContentItem CI-SOC-001 | ContentItem（正式表） | `id`, `title` 直接迁移 |
 | ContentPage × 10 | **正式 Schema 尚未承载** | 历史数据已存在，待后续独立任务建表 |
 | PT-SOC-001-IMG（图文制作） | **ProductionTask（共享）** | `artwork_status` 迁入正式字段 |
@@ -163,7 +163,7 @@ Project
 | ChannelTask.channel = 微信视频号 | **ChannelTask.channel = wechat_channels** | ChannelTask | 枚举值对齐 |
 | ChannelTask.status | **ChannelTask.publish_status** | ChannelTask | 旧状态值映射为正式枚举，待主程确认 |
 
-### 4.2 后续待建模 —— 历史数据已存在，正式 Schema 尚未承载
+### 4.2 历史数据已存在，正式 Schema 尚未承载
 
 > 以下字段在 DEV-D01 Fixture 中有数据，但 DEV-002 正式 Schema 中**不存在**。建议归属仅为参考，最终由主程在后续独立任务中决定。
 
@@ -193,7 +193,7 @@ Project
 | ChannelTask.closing_line_used | 6 条 | ChannelTask（扩展字段，待建模） | 正式 Schema 无此字段 |
 | ChannelTask.closing_line_source | 6 条 | ChannelTask（扩展字段，待建模） | 正式 Schema 无此字段 |
 
-### 4.3 尚未决定 —— 不写入正式 Schema，待主程规划
+### 4.3 尚未决定是否进入 Lite V1.0
 
 | 项目 | 说明 |
 | --- | --- |
@@ -226,7 +226,31 @@ Project
 
 ---
 
-## 七、边界与约束
+## 七、迁移缺口清单
+
+> 目的：让 Codex 后续一眼看出——哪些数据现在可以直接导，哪些数据暂时只能保留在 Fixture，哪些能力以后需要独立 DEV Task。
+
+| 历史数据字段 / 对象 | 数据量 | 当前正式 Schema 是否可承载 | 是否影响导入 | 建议未来任务 |
+| --- | --- | --- | --- | --- |
+| **Project 主数据** | 1 条 | ✅ 可承载（id, name, slug, description） | 不影响，可直接导 | 直接导入；brand / operator / platforms 暂存 Fixture |
+| **ContentColumn 栏目** | 6 条 | ✅ 可承载（id, project_id, name, slug, description） | 不影响，可直接导 | 直接导入；historical_closing_line / has_confirmed_articles 暂存 Fixture |
+| **Topic 选题** | 4 条 | ✅ 可承载（id, project_id, content_column_id, title, description） | 不影响，可直接导 | 直接导入；slug / status / confirmed_date 暂存 Fixture |
+| **ContentItem 篇目** | 4 条 | ✅ 可承载（id, project_id, content_column_id, topic_id, title, copy_status） | 不影响，可直接导 | 直接导入；page_count / script_source_path / final_copy_source 等暂存 Fixture |
+| **ProductionTask 图稿状态** | 4 条 | ✅ 可承载（id, project_id, content_item_id, artwork_status） | 不影响，可直接导 | 每篇合并为 1 个共享 PT；target_spec / artifact_path 等暂存 Fixture |
+| **ChannelTask 渠道与发布状态** | 6 条 | ✅ 可承载（id, project_id, production_task_id, channel, video_status, publish_status） | 不影响，可直接导 | 直接导入；format / closing_line 等暂存 Fixture |
+| **ContentPage 逐页文案** | 37 条 | ❌ 不可承载（正式 Schema 中无 ContentPage 表） | **影响**——核心文案数据无法入正式库 | 独立 DEV Task：建 ContentPage 表并导入 |
+| **逐页标题 / 副标题 / 正文小字** | 37 页 × 多字段 | ❌ 不可承载 | **影响**——核心内容数据无法入正式库 | 同上，随 ContentPage 建表一并导入 |
+| **收尾句（图文版 + 视频版）** | 8 条（4 图文 + 1 视频版覆盖） | ❌ 不可承载（无 closing_line 字段） | 不阻塞主流程，但渠道文案不完整 | 独立 DEV Task：ChannelTask 扩展 closing_line 字段 |
+| **《孩子出门总磨蹭》双渠道不同收尾句** | 2 条 | ❌ 不可承载 | 不阻塞，但差异数据暂存 Fixture | 同上，扩展后独立导入，禁止合并 |
+| **图稿文件 / 排版样张 / 生图候选** | 4 篇若干 | ❌ 不可承载（无资产表） | 不阻塞，但资产无法挂载 | 独立 DEV Task：资产体系设计 |
+| **视频制作细节（配音 / 音色 / 时码）** | 2 篇有视频任务 | ❌ 不可承载（video_status 只有状态枚举，无细节字段） | 不阻塞，但视频细节数据暂存 | 独立 DEV Task：wechat_channels 渠道扩展结构 |
+| **查重测试样本** | 8 条 | ❌ 不可承载（无查重模块） | 不影响导入，仅测试用 | 独立 DEV Task：查重引擎接入时导入 |
+| **安心小日常 / 爸妈在成长（空栏目）** | 2 条 | ✅ 可承载（6 条栏目含这 2 条空栏目） | 不影响，可直接导 | 直接导入，has_confirmed_articles=false |
+| **《积木倒了》发布状态 unverified** | 1 条 | ✅ 可承载（publish_status 字段） | 不影响，保持 unverified | 人工核实后更新枚举值 |
+
+---
+
+## 八、边界与约束
 
 - ❌ 不修改原始 DEV-D01 Fixture（`doubao/DEV-D01-content-fixtures` 分支保持冻结）
 - ❌ 不创建 Seeder / Migration / Laravel Model
