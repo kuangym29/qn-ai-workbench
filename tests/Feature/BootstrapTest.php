@@ -11,9 +11,10 @@ class BootstrapTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_homepage_renders_inertia_bootstrap_page(): void
+    public function test_homepage_redirects_to_projects_and_bootstrap_page_remains_available(): void
     {
-        $this->get('/')->assertOk()->assertInertia(fn (Assert $page) => $page->component('Bootstrap'));
+        $this->get('/')->assertRedirect('/projects');
+        $this->get('/bootstrap')->assertOk()->assertInertia(fn (Assert $page) => $page->component('Bootstrap'));
     }
 
     public function test_project_and_column_tables_exist(): void
