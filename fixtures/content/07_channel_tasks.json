@@ -1,0 +1,16 @@
+{
+  "_meta": {
+    "fixture_version": "DEV-D01",
+    "generated_at": "2026-10-01",
+    "note": "Channel Task（渠道任务）层。同一 Content Item 可对应多个渠道任务；图文渠道与视频渠道独立，状态不互相推断。",
+    "key_rule": "《孩子出门总磨蹭》图文渠道与视频渠道使用不同的第09页收尾句，作为两条独立渠道任务保存，禁止合并覆盖。"
+  },
+  "channel_tasks": [
+    {"id": "CT-LIFE-001-WX", "production_task_id": "PT-LIFE-001-IMG", "content_item_id": "CI-LIFE-001", "channel": "微信公众号", "format": "图文轮播", "status": "not_published", "status_detail": "公众号3:4有字定稿未制作；不能把现有十页长图缩成公众号正式稿。", "closing_line_used": "你在身边，／“我自己来”更有底气。", "closing_line_source": "历史固定栏目句（图文版）"},
+    {"id": "CT-LIFE-001-SPH", "production_task_id": "PT-LIFE-001-VID", "content_item_id": "CI-LIFE-001", "channel": "微信视频号", "format": "动态视频", "status": "not_published", "status_detail": "动态故事包可执行，视频待验收；手机预览待做。", "closing_line_used": "你等的这一会儿，／是她自己来的底气。", "closing_line_source": "本篇专属（动态视频版）", "note": "与公众号图文版收尾句不同，独立版本"},
+    {"id": "CT-EMO-001-WX", "production_task_id": "PT-EMO-001-IMG", "content_item_id": "CI-EMO-001", "channel": "微信公众号", "format": "图文轮播", "status": "artwork_finalized_publish_unverified", "status_detail": "图文发布定稿已确认，但平台实际发布状态未核实，不得默认已发布。", "closing_line_used": "你肯听，情绪就有了出口。", "closing_line_source": "历史固定栏目句"},
+    {"id": "CT-EMO-001-SPH", "production_task_id": "PT-EMO-001-VID", "content_item_id": "CI-EMO-001", "channel": "微信视频号", "format": "动态视频", "status": "not_published", "status_detail": "V7为重剪任务单，视频待验收。", "closing_line_used": "你肯听，情绪就有了出口。", "closing_line_source": "V7重剪沿用"},
+    {"id": "CT-SOC-001-WX", "production_task_id": "PT-SOC-001-IMG", "content_item_id": "CI-SOC-001", "channel": "微信公众号", "format": "图文轮播", "status": "not_published", "status_detail": "文案已确认，图稿未制作。", "closing_line_used": "轮流不是催姐姐让，／而是让两个孩子都被听见。", "closing_line_source": "本篇专属"},
+    {"id": "CT-GROW-001-WX", "production_task_id": "PT-GROW-001-IMG", "content_item_id": "CI-GROW-001", "channel": "微信公众号", "format": "图文轮播", "status": "not_published", "status_detail": "文案已确认，图稿候选在审未交付。", "closing_line_used": "他把纸箱当成小店，／你认真走进他的想象。", "closing_line_source": "本篇专属"}
+  ]
+}
