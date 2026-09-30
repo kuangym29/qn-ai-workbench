@@ -1,15 +1,38 @@
-# DEV-D01 → 新架构 Schema 映射说明
+# DEV-D01 → 正式 Schema 映射说明（V2）
 
 > 分支：`doubao/DEV-D01-schema-mapping`
-> 生成日期：2026-10-01
+> 更新日期：2026-10-01
 > 原始 Fixture 分支：`doubao/DEV-D01-content-fixtures`（冻结，不修改）
+> 正式 Schema 基线：DEV-002 已定稿，未进入 DEV-002 的能力留待后续独立任务
 > 本文档仅做映射说明，不创建 Seeder / Migration / Model。
 
 ---
 
-## 一、新旧架构对比
+## 一、正式 Schema 基线（DEV-002 已定稿）
 
-### 旧 Fixture 结构（DEV-D01 原始）
+### 已正式存在的表与字段
+
+| 表 | 正式字段 |
+| --- | --- |
+| **Project** | `id`, `name`, `slug`, `description` |
+| **ContentColumn** | `id`, `project_id`, `name`, `slug`, `description`, `sort_order` |
+| **Topic** | `id`, `project_id`, `content_column_id`, `title`, `description` |
+| **ContentItem** | `id`, `project_id`, `content_column_id`, `topic_id`, `title`, `copy_status` |
+| **ProductionTask** | `id`, `project_id`, `content_item_id`, `artwork_status` |
+| **ChannelTask** | `id`, `project_id`, `production_task_id`, `channel`, `video_status`, `publish_status` |
+
+### 正式渠道枚举值
+
+| 值 | 含义 |
+| --- | --- |
+| `wechat_official` | 微信公众号 |
+| `wechat_channels` | 微信视频号 |
+
+---
+
+## 二、新旧架构对比
+
+### 旧 Fixture 结构（DEV-D01 原始，已冻结）
 
 ```
 Project
@@ -18,192 +41,199 @@ Project
           └─ ContentItem（篇目）
               ├─ ContentPage × N（逐页）
               ├─ ProductionTask (image_carousel)  ← 图文制作任务
-              │   └─ ChannelTask (wechat_official)
+              │   └─ ChannelTask (微信公众号)
               └─ ProductionTask (dynamic_story_video)  ← 视频制作任务
-                  └─ ChannelTask (wechat_channels)
+                  └─ ChannelTask (微信视频号)
 ```
 
-**旧结构问题**：图文和视频各自拥有独立的 ProductionTask，图稿状态和视频状态散落在两个任务对象里，后续资产体系无法统一挂载。
-
-### 新正式架构（DEV-002 定稿后）
+### 正式架构（DEV-002 已定稿）
 
 ```
 Project
   └─ ContentColumn（小栏目）
       └─ Topic（选题）
           └─ ContentItem（篇目）
-              ├─ ContentPage × N（逐页）
-              └─ ProductionTask（共享，唯一）  ← 承载图文图稿、文案、排版等资产
+              └─ ProductionTask（共享，唯一）  ← 图稿状态在此
                   ├─ ChannelTask (wechat_official)  ← 公众号渠道
-                  └─ ChannelTask (wechat_channels)  ← 视频号渠道（含视频制作状态扩展）
+                  └─ ChannelTask (wechat_channels)  ← 视频号渠道（video_status 在此）
 ```
 
-**核心变更**：
-- 每个 ContentItem 只保留 **一个** 共享 ProductionTask
-- 图文图稿状态进入共享 ProductionTask / 后续资产体系
-- 视频制作、配音、剪辑等状态下沉到 **视频号 ChannelTask** 的后续扩展结构
-- 公众号、视频号平级为两个 ChannelTask，共同挂在同一个 ProductionTask 下
+**核心转换规则（已确认）**：
+- 旧双 ProductionTask → 新单 Shared ProductionTask + 多 ChannelTask
+- 每个 ContentItem 只保留 **一个** ProductionTask
+- 图稿状态 `artwork_status` 存在共享 ProductionTask 上
+- 视频状态 `video_status` 存在 wechat_channels ChannelTask 上
+- 发布状态 `publish_status` 存在每个 ChannelTask 上
 
 ---
 
-## 二、逐篇映射说明（4 篇 / 37 页）
+## 三、逐篇映射说明（4 篇 / 37 页）
 
 ### 篇 1：《孩子出门总磨蹭》CI-LIFE-001（生活小能力，10 页）
 
-| 旧对象 | 新归属 | 说明 |
+| 旧对象 | 正式归属 | 说明 |
 | --- | --- | --- |
-| ContentItem CI-LIFE-001 | ContentItem（不变） | 主数据直接迁移 |
-| ContentPage × 10 | ContentPage × 10（不变） | 逐页文案直接迁移 |
-| PT-LIFE-001-IMG（图文制作） | **ProductionTask（共享）** | 图稿状态 `proof_rendered_pending_final_acceptance` 迁入共享任务 |
-| PT-LIFE-001-VID（动态视频） | **wechat_channels ChannelTask 扩展结构** | 视频状态 `executable_pending_acceptance` 不再独立为 ProductionTask |
-| CT-LIFE-001-WX（公众号） | ChannelTask (channel=wechat_official) | 直接迁移，收尾句不变 |
-| CT-LIFE-001-SPH（视频号） | ChannelTask (channel=wechat_channels) | 直接迁移，视频制作状态挂在本渠道任务的扩展字段 |
+| ContentItem CI-LIFE-001 | ContentItem（正式表） | `id`, `title` 直接迁移 |
+| ContentPage × 10 | **正式 Schema 尚未承载** | 历史数据已存在，待后续独立任务建表 |
+| PT-LIFE-001-IMG（图文制作） | **ProductionTask（共享）** | `artwork_status` 迁入正式字段 |
+| PT-LIFE-001-VID（动态视频） | **ChannelTask (wechat_channels)** | `video_status` 迁入正式字段，不再独立为 ProductionTask |
+| CT-LIFE-001-WX（公众号） | ChannelTask (channel=wechat_official) | `publish_status` 直接迁移 |
+| CT-LIFE-001-SPH（视频号） | ChannelTask (channel=wechat_channels) | `publish_status` 直接迁移 |
 
 **双渠道收尾句差异（必须保留，禁止覆盖）**：
 
-| 渠道 | 收尾句 | 来源 | 保存位置 |
-| --- | --- | --- | --- |
-| 公众号图文 | 你在身边，/"我自己来"更有底气。 | 历史固定栏目句 | wechat_official ChannelTask.closing_line |
-| 视频号动态 | 你等的这一会儿，/是她自己来的底气。 | 本篇专属（动态视频版） | wechat_channels ChannelTask.closing_line |
+| 渠道 | 旧收尾句 | 正式 Schema 状态 |
+| --- | --- | --- |
+| 公众号图文（wechat_official） | 你在身边，/"我自己来"更有底气。 | **正式 Schema 尚未承载**——无 `closing_line` 字段 |
+| 视频号动态（wechat_channels） | 你等的这一会儿，/是她自己来的底气。 | **正式 Schema 尚未承载**——无 `closing_line` 字段 |
 
-> 两句都含"底气"但整句及故事落点不同；在新结构中分属两个 ChannelTask，天然独立，不会互相覆盖。
+> 两句都含"底气"但整句及故事落点不同。当前正式 Schema 无收尾句字段，历史数据完整保留在 Fixture 中；收尾句归属待后续独立任务建模时确认，**不得合并覆盖**。
 
 ---
 
 ### 篇 2：《积木倒了，孩子哭了》CI-EMO-001（看见小情绪，9 页）
 
-| 旧对象 | 新归属 | 说明 |
+| 旧对象 | 正式归属 | 说明 |
 | --- | --- | --- |
-| ContentItem CI-EMO-001 | ContentItem（不变） | 主数据直接迁移 |
-| ContentPage × 9 | ContentPage × 9（不变） | 逐页文案直接迁移 |
-| PT-EMO-001-IMG（图文制作） | **ProductionTask（共享）** | 图稿状态 `final_artwork_confirmed` 迁入共享任务 |
-| PT-EMO-001-VID（V7 重剪） | **wechat_channels ChannelTask 扩展结构** | 视频状态 `reedit_task_order_pending` 挂在视频号渠道任务 |
-| CT-EMO-001-WX（公众号） | ChannelTask (channel=wechat_official) | 直接迁移 |
-| CT-EMO-001-SPH（视频号） | ChannelTask (channel=wechat_channels) | 直接迁移 |
+| ContentItem CI-EMO-001 | ContentItem（正式表） | `id`, `title` 直接迁移 |
+| ContentPage × 9 | **正式 Schema 尚未承载** | 历史数据已存在，待后续独立任务建表 |
+| PT-EMO-001-IMG（图文制作） | **ProductionTask（共享）** | `artwork_status` 迁入正式字段 |
+| PT-EMO-001-VID（V7 重剪） | **ChannelTask (wechat_channels)** | `video_status` 迁入正式字段 |
+| CT-EMO-001-WX（公众号） | ChannelTask (channel=wechat_official) | `publish_status` 直接迁移 |
+| CT-EMO-001-SPH（视频号） | ChannelTask (channel=wechat_channels) | `publish_status` 直接迁移 |
 
-**发布状态保持 unknown / 待人工核实**：
-- 旧字段 `publish_status = artwork_finalized_platform_publish_unverified`
-- 新结构中继续保留为 `publish_status = unverified`，**不得**因图稿已定稿就推断已发布。
-- 该项列入人工待核清单，待主程或运营确认后再更新。
+**发布状态保持待人工核实**：
+- 旧值：`artwork_finalized_platform_publish_unverified`
+- 正式字段：`ChannelTask.publish_status`
+- 当前值：**保持 unverified 语义**，不得因图稿已定稿就推断已发布
+- 该项列入人工待核清单，待主程或运营确认后再更新
 
 ---
 
 ### 篇 3：《弟弟想玩车，姐姐还没玩完》CI-SOC-001（相处小智慧，10 页）
 
-| 旧对象 | 新归属 | 说明 |
-| --- | --- | --- |
-| ContentItem CI-SOC-001 | ContentItem（不变） | 主数据直接迁移 |
-| ContentPage × 10 | ContentPage × 10（不变） | 逐页文案直接迁移 |
-| PT-SOC-001-IMG（图文制作） | **ProductionTask（共享）** | 图稿状态 `not_produced` 迁入共享任务 |
+| 旧对象 | 正式归属 | 说明 |
+| --- | | --- |
+| ContentItem CI-SOC-001 | ContentItem（正式表） | `id`, `title` 直接迁移 |
+| ContentPage × 10 | **正式 Schema 尚未承载** | 历史数据已存在，待后续独立任务建表 |
+| PT-SOC-001-IMG（图文制作） | **ProductionTask（共享）** | `artwork_status` 迁入正式字段 |
 | （无视频制作任务） | **无 wechat_channels ChannelTask** | 本篇只有公众号渠道，不创建视频号渠道任务 |
-| CT-SOC-001-WX（公众号） | ChannelTask (channel=wechat_official) | 直接迁移 |
+| CT-SOC-001-WX（公众号） | ChannelTask (channel=wechat_official) | `publish_status` 直接迁移 |
 
-> 状态机边界：文案已确认（2026-09-30）≠ 图稿已定稿 ≠ 视频已启动。新结构中继续保持四状态独立。
+> 状态机边界：文案状态（`copy_status`）≠ 图稿状态（`artwork_status`）≠ 视频状态（`video_status`）≠ 发布状态（`publish_status`）。正式 Schema 中四状态分属不同表，天然独立。
 
 ---
 
 ### 篇 4：《一只纸箱，开了家水果店》CI-GROW-001（原来在长大，8 页）
 
-| 旧对象 | 新归属 | 说明 |
+| 旧对象 | 正式归属 | 说明 |
 | --- | --- | --- |
-| ContentItem CI-GROW-001 | ContentItem（不变） | 主数据直接迁移 |
-| ContentPage × 8 | ContentPage × 8（不变） | 逐页文案直接迁移 |
-| PT-GROW-001-IMG（图文制作） | **ProductionTask（共享）** | 图稿状态 `candidates_in_review_not_finalized` 迁入共享任务 |
+| ContentItem CI-GROW-001 | ContentItem（正式表） | `id`, `title` 直接迁移 |
+| ContentPage × 8 | **正式 Schema 尚未承载** | 历史数据已存在，待后续独立任务建表 |
+| PT-GROW-001-IMG（图文制作） | **ProductionTask（共享）** | `artwork_status` 迁入正式字段 |
 | （无视频制作任务） | **无 wechat_channels ChannelTask** | 本篇只有公众号渠道，不创建视频号渠道任务 |
-| CT-GROW-001-WX（公众号） | ChannelTask (channel=wechat_official) | 直接迁移 |
+| CT-GROW-001-WX（公众号） | ChannelTask (channel=wechat_official) | `publish_status` 直接迁移 |
 
-> 第05页有单张复工验收记录，但整套图稿未正式交付，新结构中继续保持 `candidates_in_review_not_finalized`。
-
----
-
-## 三、字段映射总表
-
-### 3.1 Project / ContentColumn / Topic / ContentItem 层
-
-| 旧字段 | 新字段 / 未来模块 | 是否可自动迁移 | 是否需要人工确认 |
-| --- | --- | --- | --- |
-| Project.id | Project.id | ✅ 直接迁移 | ❌ |
-| Project.name / brand / operator | Project.name / brand / operator | ✅ 直接迁移 | ❌ |
-| Project.platforms | Project.platforms | ✅ 直接迁移 | ❌ |
-| Column.id / name / slug | ContentColumn.id / name / slug | ✅ 直接迁移 | ❌ |
-| Column.historical_closing_line | ContentColumn.default_closing_line | ⚠️ 字段名待对齐 | ❌ |
-| Column.has_confirmed_articles | ContentColumn.has_confirmed_articles | ✅ 直接迁移 | ❌ |
-| Topic.id / title / slug | Topic.id / title / slug | ✅ 直接迁移 | ❌ |
-| Topic.core_question | Topic.core_question | ✅ 直接迁移 | ❌ |
-| Topic.status | Topic.status | ✅ 直接迁移 | ❌ |
-| ContentItem.id / title / page_count | ContentItem.id / title / page_count | ✅ 直接迁移 | ❌ |
-| ContentItem.copy_confirmed | ContentItem.copy_confirmed | ✅ 直接迁移 | ❌ |
-| ContentItem.copy_confirmed_date | ContentItem.copy_confirmed_at | ⚠️ 字段名待对齐 | ❌ |
-| ContentItem.script_source_path | ContentItem.script_source_path | ✅ 直接迁移 | ❌ |
-| ContentItem.final_copy_source | ContentItem.final_copy_source | ✅ 直接迁移 | ❌ |
-
-### 3.2 ProductionTask 层（旧两个 → 新一个共享）
-
-| 旧字段 | 新字段 / 未来模块 | 是否可自动迁移 | 是否需要人工确认 |
-| --- | --- | --- | --- |
-| PT-LIFE-001-IMG / PT-EMO-001-IMG / PT-SOC-001-IMG / PT-GROW-001-IMG | **ProductionTask（共享，每个 ContentItem 一个）** | ⚠️ 合并迁移，需主程确认合并规则 | ⚠️ 需确认 |
-| ProductionTask.type = image_carousel | ProductionTask.primary_format = image_carousel | ⚠️ 语义对齐 | ❌ |
-| ProductionTask.target_spec | ProductionTask.primary_asset_spec | ⚠️ 字段名待对齐 | ❌ |
-| ProductionTask.status（图稿相关） | ProductionTask.artwork_status / asset_status | ⚠️ 拆分到资产体系 | ⚠️ 需确认枚举 |
-| ProductionTask.artifact_path | ProductionTask.primary_asset_path | ⚠️ 字段名待对齐 | ❌ |
-| ~~ProductionTask.type = dynamic_story_video~~ | **删除**（视频任务下沉到 ChannelTask） | ✅ 自动下沉 | ❌ |
-| ~~PT-LIFE-001-VID / PT-EMO-001-VID~~ | **wechat_channels ChannelTask.video_production 扩展结构** | ⚠️ 迁移到渠道任务扩展 | ⚠️ 需确认扩展结构 |
-| ~~ProductionTask.closing_line_override（视频版收尾句）~~ | **ChannelTask.closing_line（wechat_channels）** | ✅ 直接迁移 | ❌ |
-
-### 3.3 ChannelTask 层
-
-| 旧字段 | 新字段 / 未来模块 | 是否可自动迁移 | 是否需要人工确认 |
-| --- | --- | --- | --- |
-| ChannelTask.channel = 微信公众号 | ChannelTask.channel = wechat_official | ✅ 枚举值对齐 | ❌ |
-| ChannelTask.channel = 微信视频号 | ChannelTask.channel = wechat_channels | ✅ 枚举值对齐 | ❌ |
-| ChannelTask.format | ChannelTask.format | ✅ 直接迁移 | ❌ |
-| ChannelTask.status | ChannelTask.publish_status | ⚠️ 字段名待对齐 | ❌ |
-| ChannelTask.status_detail | ChannelTask.publish_status_detail | ⚠️ 字段名待对齐 | ❌ |
-| ChannelTask.closing_line_used | ChannelTask.closing_line | ⚠️ 字段名待对齐 | ❌ |
-| ChannelTask.closing_line_source | ChannelTask.closing_line_source | ✅ 直接迁移 | ❌ |
-| （旧 PT-VID 中的视频状态） | ChannelTask.video_production.status（wechat_channels 扩展） | ⚠️ 新增扩展结构 | ⚠️ 需主程设计 |
-| （旧 PT-VID 中的配音/剪辑/时码） | ChannelTask.video_production.* （未来扩展） | ❌ 暂不迁移 | ⚠️ 待人工补充 |
-
-### 3.4 ContentPage 层
-
-| 旧字段 | 新字段 / 未来模块 | 是否可自动迁移 | 是否需要人工确认 |
-| --- | --- | --- | --- |
-| Page.id / content_item_id / page_no | Page.id / content_item_id / page_no | ✅ 直接迁移 | ❌ |
-| Page.page_type | Page.page_type | ✅ 直接迁移 | ❌ |
-| Page.cover_title / cover_subtitle | Page.cover_title / cover_subtitle | ✅ 直接迁移 | ❌ |
-| Page.content_title / small_text | Page.content_title / small_text | ✅ 直接迁移 | ❌ |
-| Page.closing_line | Page.closing_line | ✅ 直接迁移 | ❌ |
-| Page.closing_line_version | Page.closing_line_version | ✅ 直接迁移 | ❌ |
-| Page.closing_source | Page.closing_source | ✅ 直接迁移 | ❌ |
+> 第05页有单张复工验收记录，但整套图稿未正式交付，`artwork_status` 继续保持候选在审语义。
 
 ---
 
-## 四、状态独立性约束（新架构下继续遵守）
+## 四、字段映射总表（按三类划分）
 
-| 状态维度 | 新结构中的位置 | 约束 |
+### 4.1 正式已存在 —— 可直接迁移
+
+| 旧 Fixture 字段 | 正式字段 | 表 | 迁移方式 |
+| --- | --- | --- | --- |
+| Project.id | Project.id | Project | 直接迁移 |
+| Project.name | Project.name | Project | 直接迁移 |
+| Project.slug | Project.slug | Project | 正式已存在，历史数据待补 |
+| Project.description | Project.description | Project | 正式已存在，历史数据待补 |
+| ContentColumn.id | ContentColumn.id | ContentColumn | 直接迁移 |
+| ContentColumn.name | ContentColumn.name | ContentColumn | 直接迁移 |
+| ContentColumn.slug | ContentColumn.slug | ContentColumn | 正式已存在，可迁移 |
+| ContentColumn.description | ContentColumn.description | ContentColumn | 正式已存在，可迁移 |
+| Topic.id | Topic.id | Topic | 直接迁移 |
+| Topic.title | Topic.title | Topic | 直接迁移 |
+| ContentItem.id | ContentItem.id | ContentItem | 直接迁移 |
+| ContentItem.title | ContentItem.title | ContentItem | 直接迁移 |
+| ContentItem.copy_confirmed | **ContentItem.copy_status** | ContentItem | 布尔值映射为状态枚举，待主程确认枚举值 |
+| ProductionTask.status（图稿相关） | **ProductionTask.artwork_status** | ProductionTask | 旧枚举值映射为正式枚举，待主程确认 |
+| ProductionTask.status（视频相关） | **ChannelTask.video_status** | ChannelTask | 从旧 PT-VID 下沉到 wechat_channels 渠道任务 |
+| ChannelTask.channel = 微信公众号 | **ChannelTask.channel = wechat_official** | ChannelTask | 枚举值对齐 |
+| ChannelTask.channel = 微信视频号 | **ChannelTask.channel = wechat_channels** | ChannelTask | 枚举值对齐 |
+| ChannelTask.status | **ChannelTask.publish_status** | ChannelTask | 旧状态值映射为正式枚举，待主程确认 |
+
+### 4.2 后续待建模 —— 历史数据已存在，正式 Schema 尚未承载
+
+> 以下字段在 DEV-D01 Fixture 中有数据，但 DEV-002 正式 Schema 中**不存在**。建议归属仅为参考，最终由主程在后续独立任务中决定。
+
+| 旧 Fixture 字段 | 历史数据量 | 建议归属（待主程确认） | 备注 |
+| --- | --- | --- | --- |
+| Project.brand | 1 条 | Project（扩展字段，待建模） | 正式 Schema 无此字段 |
+| Project.operator | 1 条 | Project（扩展字段，待建模） | 正式 Schema 无此字段 |
+| Project.platforms | 1 条 | Project（扩展字段，待建模） | 正式 Schema 无此字段 |
+| ContentColumn.sort_order | 0 条 | ContentColumn.sort_order | 正式 Schema 已存在，历史数据中未提供，待补 |
+| ContentColumn.historical_closing_line | 6 条 | ContentColumn（扩展字段，待建模） | 正式 Schema 无此字段 |
+| ContentColumn.has_confirmed_articles | 6 条 | ContentColumn（扩展字段，待建模） | 正式 Schema 无此字段 |
+| Topic.slug | 4 条 | Topic（扩展字段，待建模） | 正式 Schema 无此字段 |
+| Topic.core_question / description | 4 条 | Topic.description | 正式 Schema 有 description，可迁移 |
+| Topic.status / confirmed_date | 4 条 | Topic（扩展字段，待建模） | 正式 Schema 无此字段 |
+| ContentItem.page_count | 4 条 | ContentItem（扩展字段，待建模） | 正式 Schema 无此字段 |
+| ContentItem.copy_confirmed_date | 4 条 | ContentItem（扩展字段，待建模） | 正式 Schema 无此字段 |
+| ContentItem.script_source_path | 4 条 | ContentItem（扩展字段，待建模） | 正式 Schema 无此字段 |
+| ContentItem.final_copy_source | 4 条 | ContentItem（扩展字段，待建模） | 正式 Schema 无此字段 |
+| ContentItem.special_notes | 4 条 | ContentItem（扩展字段，待建模） | 正式 Schema 无此字段 |
+| **ContentPage 全部字段** | 37 条 | **独立 ContentPage 表（待建模）** | 正式 Schema 中不存在此表，待后续独立任务建表 |
+| ProductionTask.target_spec | 4 条 | ProductionTask（扩展字段，待建模） | 正式 Schema 无此字段 |
+| ProductionTask.status_detail | 6 条 | ProductionTask（扩展字段，待建模） | 正式 Schema 无此字段 |
+| ProductionTask.artifact_path | 4 条 | ProductionTask（扩展字段，待建模） | 正式 Schema 无此字段 |
+| ProductionTask.closing_line_override | 1 条 | ChannelTask（wechat_channels，扩展字段，待建模） | 正式 Schema 无此字段 |
+| ChannelTask.format | 6 条 | ChannelTask（扩展字段，待建模） | 正式 Schema 无此字段 |
+| ChannelTask.status_detail | 6 条 | ChannelTask（扩展字段，待建模） | 正式 Schema 无此字段 |
+| ChannelTask.closing_line_used | 6 条 | ChannelTask（扩展字段，待建模） | 正式 Schema 无此字段 |
+| ChannelTask.closing_line_source | 6 条 | ChannelTask（扩展字段，待建模） | 正式 Schema 无此字段 |
+
+### 4.3 尚未决定 —— 不写入正式 Schema，待主程规划
+
+| 项目 | 说明 |
+| --- | --- |
+| 资产文件（排版样张、生图候选、定稿图、视频 MP4 等） | 如何挂载到 ProductionTask / ChannelTask，待主程设计资产体系 |
+| 视频配音、角色音色、时码、剪辑单 | 属于视频制作细节，待 wechat_channels 渠道扩展建模时决定 |
+| 查重引擎与测试样本 | 8 条测试样本如何接入正式查重模块，待后续独立任务 |
+| 中央导航 / 栏目收尾句 PNG | 历史素材如何关联，待主程设计 |
+
+---
+
+## 五、状态独立性约束（正式 Schema 下的表现）
+
+| 状态维度 | 正式表.字段 | 约束 |
 | --- | --- | --- |
-| 文案确认 | ContentItem.copy_confirmed | 文案确认 ≠ 图稿定稿 |
-| 图稿 / 资产制作 | ProductionTask.artwork_status | 图稿定稿 ≠ 视频验收 |
-| 视频制作 | wechat_channels ChannelTask.video_production.status | 视频验收 ≠ 已发布 |
-| 渠道发布 | ChannelTask.publish_status | 发布状态独立，不得从前置状态推断 |
+| 文案状态 | ContentItem.copy_status | 文案确认 ≠ 图稿定稿 |
+| 图稿状态 | ProductionTask.artwork_status | 图稿定稿 ≠ 视频验收 |
+| 视频状态 | ChannelTask.video_status | 视频验收 ≠ 已发布 |
+| 发布状态 | ChannelTask.publish_status | 发布状态独立，不得从前置状态推断 |
+
+> 四个状态分属不同表，正式 Schema 层面天然隔离，不存在互相推断的可能。
 
 ---
 
-## 五、人工待核项（继续保留）
+## 六、人工待核项（继续保留）
 
-1. **《积木倒了，孩子哭了》实际发布状态**：图文发布定稿已确认，但平台实际发布状态未核实。新结构中继续保持 `unverified`，待人工确认后更新。
-2. **查重测试样本阈值校准**：8 条测试样本的期望检测级别（exact_match / high_similarity_warning / no_duplicate）需主程根据正式查重引擎能力校准。
-3. **视频号 ChannelTask 扩展结构设计**：视频制作状态、配音、剪辑、时码等字段的具体 schema 待主程 DEV-002 定稿。
-4. **ProductionTask 与资产体系的挂载方式**：图稿文件、排版样张、生图候选等如何挂到共享 ProductionTask 的资产子体系，待主程设计。
+1. **《积木倒了，孩子哭了》实际发布状态**：图文图稿已定稿，但公众号渠道 `publish_status` 仍为 unverified。待人工确认是否已在公众号实际发布。
+2. **查重测试样本阈值校准**：8 条测试样本的期望检测级别需主程根据正式查重引擎能力校准。
+3. **旧状态枚举 → 正式枚举的映射关系**：旧 Fixture 中的状态值（如 `proof_rendered_pending_final_acceptance`）需映射为正式 Schema 中的枚举值，待主程提供枚举定义后对齐。
+4. **ContentPage 表建模**：37 页逐页文案是核心历史数据，正式 Schema 中尚未建表，待后续独立任务。
 
 ---
 
-## 六、边界与约束
+## 七、边界与约束
 
 - ❌ 不修改原始 DEV-D01 Fixture（`doubao/DEV-D01-content-fixtures` 分支保持冻结）
 - ❌ 不创建 Seeder / Migration / Laravel Model
 - ❌ 不重新生成 Fixture 数据
-- ✅ 本文档仅为映射说明，供主程 DEV-002 数据库 Schema 定稿后参考
-- ✅ 所有字段迁移标注了"是否可自动迁移"和"是否需要人工确认"
-- ✅ 《孩子出门总磨蹭》双渠道收尾句差异在新结构中天然独立，不会覆盖
-- ✅ 《积木倒了》发布状态继续保持 unknown / 待人工核实
+- ❌ 不把"后续待建模"或"尚未决定"的字段写成正式 Schema 已存在
+- ✅ 本文档仅为映射说明，供主程 DEV-002 正式 Schema 已定稿后参考
+- ✅ 4 篇 37 页历史数据在 Fixture 中完整保留，不丢失
+- ✅ 《孩子出门总磨蹭》双渠道收尾句差异明确标注，待后续建模时独立保存，不覆盖
+- ✅ 《积木倒了》发布状态继续保持 unverified / 待人工核实
+- ✅ 旧双 ProductionTask → 新单共享 ProductionTask + 多 ChannelTask 的转换规则已确认
