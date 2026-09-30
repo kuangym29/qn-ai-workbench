@@ -1,0 +1,45 @@
+{
+  "_meta": {
+    "fixture_version": "DEV-D01",
+    "generated_at": "2026-10-01",
+    "note": "Topic（选题）层。每个选题下对应一篇已确认的 Content Item。"
+  },
+  "topics": [
+    {
+      "id": "TOPIC-LIFE-001",
+      "column_id": "COL-LIFE-001",
+      "title": "孩子出门总磨蹭",
+      "slug": "kid-slow-walking-out",
+      "core_question": "孩子出门前磨蹭不动，家长怎么把催促换成孩子听得懂的一小步？",
+      "status": "script_confirmed",
+      "confirmed_date": "2026-09-27"
+    },
+    {
+      "id": "TOPIC-EMO-001",
+      "column_id": "COL-EMO-001",
+      "title": "积木倒了，孩子哭了",
+      "slug": "blocks-fallen-crying",
+      "core_question": "孩子搭了很久的积木倒了大哭，妈妈怎么先接住情绪再谈重建？",
+      "status": "script_confirmed",
+      "confirmed_date": "2026-09-27"
+    },
+    {
+      "id": "TOPIC-SOC-001",
+      "column_id": "COL-SOC-001",
+      "title": "弟弟想玩车，姐姐还没玩完",
+      "slug": "siblings-turn-taking-car",
+      "core_question": "弟弟抢姐姐正在玩的小车，妈妈怎么让两个孩子的需要都被听见？",
+      "status": "script_confirmed",
+      "confirmed_date": "2026-09-30"
+    },
+    {
+      "id": "TOPIC-GROW-001",
+      "column_id": "COL-GROW-001",
+      "title": "一只纸箱，开了家水果店",
+      "slug": "cardboard-box-fruit-shop",
+      "core_question": "孩子用纸箱玩假装水果店，家长怎么认真走进他的想象？",
+      "status": "script_confirmed",
+      "confirmed_date": "2026-09-29"
+    }
+  ]
+}
