@@ -1,0 +1,65 @@
+{
+  "_meta": {
+    "fixture_version": "DEV-D01",
+    "generated_at": "2026-10-01",
+    "note": "小栏目（Column）主数据。安心小日常、爸妈在成长目前没有正式确认文章，仅登记栏目存在，不填充历史草稿。"
+  },
+  "columns": [
+    {
+      "id": "COL-LIFE-001",
+      "project_id": "PRJ-QN-001",
+      "name": "生活小能力",
+      "slug": "life-skills",
+      "description": "聚焦孩子日常自理能力（穿鞋、出门、吃饭等）的亲子引导内容",
+      "has_confirmed_articles": true,
+      "historical_closing_line": "你在身边，“我自己来”更有底气。"
+    },
+    {
+      "id": "COL-EMO-001",
+      "project_id": "PRJ-QN-001",
+      "name": "看见小情绪",
+      "slug": "emotions",
+      "description": "聚焦孩子情绪识别与回应（哭闹、失落、害怕等）的亲子内容",
+      "has_confirmed_articles": true,
+      "historical_closing_line": "你肯听，情绪就有了出口。"
+    },
+    {
+      "id": "COL-SOC-001",
+      "project_id": "PRJ-QN-001",
+      "name": "相处小智慧",
+      "slug": "siblings-social",
+      "description": "聚焦兄弟姐妹互动、同伴交往中的冲突解决内容",
+      "has_confirmed_articles": true,
+      "historical_closing_line": "爱是靠近，也懂得留出空间。"
+    },
+    {
+      "id": "COL-GROW-001",
+      "project_id": "PRJ-QN-001",
+      "name": "原来在长大",
+      "slug": "growing-up",
+      "description": "聚焦孩子假装游戏、探索学习、独立成长瞬间的内容",
+      "has_confirmed_articles": true,
+      "historical_closing_line": "他不是突然长大，只是你今天刚好看见。"
+    },
+    {
+      "id": "COL-DAILY-001",
+      "project_id": "PRJ-QN-001",
+      "name": "安心小日常",
+      "slug": "daily-peace",
+      "description": "日常照料、生活节奏类内容",
+      "has_confirmed_articles": false,
+      "note": "目前没有正式确认文章，不得拿历史草稿填充。",
+      "historical_closing_line": "你多一分细心，日子就多一分从容。"
+    },
+    {
+      "id": "COL-PARENT-001",
+      "project_id": "PRJ-QN-001",
+      "name": "爸妈在成长",
+      "slug": "parent-growth",
+      "description": "父母自身成长、情绪调节类内容",
+      "has_confirmed_articles": false,
+      "note": "目前没有正式确认文章，不得拿历史草稿填充。",
+      "historical_closing_line": "你也值得被好好照顾。"
+    }
+  ]
+}
