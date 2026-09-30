@@ -1,0 +1,73 @@
+{
+  "_meta": {
+    "fixture_version": "DEV-D01",
+    "generated_at": "2026-10-01",
+    "note": "Content Item（篇目）层。每篇对应一个 Topic。文案已确认 ≠ 图稿已定稿 ≠ 视频已验收 ≠ 已发布。"
+  },
+  "content_items": [
+    {
+      "id": "CI-LIFE-001",
+      "topic_id": "TOPIC-LIFE-001",
+      "title": "孩子出门总磨蹭",
+      "page_count": 10,
+      "script_source_path": "2.5D家庭IP形象/04_内容与封面模板/图文轮播标准/孩子出门总磨蹭_十页补全_待确认/逐页内容脚本_待用户确认.md",
+      "final_copy_source": "01_2.5D家庭IP形象/生活小能力/图文/最终上图文案.md",
+      "copy_confirmed": true,
+      "copy_confirmed_date": "2026-09-27",
+      "artwork_status": "proof_rendered_pending_final_acceptance",
+      "artwork_note": "十页排版样张已制作（1242x2688）；双渠道3:4版未通过共用母版验收；整套手机端和实际视频号预览仍待验收。",
+      "video_status": "dynamic_story_package_executable_pending_acceptance",
+      "video_note": "动态故事制作包可执行，视频待验收。图文版与动态视频版收尾句不同，须作为独立渠道版本保存。",
+      "publish_status": "not_published",
+      "special_notes": "图文版第09页收尾句为历史栏目句；动态视频版第09页收尾句为本篇专属句，两句不同，禁止合并覆盖。"
+    },
+    {
+      "id": "CI-EMO-001",
+      "topic_id": "TOPIC-EMO-001",
+      "title": "积木倒了，孩子哭了",
+      "page_count": 9,
+      "script_source_path": "2.5D家庭IP形象/04_内容与封面模板/图文轮播标准/试稿_看见小情绪_积木倒了/11_v6九页逐页确认卡_待用户确认.md",
+      "final_copy_source": "01_2.5D家庭IP形象/看见小情绪/图文/最终上图文案.md",
+      "copy_confirmed": true,
+      "copy_confirmed_date": "2026-09-27",
+      "artwork_status": "final_artwork_confirmed",
+      "artwork_note": "图文发布定稿（12_v6_1242x2688手机端发布定稿），用户已于2026-09-28确认。",
+      "video_status": "v7_reedit_task_order_pending",
+      "video_note": "V7为重剪任务单，视频待验收。MP4为试听版，勿将文件夹名中的'定稿'误认为成片已正式发布。",
+      "publish_status": "artwork_finalized_platform_publish_unverified",
+      "special_notes": "第08页使用历史固定收尾句；视频V7逐字台词以剪辑单为准。"
+    },
+    {
+      "id": "CI-SOC-001",
+      "topic_id": "TOPIC-SOC-001",
+      "title": "弟弟想玩车，姐姐还没玩完",
+      "page_count": 10,
+      "script_source_path": "2.5D家庭IP形象/04_内容与封面模板/图文轮播标准/试稿_相处小智慧_姐弟都想玩小车/03_十页逐页确认卡_v2_待用户确认.md",
+      "final_copy_source": "01_2.5D家庭IP形象/相处小智慧/图文/最终上图文案.md",
+      "copy_confirmed": true,
+      "copy_confirmed_date": "2026-09-30",
+      "artwork_status": "not_produced",
+      "artwork_note": "图像尚未制作验收，无正式交付图。",
+      "video_status": "not_started",
+      "video_note": "无视频制作任务。",
+      "publish_status": "not_published",
+      "special_notes": "第09页为本篇专属收尾句，不调用历史栏目PNG。"
+    },
+    {
+      "id": "CI-GROW-001",
+      "topic_id": "TOPIC-GROW-001",
+      "title": "一只纸箱，开了家水果店",
+      "page_count": 8,
+      "script_source_path": "2.5D家庭IP形象/04_内容与封面模板/图文轮播标准/试稿_原来在长大_纸箱水果店/01_单篇生产任务单_逐页内容待确认.md",
+      "final_copy_source": "01_2.5D家庭IP形象/原来在长大/图文/最终上图文案.md",
+      "copy_confirmed": true,
+      "copy_confirmed_date": "2026-09-29",
+      "artwork_status": "candidates_in_review_not_finalized",
+      "artwork_note": "有生图候选与叠字试排，但未正式验收交付。第05页有单张复工验收记录。",
+      "video_status": "not_started",
+      "video_note": "无视频制作任务。",
+      "publish_status": "not_published",
+      "special_notes": "第07页为本篇专属收尾句，不调用历史栏目PNG。"
+    }
+  ]
+}
