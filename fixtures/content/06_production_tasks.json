@@ -5,11 +5,76 @@
     "note": "Production Task（制作任务）层。区分图文制作任务与视频制作任务，状态独立，不互相推断。"
   },
   "production_tasks": [
-    {"id": "PT-LIFE-001-IMG", "content_item_id": "CI-LIFE-001", "type": "image_carousel", "name": "《孩子出门总磨蹭》十页图文轮播", "target_spec": "1242x2688（视频号长图版）", "status": "proof_rendered_pending_final_acceptance", "status_detail": "十页排版样张已制作；双渠道3:4共用母版未通过；整套手机端和实际视频号预览仍待验收。", "artifact_path": "2.5D家庭IP形象/04_内容与封面模板/图文轮播标准/孩子出门总磨蹭_十页补全_待确认/02_排版样张/"},
-    {"id": "PT-LIFE-001-VID", "content_item_id": "CI-LIFE-001", "type": "dynamic_story_video", "name": "《孩子出门总磨蹭》动态故事制作包", "target_spec": "9:16 动态视频", "status": "executable_pending_acceptance", "status_detail": "动态故事包可执行，视频待验收。第09页使用专属收尾句，与图文版不同。", "artifact_path": "2.5D家庭IP形象/05_视频视觉基准/孩子出门总磨蹭_视频制作包_20260928/", "closing_line_version": "dynamic_video", "closing_line_override": "你等的这一会儿，／是她自己来的底气。"},
-    {"id": "PT-EMO-001-IMG", "content_item_id": "CI-EMO-001", "type": "image_carousel", "name": "《积木倒了，孩子哭了》v6九页图文轮播", "target_spec": "1242x2688 手机端发布版", "status": "final_artwork_confirmed", "status_detail": "用户已于2026-09-28确认发布定稿。", "artifact_path": "2.5D家庭IP形象/04_内容与封面模板/图文轮播标准/试稿_看见小情绪_积木倒了/12_v6_1242x2688手机端发布定稿/", "closing_line_version": "image_carousel"},
-    {"id": "PT-EMO-001-VID", "content_item_id": "CI-EMO-001", "type": "dynamic_story_video", "name": "《积木倒了，孩子哭了》V7重剪", "target_spec": "9:16 动态视频", "status": "reedit_task_order_pending", "status_detail": "V7为重剪任务单，视频待验收。MP4为试听版。", "artifact_path": "2.5D家庭IP形象/05_视频视觉基准/05_角色配音参考/看见小情绪_积木倒了_豆包工作项目目录_v6_发布定稿/", "closing_line_version": "v7_reedit"},
-    {"id": "PT-SOC-001-IMG", "content_item_id": "CI-SOC-001", "type": "image_carousel", "name": "《弟弟想玩车，姐姐还没玩完》十页图文轮播", "target_spec": "待定", "status": "not_produced", "status_detail": "逐页文案已确认，图像尚未制作。", "closing_line_version": "article_specific"},
-    {"id": "PT-GROW-001-IMG", "content_item_id": "CI-GROW-001", "type": "image_carousel", "name": "《一只纸箱，开了家水果店》八页图文轮播", "target_spec": "待定", "status": "candidates_in_review_not_finalized", "status_detail": "有生图候选与叠字试排，第05页有单张复工验收；整套未正式交付。", "artifact_path": "2.5D家庭IP形象/04_内容与封面模板/图文轮播标准/试稿_原来在长大_纸箱水果店/", "closing_line_version": "article_specific"}
+    {
+      "id": "PT-LIFE-001-IMG",
+      "content_item_id": "CI-LIFE-001",
+      "type": "image_carousel",
+      "name": "《孩子出门总磨蹭》十页图文轮播",
+      "target_spec": "1242x2688（视频号长图版）",
+      "status": "proof_rendered_pending_final_acceptance",
+      "status_detail": "十页排版样张已制作；双渠道3:4共用母版未通过；整套手机端和实际视频号预览仍待验收。",
+      "artifact_path": "2.5D家庭IP形象/04_内容与封面模板/图文轮播标准/孩子出门总磨蹭_十页补全_待确认/02_排版样张/",
+      "created_from": "逐页内容脚本_待用户确认.md"
+    },
+    {
+      "id": "PT-LIFE-001-VID",
+      "content_item_id": "CI-LIFE-001",
+      "type": "dynamic_story_video",
+      "name": "《孩子出门总磨蹭》动态故事制作包",
+      "target_spec": "9:16 动态视频",
+      "status": "executable_pending_acceptance",
+      "status_detail": "动态故事包可执行，视频待验收。第09页使用专属收尾句，与图文版不同。",
+      "artifact_path": "2.5D家庭IP形象/05_视频视觉基准/孩子出门总磨蹭_视频制作包_20260928/",
+      "closing_line_version": "dynamic_video",
+      "closing_line_override": "你等的这一会儿，／是她自己来的底气。"
+    },
+    {
+      "id": "PT-EMO-001-IMG",
+      "content_item_id": "CI-EMO-001",
+      "type": "image_carousel",
+      "name": "《积木倒了，孩子哭了》v6九页图文轮播",
+      "target_spec": "1242x2688 手机端发布版",
+      "status": "final_artwork_confirmed",
+      "status_detail": "用户已于2026-09-28确认发布定稿。",
+      "artifact_path": "2.5D家庭IP形象/04_内容与封面模板/图文轮播标准/试稿_看见小情绪_积木倒了/12_v6_1242x2688手机端发布定稿/",
+      "closing_line_version": "image_carousel",
+      "closing_line_override": null
+    },
+    {
+      "id": "PT-EMO-001-VID",
+      "content_item_id": "CI-EMO-001",
+      "type": "dynamic_story_video",
+      "name": "《积木倒了，孩子哭了》V7重剪",
+      "target_spec": "9:16 动态视频",
+      "status": "reedit_task_order_pending",
+      "status_detail": "V7为重剪任务单，视频待验收。MP4为试听版。",
+      "artifact_path": "2.5D家庭IP形象/05_视频视觉基准/05_角色配音参考/看见小情绪_积木倒了_豆包工作项目目录_v6_发布定稿/",
+      "closing_line_version": "v7_reedit",
+      "closing_line_override": null
+    },
+    {
+      "id": "PT-SOC-001-IMG",
+      "content_item_id": "CI-SOC-001",
+      "type": "image_carousel",
+      "name": "《弟弟想玩车，姐姐还没玩完》十页图文轮播",
+      "target_spec": "待定",
+      "status": "not_produced",
+      "status_detail": "逐页文案已确认，图像尚未制作。",
+      "artifact_path": null,
+      "closing_line_version": "article_specific",
+      "closing_line_override": null
+    },
+    {
+      "id": "PT-GROW-001-IMG",
+      "content_item_id": "CI-GROW-001",
+      "type": "image_carousel",
+      "name": "《一只纸箱，开了家水果店》八页图文轮播",
+      "target_spec": "待定",
+      "status": "candidates_in_review_not_finalized",
+      "status_detail": "有生图候选与叠字试排，第05页有单张复工验收；整套未正式交付。",
+      "artifact_path": "2.5D家庭IP形象/04_内容与封面模板/图文轮播标准/试稿_原来在长大_纸箱水果店/",
+      "closing_line_version": "article_specific",
+      "closing_line_override": null
+    }
   ]
 }

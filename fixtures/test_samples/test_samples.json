@@ -2,16 +2,131 @@
   "_meta": {
     "fixture_version": "DEV-D01",
     "generated_at": "2026-10-01",
-    "note": "测试样本（Test Samples）。用于查重引擎、状态机、渠道版本管理的单元测试输入。所有样本为构造数据，不代表真实发布内容。"
+    "note": "测试样本（Test Samples）。用于查重引擎、状态机、渠道版本管理的单元测试输入。所有样本为构造数据，不代表真实发布内容。",
+    "categories": [
+      "exact_copy_duplicate",
+      "highly_similar_not_exact",
+      "common_words_only",
+      "closing_line_exact_duplicate",
+      "closing_line_similar_duplicate",
+      "same_content_multi_channel",
+      "copy_confirmed_artwork_pending",
+      "artwork_done_video_pending"
+    ]
   },
   "samples": [
-    {"id": "TS-001", "category": "exact_copy_duplicate", "name": "完全文案重复——两篇逐页文字一字不差", "expected_detection": "exact_match", "reference_item_id": "CI-LIFE-001"},
-    {"id": "TS-002", "category": "highly_similar_not_exact", "name": "高度相似但非完全重复——仅换一两个词", "expected_detection": "high_similarity_warning", "reference_item_id": "CI-LIFE-001"},
-    {"id": "TS-003", "category": "common_words_only", "name": "只有常见词重复——不判为重复", "expected_detection": "no_duplicate"},
-    {"id": "TS-004", "category": "closing_line_exact_duplicate", "name": "收尾句完全重复——应判为复用违规", "expected_detection": "closing_line_exact_duplicate"},
-    {"id": "TS-005", "category": "closing_line_similar_duplicate", "name": "收尾句近似重复——换词/倒装/换标点不算新文案", "expected_detection": "closing_line_similar_warning"},
-    {"id": "TS-006", "category": "same_content_multi_channel", "name": "同一内容不同渠道版本——收尾句不同，独立保存", "expected_behavior": "two_independent_channel_tasks", "content_item_id": "CI-LIFE-001"},
-    {"id": "TS-007", "category": "copy_confirmed_artwork_pending", "name": "已确认文案但图稿未完成——状态机边界测试", "reference_item": "CI-SOC-001"},
-    {"id": "TS-008", "category": "artwork_done_video_pending", "name": "已完成图稿但视频未完成——状态机边界测试", "reference_item": "CI-EMO-001"}
+    {
+      "id": "TS-001",
+      "category": "exact_copy_duplicate",
+      "name": "完全文案重复——两篇逐页文字一字不差",
+      "description": "用于测试查重引擎能否100%识别完全重复的内容。两篇不同ID的Content Item，但第02-07页文字完全相同。",
+      "expected_detection": "exact_match",
+      "reference_item_id": "CI-LIFE-001",
+      "duplicate_content_item": {
+        "id": "CI-TEST-DUP-001",
+        "title": "孩子出门总磨蹭（测试重复篇）",
+        "column_id": "COL-LIFE-001",
+        "pages_copy": "与 CI-LIFE-001 第02-07页文字逐字相同"
+      }
+    },
+    {
+      "id": "TS-002",
+      "category": "highly_similar_not_exact",
+      "name": "高度相似但非完全重复——仅换一两个词",
+      "description": "用于测试查重引擎的模糊匹配能力。故事线相同，仅把'妈妈'换成'爸爸'，把'鞋'换成'外套'。",
+      "expected_detection": "high_similarity_warning",
+      "reference_item_id": "CI-LIFE-001",
+      "similar_content_item": {
+        "id": "CI-TEST-SIM-001",
+        "title": "出门穿外套也磨蹭（测试近似篇）",
+        "column_id": "COL-LIFE-001",
+        "pages_copy": "故事结构与CI-LIFE-001一致，但'妈妈'替换为'爸爸'，'鞋'替换为'外套'，其他文字高度雷同"
+      }
+    },
+    {
+      "id": "TS-003",
+      "category": "common_words_only",
+      "name": "只有常见词重复——不判为重复",
+      "description": "用于测试查重引擎的误报过滤。两篇主题完全不同，但都含有'孩子''妈妈''先'等常见育儿词。",
+      "expected_detection": "no_duplicate",
+      "content_items": [
+        {
+          "id": "CI-TEST-COMMON-001",
+          "title": "孩子不吃饭怎么办",
+          "common_overlap_words": ["孩子", "妈妈", "先", "吃"]
+        },
+        {
+          "id": "CI-TEST-COMMON-002",
+          "title": "孩子怕洗头怎么办",
+          "common_overlap_words": ["孩子", "妈妈", "先", "哭"]
+        }
+      ]
+    },
+    {
+      "id": "TS-004",
+      "category": "closing_line_exact_duplicate",
+      "name": "收尾句完全重复——应判为复用违规",
+      "description": "新篇收尾句与历史固定句完全相同，未经过用户确认复用。",
+      "expected_detection": "closing_line_exact_duplicate",
+      "new_closing_line": "你肯听，情绪就有了出口。",
+      "existing_closing_line": "你肯听，情绪就有了出口。（历史栏目句，出自COL-EMO-001）",
+      "violation": "未确认复用"
+    },
+    {
+      "id": "TS-005",
+      "category": "closing_line_similar_duplicate",
+      "name": "收尾句近似重复——换词/倒装/换标点不算新文案",
+      "description": "新篇收尾句与历史句仅换一两个词或调整语序。",
+      "expected_detection": "closing_line_similar_warning",
+      "new_closing_line": "你愿意听，／情绪就有出口。",
+      "existing_closing_line": "你肯听，情绪就有了出口。",
+      "difference": "加了'愿意'，去掉'了'，加了换行——实质同义"
+    },
+    {
+      "id": "TS-006",
+      "category": "same_content_multi_channel",
+      "name": "同一内容不同渠道版本——收尾句不同，独立保存",
+      "description": "这是真实历史场景：《孩子出门总磨蹭》图文版与动态视频版第09页收尾句不同。",
+      "expected_behavior": "two_independent_channel_tasks",
+      "content_item_id": "CI-LIFE-001",
+      "channel_a": {
+        "channel": "微信公众号（图文）",
+        "closing_line": "你在身边，／“我自己来”更有底气。",
+        "closing_source": "历史固定栏目句"
+      },
+      "channel_b": {
+        "channel": "微信视频号（动态视频）",
+        "closing_line": "你等的这一会儿，／是她自己来的底气。",
+        "closing_source": "本篇专属（动态视频版）"
+      },
+      "rule": "两句都含'底气'，但整句及故事落点不同；必须独立保存，禁止合并覆盖。"
+    },
+    {
+      "id": "TS-007",
+      "category": "copy_confirmed_artwork_pending",
+      "name": "已确认文案但图稿未完成——状态机边界测试",
+      "description": "用于测试状态机：copy_confirmed=true 时 artwork_status 不能自动变为finalized。",
+      "expected_state": "copy_confirmed=true, artwork_status=not_produced/pending",
+      "reference_item": "CI-SOC-001（弟弟想玩车）",
+      "state_checks": [
+        "文案已确认（2026-09-30）",
+        "图稿未制作（not_produced）",
+        "不得因文案确认就推断图稿已定稿"
+      ]
+    },
+    {
+      "id": "TS-008",
+      "category": "artwork_done_video_pending",
+      "name": "已完成图稿但视频未完成——状态机边界测试",
+      "description": "用于测试状态机：artwork_finalized 时 video_status 不能自动变为accepted。",
+      "expected_state": "artwork_status=final, video_status=pending/reedit",
+      "reference_item": "CI-EMO-001（积木倒了）",
+      "state_checks": [
+        "图文发布定稿已确认（2026-09-28）",
+        "视频V7仍为重剪任务单，待验收",
+        "不得因图稿定稿就推断视频已验收",
+        "更不得推断已发布到平台"
+      ]
+    }
   ]
 }
