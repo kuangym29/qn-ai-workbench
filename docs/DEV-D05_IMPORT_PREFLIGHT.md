@@ -3,7 +3,8 @@
 > 分支：`doubao/DEV-D05-import-preflight`
 > 生成日期：2026-10-01
 > 原始 Fixture：`doubao/DEV-D01-content-fixtures`（冻结）
-> 状态基线：`docs/DEV-D04_STATUS_MAPPING.md`
+> 状态映射参考：`doubao/DEV-D04-status-mapping` 分支 `docs/DEV-D04_STATUS_MAPPING.md`
+> 该规范当前属于历史迁移审计依据；最终正式状态定义以后续 DEV-004 合入 main 的代码与文档为准。
 > 本文档仅做导入前审计，不创建 Seeder / Importer / Migration / Model。
 
 ---
@@ -20,7 +21,33 @@
 
 ---
 
-## 二、旧结构 → 正式结构转换规则
+## 二、READY 状态定义（重要）
+
+**READY 表示：数据结构和映射关系已具备导入条件。**
+
+但正式 Importer 执行仍必须满足：**DEV-004 状态规范已经合入正式 main。**
+
+在 DEV-004 完成前，不得把 READY 解读为"可以立即执行生产数据库导入"。
+
+---
+
+## 三、Project 数据来源说明
+
+| 字段 | 值 | 来源 |
+| --- | --- | --- |
+| legacy ID | `PRJ-QN-001` | 历史 Fixture |
+| name | 青柠育见 | 历史 Fixture |
+| slug | `qingning-yujian` | **固定迁移补充值**，非历史 Fixture 原始字段 |
+
+> 原始 DEV-D01 Fixture 中 Project 无 slug 字段。
+> slug 是正式数据库必填字段，由迁移规则显式补充为 `qingning-yujian`。
+> Importer 不得自行推断或临时生成其他 slug。
+> Project 预检状态为 READY，但 READY 依赖已确认的固定迁移补充值 `qingning-yujian`。
+> 不修改原始 Fixture 去补 slug。
+
+---
+
+## 四、旧结构 → 正式结构转换规则
 
 ### 旧 Fixture 结构
 
@@ -54,7 +81,7 @@ ContentItem
 
 ---
 
-## 三、逐篇预检
+## 五、逐篇预检
 
 ---
 
@@ -64,7 +91,7 @@ ContentItem
 
 | 正式表 | 可导入字段 | 数据状态 |
 | --- | --- | --- |
-| Project | id (legacy→映射), name, slug | READY |
+| Project | id (legacy→映射), name (Fixture), slug (迁移补充值 `qingning-yujian`) | READY（依赖固定补充值） |
 | ContentColumn | id, project_id, name, slug, description | READY |
 | Topic | id, project_id, content_column_id, title, description | READY |
 | ContentItem | id, project_id, content_column_id, topic_id, title, copy_status | READY |
@@ -106,7 +133,7 @@ ContentItem
 
 | 正式表 | 可导入字段 | 数据状态 |
 | --- | --- | --- |
-| Project | id (legacy→映射), name, slug | READY |
+| Project | id (legacy→映射), name (Fixture), slug (迁移补充值 `qingning-yujian`) | READY（依赖固定补充值） |
 | ContentColumn | id, project_id, name, slug, description | READY |
 | Topic | id, project_id, content_column_id, title, description | READY |
 | ContentItem | id, project_id, content_column_id, topic_id, title, copy_status | READY |
@@ -144,8 +171,8 @@ ContentItem
 #### 可导入的正式表数据
 
 | 正式表 | 可导入字段 | 数据状态 |
-| --- | --- | --- |
-| Project | id (legacy→映射), name, slug | READY |
+| --- | --- | --- | --- |
+| Project | id (legacy→映射), name (Fixture), slug (迁移补充值 `qingning-yujian`) | READY（依赖固定补充值） |
 | ContentColumn | id, project_id, name, slug, description | READY |
 | Topic | id, project_id, content_column_id, title, description | READY |
 | ContentItem | id, project_id, content_column_id, topic_id, title, copy_status | READY |
@@ -178,7 +205,7 @@ ContentItem
 
 | 正式表 | 可导入字段 | 数据状态 |
 | --- | --- | --- |
-| Project | id (legacy→映射), name, slug | READY |
+| Project | id (legacy→映射), name (Fixture), slug (迁移补充值 `qingning-yujian`) | READY（依赖固定补充值） |
 | ContentColumn | id, project_id, name, slug, description | READY |
 | Topic | id, project_id, content_column_id, title, description | READY |
 | ContentItem | id, project_id, content_column_id, topic_id, title, copy_status | READY |
@@ -205,13 +232,13 @@ ContentItem
 
 ---
 
-## 四、最终 Preflight 总表
+## 六、最终 Preflight 总表
 
 ### 按表统计
 
 | 正式表 | 可导入条数 | 状态 |
 | --- | --- | --- |
-| Project | 1 | READY |
+| Project | 1 | READY（依赖固定 slug 补充值） |
 | ContentColumn | 6 | READY |
 | Topic | 4 | READY |
 | ContentItem | 4 | READY |
@@ -231,14 +258,15 @@ ContentItem
 
 ---
 
-## 五、Codex Importer 开发指引
+## 七、Codex Importer 开发指引
 
-### 现在可以直接导的（READY）
+### 现在具备导入条件的（READY，但需 DEV-004 合入 main 后方可执行）
 
 - Project / ContentColumn / Topic / ContentItem / ProductionTask / ChannelTask 的核心字段
-- 所有状态值按 DEV-D04 映射表转换为正式枚举
+- 所有状态值按 DEV-04 状态映射规范转换为正式枚举（参考：`doubao/DEV-D04-status-mapping` 分支）
 - legacy ID 通过导入期映射表解析为 bigint 外键（详见 DEV-D03）
 - 结构性错误触发整批事务回滚
+- **注意：READY 不等于可以立即执行生产导入，必须等 DEV-004 状态规范合入 main 后**
 
 ### 必须等 ContentPage 建表后才能导的（BLOCKED_BY_CONTENT_PAGE）
 
@@ -252,13 +280,14 @@ ContentItem
 
 ---
 
-## 六、边界与约束
+## 八、边界与约束
 
 - ❌ 不创建 ContentPage 正式表 / Migration / Model
 - ❌ 不创建 Seeder / Importer
 - ❌ 不修改原始 DEV-D01 Fixture
 - ❌ 不制造第二份"正式数据源"——所有历史数据仍以 Fixture 为唯一来源
 - ❌ 不允许从 Artwork 状态推断 Publish 状态
+- ❌ Project.slug 不来自历史 Fixture，是固定迁移补充值 `qingning-yujian`，Importer 不得自行生成
 - ✅ 37 页统一标记为 BLOCKED_BY_CONTENT_PAGE，保留来源引用
 - ✅ 《积木倒了》发布状态保持 unpublished + manual verification required
 - ✅ 旧双 PT 归并为单共享 PT 的规则已明确
