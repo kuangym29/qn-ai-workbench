@@ -12,6 +12,6 @@
 8. Lite V1.0 不开发 Windows Local Agent、本地实时监听、双向同步、TTL 云缓存、复杂权限、DAG Workflow、n8n 式编辑器。
 9. 发现需求冲突时在架构风险中记录并提出决策点，不擅自改变产品方向。每个任务结束运行测试、修复本任务问题，记录结果并等待审核后合并。
 
-## 当前任务边界
+## 当前阶段边界
 
-DEV-005 仅负责 Topic / ContentItem 服务端 API、Project/祖先作用域校验、Feature 测试与数据契约。旧共享目录和其他代理文件不在本任务内修改或迁入。本轮不开发 Topic / ContentItem UI、ContentPage、生产/渠道 API、资产、导入器或工作流。
+DEV-005 已完成 Topic / ContentItem 服务端 API、Project/祖先作用域校验、Feature 测试与数据契约。下一阶段的 Topic / ContentItem UI、ContentPage、生产/渠道 API、资产、导入器与工作流必须继续按独立任务拆分，不得混入已完成任务。
