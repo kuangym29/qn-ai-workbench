@@ -14,4 +14,4 @@
 
 ## 当前任务边界
 
-DEV-003 仅负责 Project / ContentColumn 服务端接口、会话 Project 上下文、请求校验、项目作用域测试和前端数据契约。旧共享目录和其他代理的 fixtures 不在本任务内修改或迁入。本轮不开发 Topic CRUD、资产、权限矩阵或后续生产模块。
+DEV-004 仅负责四维状态 Enum、旧值安全回填、数据库默认值与非空约束、Model cast、Factory 和测试。旧共享目录与其他代理的 fixtures 不在本任务内修改或迁入。本轮不开发 Topic / ContentItem API 或 UI、ContentPage、资产、导入器或工作流。

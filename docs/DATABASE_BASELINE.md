@@ -15,7 +15,18 @@
 
 删除 Project 时相关表目前按数据库外键级联删除。产品层删除/归档策略尚未制定，开放删除操作前必须重新审查，不能直接暴露级联删除。`slug` 只作稳定路径标识，不作为权限凭据。当前不建立任何默认品牌数据。
 
-`copy_status`、`artwork_status`、`video_status`、`publish_status` 分开存储，不以一个 `completed` 推断其他阶段。`video_status` 对不涉及视频的渠道可为空。`channel` 在数据库中是字符串、在 PHP Model 中受 `Channel` 枚举控制；当前值为 `wechat_official` 和 `wechat_channels`。新增渠道需新增代码枚举值，不需要改数据库 Enum。
+`copy_status`、`artwork_status`、`video_status`、`publish_status` 分开存储，不以一个 `completed` 推断其他阶段。四列继续使用字符串，PHP Model 分别 cast 到 string backed Enum，不使用数据库 ENUM。
+
+| 维度 | 合法值 | 新记录默认值 |
+| --- | --- | --- |
+| Copy（ContentItem） | `not_started`、`editing`、`pending_confirmation`、`confirmed` | `not_started` |
+| Artwork（ProductionTask） | `not_applicable`、`not_started`、`in_progress`、`pending_review`、`approved` | `not_started` |
+| Video（ChannelTask） | `not_applicable`、`not_started`、`in_progress`、`pending_review`、`approved` | 公众号 `not_applicable`；视频号 `not_started` |
+| Publish（ChannelTask） | `unpublished`、`scheduled`、`published` | `unpublished` |
+
+`video_status` 正式为非空：数据库默认 `not_applicable`，视频号 Factory 明确设为 `not_started`。DEV-004 correction migration 先回填旧数据的 `draft → not_started`、`not_published → unpublished`、`video_status = null → not_applicable`，再更新列默认值与非空约束。回滚仅恢复旧列定义，不反向改写已转换的数据；重新运行可安全重复回填。SQLite 变更列定义时暂时关闭外键检查以避免表重建引发级联删除；MySQL 8.4 保持正常外键检查。
+
+`channel` 在数据库中是字符串、在 PHP Model 中受 `Channel` 枚举控制；当前值为 `wechat_official` 和 `wechat_channels`。新增渠道需新增代码枚举值，不需要改数据库 Enum。
 
 ## 共享视觉资产的未来关系（未迁移）
 

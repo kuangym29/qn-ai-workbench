@@ -2,7 +2,11 @@
 
 namespace Tests\Feature;
 
+use App\Enums\ArtworkStatus;
 use App\Enums\Channel;
+use App\Enums\CopyStatus;
+use App\Enums\PublishStatus;
+use App\Enums\VideoStatus;
 use App\Models\ChannelTask;
 use App\Models\ContentColumn;
 use App\Models\ContentItem;
@@ -91,20 +95,46 @@ class DomainModelTest extends TestCase
         $official = ChannelTask::factory()->for($item->project)->for($production, 'productionTask')->create();
         $channels = ChannelTask::factory()->for($item->project)->for($production, 'productionTask')->wechatChannels()->create();
 
-        $this->assertSame('draft', $item->copy_status);
-        $this->assertSame('not_started', $production->artwork_status);
+        $this->assertSame(CopyStatus::NotStarted, $item->copy_status);
+        $this->assertSame('not_started', $item->getRawOriginal('copy_status'));
+        $this->assertSame(ArtworkStatus::NotStarted, $production->artwork_status);
+        $this->assertSame('not_started', $production->getRawOriginal('artwork_status'));
         $this->assertSame(Channel::WechatOfficial, $official->channel);
         $this->assertSame('wechat_official', $official->getRawOriginal('channel'));
-        $this->assertNull($official->video_status);
+        $this->assertSame(VideoStatus::NotApplicable, $official->video_status);
+        $this->assertSame('not_applicable', $official->getRawOriginal('video_status'));
         $this->assertSame(Channel::WechatChannels, $channels->channel);
-        $this->assertSame('not_started', $channels->video_status);
-        $this->assertSame('not_published', $channels->publish_status);
+        $this->assertSame(VideoStatus::NotStarted, $channels->video_status);
+        $this->assertSame('not_started', $channels->getRawOriginal('video_status'));
+        $this->assertSame(PublishStatus::Unpublished, $channels->publish_status);
+        $this->assertSame('unpublished', $channels->getRawOriginal('publish_status'));
+
+        $item->update(['copy_status' => CopyStatus::Confirmed]);
+        $this->assertSame(ArtworkStatus::NotStarted, $production->refresh()->artwork_status);
+        $this->assertSame(VideoStatus::NotStarted, $channels->refresh()->video_status);
+        $this->assertSame(PublishStatus::Unpublished, $channels->publish_status);
+
+        $production->update(['artwork_status' => ArtworkStatus::Approved]);
+        $channels->update(['video_status' => VideoStatus::PendingReview]);
+        $channels->update(['publish_status' => PublishStatus::Scheduled]);
+        $this->assertSame(CopyStatus::Confirmed, $item->refresh()->copy_status);
+        $this->assertSame(ArtworkStatus::Approved, $production->refresh()->artwork_status);
+        $this->assertSame(VideoStatus::PendingReview, $channels->refresh()->video_status);
+        $this->assertSame(PublishStatus::Scheduled, $channels->publish_status);
     }
 
     public function test_unknown_channel_is_rejected_by_the_model_without_a_database_enum(): void
     {
         $this->expectException(\ValueError::class);
         ChannelTask::factory()->state(['channel' => 'unknown_channel'])->create();
+    }
+
+    public function test_unknown_copy_status_is_rejected_by_enum_cast(): void
+    {
+        $item = ContentItem::factory()->create();
+
+        $this->expectException(\ValueError::class);
+        $item->update(['copy_status' => 'unknown_status']);
     }
 
     public function test_one_content_item_has_one_shared_production_task(): void

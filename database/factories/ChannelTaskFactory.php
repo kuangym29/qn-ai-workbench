@@ -3,6 +3,8 @@
 namespace Database\Factories;
 
 use App\Enums\Channel;
+use App\Enums\PublishStatus;
+use App\Enums\VideoStatus;
 use App\Models\ChannelTask;
 use App\Models\ProductionTask;
 use App\Models\Project;
@@ -18,8 +20,8 @@ class ChannelTaskFactory extends Factory
             'production_task_id' => fn (array $attributes): int => ProductionTask::factory()
                 ->create(['project_id' => $attributes['project_id']])->id,
             'channel' => Channel::WechatOfficial,
-            'video_status' => null,
-            'publish_status' => 'not_published',
+            'video_status' => VideoStatus::NotApplicable,
+            'publish_status' => PublishStatus::Unpublished,
         ];
     }
 
@@ -27,7 +29,7 @@ class ChannelTaskFactory extends Factory
     {
         return $this->state(fn (): array => [
             'channel' => Channel::WechatChannels,
-            'video_status' => 'not_started',
+            'video_status' => VideoStatus::NotStarted,
         ]);
     }
 }
