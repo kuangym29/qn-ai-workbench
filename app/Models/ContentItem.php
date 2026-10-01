@@ -6,6 +6,7 @@ use App\Enums\CopyStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class ContentItem extends Model
@@ -32,6 +33,16 @@ class ContentItem extends Model
     public function topic(): BelongsTo
     {
         return $this->belongsTo(Topic::class);
+    }
+
+    public function contentPages(): HasMany
+    {
+        return $this->hasMany(ContentPage::class);
+    }
+
+    public function contentCopyRevisions(): HasMany
+    {
+        return $this->hasMany(ContentCopyRevision::class);
     }
 
     public function productionTask(): HasOne
