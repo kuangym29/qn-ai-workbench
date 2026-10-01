@@ -1,6 +1,6 @@
 # DEV-006A｜ContentPage 与文案版本设计审核稿
 
-> 状态：待架构审核。本文只确定数据边界与 DEV-006B 的实现建议，不代表 Migration、Model、API 或导入器已经建立。正式基线：`main` 的 `57c0def0f72e61d1b5ed5da6b5db0d5654a5fe25`。
+> 状态：架构审核通过，已按审核结论收口。DEV-006B 可据此实现核心页面/文案版本模型；Source Reference 延后独立任务。本文不代表 Migration、Model、API 或导入器已经建立。正式基线：`main` 的 `57c0def0f72e61d1b5ed5da6b5db0d5654a5fe25`。
 
 ## 1. 业务需求与当前约束
 
@@ -32,6 +32,8 @@
 
 ## 4. 推荐表结构草案
 
+审核结论采用“稳定页面 + 页文案版本 + 显式整篇确认修订”三层结构。增加一张很小的 `content_copy_revisions` 表，避免仅靠散落在各页版本上的整数隐式表示一次整篇确认。这样一次确认事件有稳定 ID、统一确认时间和明确篇目归属，同时仍保持 Lite V1.0 简单。
+
 ### `content_pages`：稳定页面身份与当前编排
 
 | 字段 | 意义 |
@@ -43,31 +45,46 @@
 | `page_type` | 当前类型，受 PHP 字符串 Enum 控制，数据库为 string |
 | `created_at`, `updated_at` | 页面身份与编排时间 |
 
-约束：`(project_id, content_item_id)` 复合外键引用现有 `content_items(project_id, id)`；`(content_item_id, page_no)` 唯一；为版本表提供 `(project_id, id)` 唯一键。Project/Column/Topic 从 ContentItem 关系推导，不在页表重复。创建、重排须经已校验的 ContentItem；跨 Project 返回 404。
+约束：`(project_id, content_item_id)` 复合外键引用现有 `content_items(project_id, id)`；`(content_item_id, page_no)` 唯一；另提供 `(project_id, content_item_id, id)` 唯一键给版本表做完整祖先约束。Project/Column/Topic 从 ContentItem 关系推导，不在页表重复。创建、重排须经已校验的 ContentItem；跨 Project 返回 404。
+
+### `content_copy_revisions`：整篇正式确认事件
+
+| 字段 | 意义 |
+| --- | --- |
+| `id` | 正式确认修订主键 |
+| `project_id`, `content_item_id` | Project / 篇目归属 |
+| `revision_no` | 该篇从 1 递增的正式确认号 |
+| `confirmed_at` | 整篇确认时间 |
+| `created_at` | 记录创建时间 |
+
+约束：`(project_id, content_item_id)` 复合外键引用 `content_items(project_id, id)`；`(content_item_id, revision_no)` 唯一；提供 `(project_id, content_item_id, id)` 唯一键供页版本复合外键使用。该表只在“整篇正式确认”成功时产生记录，不承载草稿或第二套状态机。
+
+不在 `content_items` 增加“当前确认 revision 指针”。由于 `content_copy_revisions` 只保存已正式确认的修订，当前正式稿可稳定取该 ContentItem 最大 `revision_no` 的修订；这避免双向 FK 和额外指针一致性问题。若未来业务出现“回滚并指定旧修订为当前正式稿”的真实需求，再独立增加显式指针。
 
 ### `content_page_versions`：逐页文案记录
 
 | 字段 | 意义 |
 | --- | --- |
-| `id`, `project_id`, `content_page_id` | 版本主键、Project 与稳定页归属 |
+| `id`, `project_id`, `content_item_id`, `content_page_id` | 版本主键与完整祖先归属 |
 | `version_no` | 该页从 1 递增的版本号；每次保存新文字插入新行 |
-| `copy_revision_no` nullable | 整篇第 N 次正式确认的快照号；草稿为 null |
+| `copy_revision_id` nullable | null 为草稿；非空时属于一次 `content_copy_revisions` 正式整篇快照 |
 | `page_no_snapshot`, `page_type_snapshot` | 正式确认时的页序和类型；保存当时编排 |
 | `column_label`, `cover_title`, `cover_subtitle`, `page_title`, `page_small_text`, `closing_line`, `note` | 显式可空文案/备注字段 |
-| `confirmed_at` nullable | 该行是否属于正式确认快照；与 `copy_revision_no` 同时有值或同时为 null |
 | `created_at` | 创建时间；正式文本后续不可更新 |
 
-约束：`(project_id, content_page_id)` 复合外键引用 `content_pages(project_id, id)`；`(content_page_id, version_no)` 唯一；`(content_page_id, copy_revision_no)` 唯一（草稿 null 可重复）。版本表不重复 `content_item_id`；经 ContentPage 归属篇目。追加版本必须由服务端按当前 Project、ContentItem、Page 校验。`copy_revision_no` 的同一批正式行须覆盖当时所有有效页面；由一次数据库事务与测试保证。
+约束：`(project_id, content_item_id, content_page_id)` 复合外键引用 `content_pages(project_id, content_item_id, id)`；`(project_id, content_item_id, copy_revision_id)` 在非空时引用 `content_copy_revisions(project_id, content_item_id, id)`；`(content_page_id, version_no)` 唯一；`(copy_revision_id, content_page_id)` 唯一，保证同一整篇修订每页最多一行。重复保存的草稿允许 `copy_revision_id = null`。完整快照是否覆盖当时全部有效页面，由确认事务与测试保证。
 
-建议在 `content_items` **新增** nullable `confirmed_copy_revision_no`，指向当前已确认的整篇快照号；原 DEV-002 Migration 不改。该整数不是新状态机，只是读取正式快照的指针。DEV-006B 需核对 MySQL 8.4 与 SQLite 的复合外键、唯一索引和 null 语义。不要加入 `is_current`、`superseded_by` 或通用工作流列；最新版由 `version_no` 推导，正式版由 `copy_revision_no` 指定。
+DEV-006B 必须实测 MySQL 8.4 与 SQLite 对复合外键、nullable FK、唯一索引及重排中间态的行为。不要加入 `is_current`、`superseded_by` 或通用工作流列；页内最新版由 `version_no` 推导，当前正式整篇由最大 `revision_no` 的 `content_copy_revisions` 推导。
 
 ## 5. 状态、草稿与不可覆盖机制
 
-`ContentItem.copy_status` 只描述整篇文案的工作状态：未开始、编辑、待确认、已确认。Page Version 只记文本历史及其是否属于第 N 次正式确认，不复制四值状态机。编辑一页时追加一条 `copy_revision_no = null` 的版本；待确认仍通过 ContentItem 状态表达。版本按 `version_no` 递增，最新草稿取当前正式快照之后的最新未确认行；没有新草稿时展示当前正式行。
+`ContentItem.copy_status` 只描述整篇文案的工作状态：未开始、编辑、待确认、已确认。Page Version 只记文本历史及其是否属于某次正式整篇修订，不复制四值状态机。编辑一页时追加一条 `copy_revision_id = null` 的版本；待确认仍通过 ContentItem 状态表达。版本按 `version_no` 递增。工作稿读取规则是：若某页存在“最后一次正式修订之后”的新草稿，取该页最新草稿；否则取该页最新正式快照；从未正式确认的新页取最新草稿。
 
-确认整篇时，在一个事务中锁定 ContentItem，检查页序、类型与必填文案，按每页最新文字生成**完整**的第 N 次正式快照（未改动页也复制一行），设置这些新行的 `copy_revision_no = N` 与 `confirmed_at`，再更新 `content_items.confirmed_copy_revision_no = N`、`copy_status = confirmed`。只有事务全部成功才对外显示新正式稿。此后任何文本修改只追加草稿行，并将 ContentItem 回到 `editing`；不能 UPDATE 已有正式版本的文字、页序快照、类型快照或确认标记。服务端只提供插入草稿/确认快照的写路径，测试覆盖“已确认行更新被拒绝”；直连数据库管理员改写不属于应用权限保证范围。
+**审核决定采用完整整篇确认快照。** 确认时在一个事务中锁定 ContentItem，检查页序、类型与必填文案，计算该篇下一个 `revision_no`，先创建一条 `content_copy_revisions`，再按每页当前最新文字生成完整快照（未改动页也复制一行），所有新行关联同一个 `copy_revision_id` 并保存 `page_no_snapshot` / `page_type_snapshot`，最后把 `copy_status` 更新为 `confirmed`。只有整笔事务成功，新 revision 才存在并可被读取。
 
-重新确认时 N 递增，旧批次完整保留。历史正式稿按 `(ContentItem, copy_revision_no)` 读取该批所有页快照，按 `page_no_snapshot` 排序。`copy_status = confirmed` 只表示当前工作稿已确认；不用于反推图稿、视频或发布状态。并发确认需锁定 ContentItem，避免同一 N 重复。无全文确认事件表或复杂审核流。
+此后任何文本修改只追加草稿行，并将 ContentItem 回到 `editing`；不能 UPDATE 已有关联 `copy_revision_id` 的正式版本文字、页序快照或类型快照。服务端/Model 写路径和测试共同覆盖“正式行更新被拒绝”；直连数据库管理员改写不属于应用权限保证范围。
+
+重新确认时 `revision_no` 递增，旧批次完整保留。历史正式稿按 `content_copy_revisions.id` 读取该批全部页快照，并按 `page_no_snapshot` 排序；当前正式稿取该 ContentItem 最大 `revision_no`。 `copy_status = confirmed` 只表示当前工作稿已确认；不用于反推图稿、视频或发布状态。并发确认需锁定 ContentItem，避免同一 `revision_no` 重复。不引入复杂审核流。
 
 ## 6. 页面顺序、增删与类型
 
@@ -93,7 +110,7 @@
 
 ## 9. Source Reference 边界
 
-来源文件关系应独立于 `content_pages` 和文字版本字段。建议后续轻量 `source_references`：`project_id`、`content_item_id`、可空 `content_page_id`、受控字符串 `role`、`local_path`、可空 `cloud_attachment_url`、`note`、时间戳。角色先覆盖 `final_image_copy`、`source_script`、`content_ledger`、`closing_line_registry`、`navigation_index`。同一栏目权威 Markdown 可被多篇引用；路径是指向原资料的引用，不复制成第二份权威源。可选云附件只是便利副本。跨 Project/篇目/页的引用须验证关系一致。本轮不建表、不做 FileVersion 或自动同步；是否在 DEV-006B 建此表需单独确认。
+来源文件关系应独立于 `content_pages` 和文字版本字段。建议后续轻量 `source_references`：`project_id`、`content_item_id`、可空 `content_page_id`、受控字符串 `role`、`local_path`、可空 `cloud_attachment_url`、`note`、时间戳。角色先覆盖 `final_image_copy`、`source_script`、`content_ledger`、`closing_line_registry`、`navigation_index`。同一栏目权威 Markdown 可被多篇引用；路径是指向原资料的引用，不复制成第二份权威源。可选云附件只是便利副本。跨 Project/篇目/页的引用须验证关系一致。本轮不建表、不做 FileVersion 或自动同步。**审核结论：Source Reference 不进入 DEV-006B**；先把页面/修订核心模型稳定下来，再以独立 DEV-006C（或历史导入前置任务）设计最小 `source_references`，避免把来源文件能力与核心文案版本迁移绑在一起。
 
 ## 10. 37 页历史导入兼容性
 
@@ -104,11 +121,11 @@
 | 《弟弟想玩车，姐姐还没玩完》 | 10 | 十页已确认，但图像未验收 |
 | 《一只纸箱，开了家水果店》 | 8 | 八页文字已确认，分镜/生图/交付未验收 |
 
-导入器未来从各栏目 `图文\最终上图文案.md` 读取、逐篇逐页比对页号/类型/字段，先产出可审查差异表，再写数据库；旧 Fixture 只辅助定位与交叉核查。首批每篇建立稳定页身份与第 1 次正式确认快照，ContentItem 指针为 1、`copy_status = confirmed`，但不得因此自动批准 artwork/video/publish。导入需验证总数 37、每篇页数 10/9/10/8、封底空文案及特殊收尾句分离；遇到原文歧义暂停该篇导入，不静默改写历史来源。本文不执行导入。
+导入器未来从各栏目 `图文\最终上图文案.md` 读取、逐篇逐页比对页号/类型/字段，先产出可审查差异表，再写数据库；旧 Fixture 只辅助定位与交叉核查。首批每篇建立稳定页身份、1 条 `content_copy_revisions(revision_no = 1)` 与对应全页正式快照，`copy_status = confirmed`，但不得因此自动批准 artwork/video/publish。导入需验证总数 37、每篇页数 10/9/10/8、封底空文案及特殊收尾句分离；遇到原文歧义暂停该篇导入，不静默改写历史来源。本文不执行导入。
 
 ## 11. 未来视觉资产关联点
 
-页面文字和视觉资产分域。未来 Asset 属于 ProductionTask，并可带 `content_page_id` 定位稳定页、`content_page_version_id` 标记制作时依据的正式文案版本；两者与 Asset 的 Project/ContentItem/ProductionTask 上下文须一致，复合外键或等效服务端约束及测试共同保护。`clean_master` 与 `copy_master` 是资产角色，不是 ContentPage 列；图片和视频文件也不进入页面表。ChannelTask 引用共享资产，渠道适配版独立衍生，不覆盖母资产。
+页面文字和视觉资产分域。未来 Asset 属于 ProductionTask，并可带 `content_page_id` 定位稳定页、`content_page_version_id` 标记制作时依据的具体页文案版本；如需表达整篇制作基线，也可关联 `content_copy_revision_id`。这些引用与 Asset 的 Project/ContentItem/ProductionTask 上下文须一致，复合外键或等效服务端约束及测试共同保护。`clean_master` 与 `copy_master` 是资产角色，不是 ContentPage 列；图片和视频文件也不进入页面表。ChannelTask 引用共享资产，渠道适配版独立衍生，不覆盖母资产。
 
 ## 12. Lite V1.0 边界、风险与 DEV-006B 建议
 
@@ -116,4 +133,4 @@
 
 主要风险：① 若只靠应用服务保护正式行，数据库管理员仍可直接修改，须以最小数据库账号权限、代码路径审查和测试降低风险；② 并发编辑/确认需锁定 ContentItem 并保证 `version_no`/`copy_revision_no` 唯一；③ MySQL 与 SQLite 对复合外键、null 唯一及重排中间态的行为须实测；④ 来源 Markdown 与 Fixture 可能有标点/换行差异，应以权威 Markdown 为准；⑤ `page_type` 的栏目收尾语义可能被其他 Project 用作系列收尾，UI 文案须保持通用；⑥ 尚无用户成员授权，Session Project 作用域不等于用户权限；⑦ Source Reference 与渠道文案覆写的确切表结构尚未审核。
 
-**DEV-006B 建议顺序：** 先评审本稿并确认是否采用完整整篇快照；再用新 Migration 建两表及 ContentItem 的确认快照指针，不编辑历史 Migration；实现 PHP PageType Enum、Model 关系和复合外键测试；以测试先行实现追加草稿、事务确认、禁止正式行覆盖、重排与跨 Project 404；最后核对 MySQL 8.4 与 SQLite。历史导入、渠道覆写、资产关联和前端页面均另立任务，不随 DEV-006B 顺手实现。
+**审核结论与 DEV-006B 顺序：** 已确认采用完整整篇快照，并采用三表核心结构：`content_pages`、`content_copy_revisions`、`content_page_versions`；不在 ContentItem 增加正式修订指针，当前正式稿由最大 `revision_no` 推导；Source Reference 延后独立任务。DEV-006B 用新 Migration 建三表，不编辑历史 Migration；实现 PHP PageType Enum、Model 关系和复合外键测试；以测试先行实现追加草稿、事务确认、禁止正式行覆盖、重排与跨 Project 404；最后核对 MySQL 8.4 与 SQLite。历史导入、Source Reference、渠道覆写、资产关联和前端页面均另立任务，不随 DEV-006B 顺手实现。
