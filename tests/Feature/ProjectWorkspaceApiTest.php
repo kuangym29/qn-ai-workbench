@@ -110,13 +110,13 @@ class ProjectWorkspaceApiTest extends TestCase
         $project = Project::factory()->create();
         Project::factory()->create();
 
-        $this->get('/')->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->component('Bootstrap')
+        $this->get('/projects')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('Projects/Index')
             ->where('currentProject', null));
 
         $this->postJson("/api/projects/{$project->id}/select")->assertOk();
-        $this->get('/')->assertOk()->assertInertia(fn (Assert $page) => $page
-            ->component('Bootstrap')
+        $this->get('/projects')->assertOk()->assertInertia(fn (Assert $page) => $page
+            ->component('Projects/Index')
             ->where('currentProject.id', $project->id)
             ->where('currentProject.slug', $project->slug));
     }
