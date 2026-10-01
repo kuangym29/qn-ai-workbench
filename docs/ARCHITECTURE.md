@@ -21,7 +21,7 @@ DEV-001 建立 Laravel/Inertia/Vue 启动页和 `projects`、旧名 `columns` �
 
 文案状态存于 Content Item，图稿状态存于 Production Task；视频状态和发布状态分别存于 Channel Task。渠道在数据库中使用字符串、在 PHP 中使用可扩展的 `Channel` 枚举控制，首批为 `wechat_official`、`wechat_channels`。当前无用户登录和项目授权流程；数据库约束保证记录关系一致，但不能替代服务端 Project 上下文及访问授权。
 
-DEV-004 把四维状态统一为独立的 PHP string backed Enum，数据库继续存字符串。新建公众号任务的视频状态为 `not_applicable`，视频号为 `not_started`；二者发布状态均为 `unpublished`。文案、图稿、视频、发布的变化不得自动推进其他维度。旧状态通过独立 correction migration 回填，原 DEV-002 迁移保持不变。Topic、ContentItem 的业务编辑页及 ContentPage 尚未实现。
+DEV-004 把四维状态统一为独立的 PHP string backed Enum，数据库继续存字符串。新建公众号任务的视频状态为 `not_applicable`，视频号为 `not_started`；二者发布状态均为 `unpublished`。文案、图稿、视频、发布的变化不得自动推进其他维度。旧状态通过独立 correction migration 回填，原 DEV-002 迁移保持不变。DEV-005 已实现 Topic、ContentItem 服务端 API，按 Session 当前 Project 与 URL 祖先链逐层限定；其业务编辑页及 ContentPage 尚未实现。创建 ContentItem 不自动创建 ProductionTask。具体路由、字段与错误契约见 `DEV-005_API_CONTRACT.md`。
 
 ### 未来共享视觉资产关系接口（DEV-002 不建表）
 

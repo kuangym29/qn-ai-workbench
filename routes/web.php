@@ -1,7 +1,9 @@
 <?php
 
 use App\Http\Controllers\ContentColumnController;
+use App\Http\Controllers\ContentItemController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\TopicController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -35,4 +37,14 @@ Route::prefix('api')->group(function (): void {
     Route::post('/projects/{project}/columns', [ContentColumnController::class, 'store']);
     Route::get('/projects/{project}/columns/{column}', [ContentColumnController::class, 'show']);
     Route::patch('/projects/{project}/columns/{column}', [ContentColumnController::class, 'update']);
+
+    Route::get('/projects/{project}/columns/{column}/topics', [TopicController::class, 'index']);
+    Route::post('/projects/{project}/columns/{column}/topics', [TopicController::class, 'store']);
+    Route::get('/projects/{project}/columns/{column}/topics/{topic}', [TopicController::class, 'show']);
+    Route::patch('/projects/{project}/columns/{column}/topics/{topic}', [TopicController::class, 'update']);
+
+    Route::get('/projects/{project}/columns/{column}/topics/{topic}/items', [ContentItemController::class, 'index']);
+    Route::post('/projects/{project}/columns/{column}/topics/{topic}/items', [ContentItemController::class, 'store']);
+    Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}', [ContentItemController::class, 'show']);
+    Route::patch('/projects/{project}/columns/{column}/topics/{topic}/items/{item}', [ContentItemController::class, 'update']);
 });

@@ -14,4 +14,4 @@
 
 ## 当前任务边界
 
-DEV-004 仅负责四维状态 Enum、旧值安全回填、数据库默认值与非空约束、Model cast、Factory 和测试。旧共享目录与其他代理的 fixtures 不在本任务内修改或迁入。本轮不开发 Topic / ContentItem API 或 UI、ContentPage、资产、导入器或工作流。
+DEV-005 仅负责 Topic / ContentItem 服务端 API、Project/祖先作用域校验、Feature 测试与数据契约。旧共享目录和其他代理文件不在本任务内修改或迁入。本轮不开发 Topic / ContentItem UI、ContentPage、生产/渠道 API、资产、导入器或工作流。
