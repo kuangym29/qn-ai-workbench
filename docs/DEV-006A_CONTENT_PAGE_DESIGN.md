@@ -131,6 +131,6 @@ DEV-006B 必须实测 MySQL 8.4 与 SQLite 对复合外键、nullable FK、唯�
 
 本设计不引入 Content Profile、2.5D 独立类型、多租户 SaaS、万能 Block Builder、DAG/低代码、Vector DB、复杂 Workflow/AssetVersion、Windows Local Agent。本轮不实现 Migration、Model、Controller、Request、Resource、Route、Vue 或 Importer。
 
-主要风险：① 若只靠应用服务保护正式行，数据库管理员仍可直接修改，须以最小数据库账号权限、代码路径审查和测试降低风险；② 并发编辑/确认需锁定 ContentItem 并保证 `version_no`/`copy_revision_no` 唯一；③ MySQL 与 SQLite 对复合外键、null 唯一及重排中间态的行为须实测；④ 来源 Markdown 与 Fixture 可能有标点/换行差异，应以权威 Markdown 为准；⑤ `page_type` 的栏目收尾语义可能被其他 Project 用作系列收尾，UI 文案须保持通用；⑥ 尚无用户成员授权，Session Project 作用域不等于用户权限；⑦ Source Reference 与渠道文案覆写的确切表结构尚未审核。
+主要风险：① 若只靠应用服务保护正式行，数据库管理员仍可直接修改，须以最小数据库账号权限、代码路径审查和测试降低风险；② 并发编辑/确认需锁定 ContentItem 并保证页内 `version_no`、篇目内 `revision_no` 与修订内页唯一性；③ MySQL 与 SQLite 对复合外键、null 唯一及重排中间态的行为须实测；④ 来源 Markdown 与 Fixture 可能有标点/换行差异，应以权威 Markdown 为准；⑤ `page_type` 的栏目收尾语义可能被其他 Project 用作系列收尾，UI 文案须保持通用；⑥ 尚无用户成员授权，Session Project 作用域不等于用户权限；⑦ Source Reference 与渠道文案覆写的确切表结构尚未审核。
 
 **审核结论与 DEV-006B 顺序：** 已确认采用完整整篇快照，并采用三表核心结构：`content_pages`、`content_copy_revisions`、`content_page_versions`；不在 ContentItem 增加正式修订指针，当前正式稿由最大 `revision_no` 推导；Source Reference 延后独立任务。DEV-006B 用新 Migration 建三表，不编辑历史 Migration；实现 PHP PageType Enum、Model 关系和复合外键测试；以测试先行实现追加草稿、事务确认、禁止正式行覆盖、重排与跨 Project 404；最后核对 MySQL 8.4 与 SQLite。历史导入、Source Reference、渠道覆写、资产关联和前端页面均另立任务，不随 DEV-006B 顺手实现。
