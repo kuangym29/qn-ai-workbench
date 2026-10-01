@@ -27,10 +27,10 @@ Project / ContentColumn 工作台接入 DEV-003 真实接口，并修正 Project
 
 新增 Copy、Artwork、Video、Publish 四个 string backed Enum；用独立 correction migration 回填旧状态并更新数据库默认值，保持 DEV-002 历史迁移不变。更新 Model cast、Factory、领域测试及架构文档。此任务不开发 Topic / ContentItem API 或 UI、ContentPage、资产、导入器及生产流程。
 
-## DEV-005：Topic / ContentItem 服务端业务与 API（当前任务）
+## DEV-005：Topic / ContentItem 服务端业务与 API（已完成）
 
-基于正式 Main 的独立工作区，实现 Topic 与 ContentItem 的列表、创建、读取和编辑；沿用 Session ProjectContext，逐层验证 Project / ContentColumn / Topic / ContentItem 的归属，拒绝客户端伪造归属键。ContentItem 使用 DEV-004 的 CopyStatus，创建时不自动创建 ProductionTask。契约见 DEV-005_API_CONTRACT.md。本轮不开发 UI、ContentPage、Importer 或生产/渠道 API。完成后运行测试与构建并提交任务分支，等待审核。
+基于正式 Main 的独立工作区，实现 Topic 与 ContentItem 的列表、创建、读取和编辑；沿用 Session ProjectContext，逐层验证 Project / ContentColumn / Topic / ContentItem 的归属，拒绝客户端伪造归属键。ContentItem 使用 DEV-004 的 CopyStatus，创建时不自动创建 ProductionTask。契约见 DEV-005_API_CONTRACT.md。本轮不开发 UI、ContentPage、Importer 或生产/渠道 API。已完成服务端 API、作用域校验、Feature 测试与数据契约；前端 UI 留给后续独立任务。
 
 ## 后续待拆分
 
-Topic / ContentItem 界面、逐页内容与版本、共享视觉资产、查重与发布流程仍需分别规划。每项先补充数据归属与验收标准，再分配独立分支；不得由 DEV-004 顺手实现。
+Topic / ContentItem 界面、逐页内容与版本、共享视觉资产、查重与发布流程仍需分别规划。每项先补充数据归属与验收标准，再分配独立分支；不得由已完成任务顺手实现。
