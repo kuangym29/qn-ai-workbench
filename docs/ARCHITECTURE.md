@@ -2,7 +2,7 @@
 
 ## 系统边界
 
-技术栈：Laravel 13、MySQL 8.4 LTS、Vue 3、Inertia、TypeScript、Vite。Laravel 负责路由、校验、持久化及服务端授权；Inertia 连接服务端页面与 Vue。Vite 只负责前端构建。DEV-001 的首页仅用于验证技术栈连通性，不承载业务操作。
+技术栈：Laravel 13、MySQL 8.4 LTS、Vue 3、Inertia、TypeScript、Vite。Laravel 负责路由、校验、持久化及服务端授权；Inertia 连接服务端页面与 Vue。Vite 只负责前端构建。DEV-003 与 DEV-W02/W02.1 已将 Project / ContentColumn 工作台接入真实服务端数据。
 
 正式业务层级：`Project → ContentColumn → Topic → ContentItem → ProductionTask → ChannelTask`。Project 是最高隔离边界；所有后续业务查询必须经当前 Project 限定，子对象 URL 也必须校验祖先归属。Project 选择在栏目和选题之前。不得从客户端传入的 `project_id` 单独推断访问权限。
 
@@ -20,6 +20,8 @@
 DEV-001 建立 Laravel/Inertia/Vue 启动页和 `projects`、旧名 `columns` 两张表。DEV-002 通过新迁移把后者改名为 `content_columns`，并建立 Topic、Content Item、Production Task、Channel Task。六个模型均显式归属 Project；复合外键保证 Topic 的 Column、Content Item 的 Topic/Column、Production Task 的 Content Item、Channel Task 的 Production Task 不会跨 Project 错配。一个 Content Item 在 Lite V1.0 对应一个共享 Production Task，多个 Channel Task 可引用它。
 
 文案状态存于 Content Item，图稿状态存于 Production Task；视频状态和发布状态分别存于 Channel Task。渠道在数据库中使用字符串、在 PHP 中使用可扩展的 `Channel` 枚举控制，首批为 `wechat_official`、`wechat_channels`。当前无用户登录和项目授权流程；数据库约束保证记录关系一致，但不能替代服务端 Project 上下文及访问授权。
+
+DEV-004 把四维状态统一为独立的 PHP string backed Enum，数据库继续存字符串。新建公众号任务的视频状态为 `not_applicable`，视频号为 `not_started`；二者发布状态均为 `unpublished`。文案、图稿、视频、发布的变化不得自动推进其他维度。旧状态通过独立 correction migration 回填，原 DEV-002 迁移保持不变。Topic、ContentItem 的业务编辑页及 ContentPage 尚未实现。
 
 ### 未来共享视觉资产关系接口（DEV-002 不建表）
 

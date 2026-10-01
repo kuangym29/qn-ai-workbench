@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\CopyStatus;
 use App\Models\ContentColumn;
 use App\Models\ContentItem;
 use App\Models\Project;
@@ -22,7 +23,7 @@ class ContentItemFactory extends Factory
                 'content_column_id' => $attributes['content_column_id'],
             ])->id,
             'title' => fake()->sentence(6),
-            'copy_status' => 'draft',
+            'copy_status' => CopyStatus::NotStarted,
         ];
     }
 }
