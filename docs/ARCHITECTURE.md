@@ -4,7 +4,7 @@
 
 技术栈：Laravel 13、MySQL 8.4 LTS、Vue 3、Inertia、TypeScript、Vite。Laravel 负责路由、校验、持久化及服务端授权；Inertia 连接服务端页面与 Vue。Vite 只负责前端构建。DEV-001 的首页仅用于验证技术栈连通性，不承载业务操作。
 
-正式业务层级：`Project → Column → Topic → Content Item → Production Task → Channel Task`。Project 是最高隔离边界；所有后续业务查询必须经当前 Project 限定，子对象 URL 也必须校验祖先归属。Project 选择在栏目和选题之前。不得从客户端传入的 `project_id` 单独推断访问权限。
+正式业务层级：`Project → ContentColumn → Topic → ContentItem → ProductionTask → ChannelTask`。Project 是最高隔离边界；所有后续业务查询必须经当前 Project 限定，子对象 URL 也必须校验祖先归属。Project 选择在栏目和选题之前。不得从客户端传入的 `project_id` 单独推断访问权限。
 
 ## 内容生产原则
 
@@ -27,7 +27,7 @@ DEV-001 建立 Laravel/Inertia/Vue 启动页和 `projects`、旧名 `columns` �
 
 ## 架构风险与待决策点
 
-1. **Project 访问授权尚未实现**：六张表的复合外键拒绝错误的跨项目关联，但尚无业务端点与用户授权。开放 CRUD 前必须确定可访问 Project 的来源，并在查询与写入时校验。
+1. **Project 访问授权尚未实现**：DEV-003 的会话当前 Project 约束请求范围，但选择接口目前可选择任何现有 Project，列表也列出全部 Project。多用户开放前必须确定身份及成员关系，并约束列表、选择和写入；当前作用域不等于访问授权。
 2. **生产任务基数**：Lite V1.0 暂按一篇一套共享生产任务建唯一约束。若后续确需多轮独立生产任务，应先明确版本与历史保留方式，再迁移该约束。
 3. **版本模型待细化**：正式版本不可覆盖，但版本标识、资产存储与渠道适配的具体表结构不在 DEV-002 定义，避免过早锁死。
 4. **历史 fixtures 待对齐**：隔离区及豆包旧分支中的样本属于另一任务。导入前要核对其 Project 归属、状态语义、Column 表名及正式 schema。
