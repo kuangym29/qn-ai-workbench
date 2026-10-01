@@ -39,6 +39,18 @@ async function enter(p: Project): Promise<void> {
   }
 }
 
+// 编辑同样必须先成为服务器当前 Project：DEV-003 规定 PATCH /api/projects/{project}
+// 只能作用于当前会话 Project。先 select 成功、本地 mirror 已更新后，再进入编辑页；
+// 若 select 失败，提示且不进入编辑页（绝不带未选中状态直闯 edit 路由）。
+async function edit(p: Project): Promise<void> {
+  try {
+    await selectProject(p.id);
+    router.visit(`/projects/${p.id}/edit`);
+  } catch {
+    toast.error('切换到该项目失败，无法进入编辑，请重试');
+  }
+}
+
 onMounted(load);
 </script>
 
@@ -98,12 +110,13 @@ onMounted(load);
           >
             进入
           </button>
-          <Link
-            :href="`/projects/${p.id}/edit`"
+          <button
+            type="button"
             class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            @click="edit(p)"
           >
             编辑
-          </Link>
+          </button>
         </div>
       </div>
     </div>

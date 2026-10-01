@@ -3,7 +3,7 @@ import { onMounted, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import type { ColumnInput } from '../../api/types';
 import { columnsApi } from '../../api/columns';
-import { extractFieldErrors, firstErrorMessage } from '../../api/errors';
+import { is404, extractFieldErrors, firstErrorMessage } from '../../api/errors';
 import { toast } from '../../ui/toast';
 import AdminLayout from '../../layouts/AdminLayout.vue';
 import PageHeader from '../../components/PageHeader.vue';
@@ -67,6 +67,13 @@ async function load(): Promise<void> {
     };
     slugTouched = true;
   } catch (e) {
+    // 加载 Column 时若因 scope 变化返回 404，说明该项目/小栏目不在当前会话作用域内。
+    // 与 Columns/Index.vue 一致：明确提示，返回 /projects，不把原始 Axios 404 暴露给用户。
+    if (is404(e)) {
+      toast.error('该项目或小栏目不在当前会话作用域内，已返回项目列表');
+      router.visit('/projects');
+      return;
+    }
     loadError.value = e instanceof Error ? e.message : '加载失败';
   } finally {
     loading.value = false;
@@ -106,6 +113,12 @@ async function submit(): Promise<void> {
     }
     router.visit(`/projects/${props.projectId}/columns`);
   } catch (e) {
+    // 保存时若因 scope 变化返回 404（例如当前会话 Project 已切换），同样明确提示并回退。
+    if (is404(e)) {
+      toast.error('该项目或小栏目不在当前会话作用域内，已返回项目列表');
+      router.visit('/projects');
+      return;
+    }
     const fe = extractFieldErrors(e);
     if (fe.name || fe.slug) {
       errors.value = { name: fe.name?.[0], slug: fe.slug?.[0] };
