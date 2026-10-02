@@ -155,6 +155,9 @@ class YujianHistoryImporter
 
             return;
         }
+        if ($item->copy_status === CopyStatus::NotStarted) {
+            throw new RuntimeException("IMPORT_ABORT: ContentItem {$expected['title']} has a formal revision but copy_status is not_started.");
+        }
         $baseline = $revisions->first();
         if ($baseline->revision_no !== 1) {
             throw new RuntimeException("IMPORT_ABORT: missing Revision 1 in {$expected['title']}.");

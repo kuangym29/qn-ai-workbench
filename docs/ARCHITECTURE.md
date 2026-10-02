@@ -40,7 +40,7 @@ DEV-006A 完成 ContentPage / CopyRevision / PageVersion 数据模型设计；DE
 - 当前正式 Revision = 同 ContentItem 最大 `revision_no` 的 ContentCopyRevision。
 - 不建立 `ContentItem.current_revision_id` 冗余字段，正式 Revision 通过最大 `revision_no` 查询确定。
 - Formal Copy（已确认正式稿）= 对应 Revision 的完整 PageVersion 快照集合。
-- Working Copy（编辑中的草稿）= 各 ContentPage 最大 `version_no` 版本集合，尚未进入正式 Revision。
+- Working Copy = 各 ContentPage 当前最大 `version_no` 的 PageVersion 集合。它可能是 `copy_revision_id != null` 的正式快照（确认后尚无新草稿），也可能是 `copy_revision_id = null` 的草稿。是否属于 Formal Copy 由 ContentCopyRevision 与 `copy_revision_id` 确定，不能仅凭是否为最大 `version_no` 判断。
 
 进入正式 confirmed 的唯一入口：
 

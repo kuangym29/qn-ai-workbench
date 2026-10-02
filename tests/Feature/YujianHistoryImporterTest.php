@@ -149,6 +149,36 @@ class YujianHistoryImporterTest extends TestCase
         $this->assertSame("你在身边，\n“我自己来”更有底气。", DB::table('content_page_versions')->whereNotNull('closing_line')->value('closing_line'));
     }
 
+    public function test_existing_revision_with_not_started_copy_status_aborts_without_writes(): void
+    {
+        $plan = $this->plan();
+        $this->assertSame('APPLIED', $this->importer()->apply($plan));
+        $this->assertSame('ALREADY_IMPORTED', $this->importer()->apply($plan));
+
+        $item = ContentItem::query()->where('title', YujianHistoryManifest::items()[0]['title'])->firstOrFail();
+        $revisionCount = DB::table('content_copy_revisions')->count();
+        $versionCount = DB::table('content_page_versions')->count();
+        $formalCopy = DB::table('content_page_versions')->where('content_item_id', $item->id)
+            ->whereNotNull('closing_line')->value('closing_line');
+
+        DB::table('content_items')->where('id', $item->id)->update(['copy_status' => CopyStatus::NotStarted->value]);
+
+        $aborted = false;
+        try {
+            $this->importer()->apply($plan);
+        } catch (RuntimeException $exception) {
+            $aborted = true;
+            $this->assertStringContainsString('IMPORT_ABORT', $exception->getMessage());
+            $this->assertStringContainsString('not_started', $exception->getMessage());
+        }
+        $this->assertTrue($aborted);
+
+        $this->assertSame($revisionCount, DB::table('content_copy_revisions')->count());
+        $this->assertSame($versionCount, DB::table('content_page_versions')->count());
+        $this->assertSame($formalCopy, DB::table('content_page_versions')->where('content_item_id', $item->id)
+            ->whereNotNull('closing_line')->value('closing_line'));
+    }
+
     public function test_missing_source_and_d06_mismatch_abort_before_writes(): void
     {
         unlink($this->sourceRoot.'/'.YujianHistoryManifest::projectSources()[0][1]);
