@@ -25,7 +25,17 @@ DEV-004 把四维状态统一为独立的 PHP string backed Enum，数据库继�
 
 DEV-005 已实现 Topic、ContentItem 服务端 API，按 Session 当前 Project 与 URL 祖先链逐层限定。创建 ContentItem 不自动创建 ProductionTask。具体路由、字段与错误契约见 `DEV-005_API_CONTRACT.md`。DEV-W03 已完成 Topic / ContentItem 业务编辑 UI。
 
-DEV-009A 的 ProductionTask 通过可空 `copy_revision_id` 兼容旧任务；正式 API 创建时必须绑定该篇当前最大 `revision_no` 的 ContentCopyRevision。任务固定在该正式文案版本，后续确认新 Revision 不自动换版或重置图稿状态。仅显式 `use-current-copy` 可在无 ChannelTask 时切换并重置图稿为 `not_started`；批准图稿要求仍绑定当前正式 Revision。详见 `DEV-009A_PRODUCTION_TASK_API.md`。ChannelTask API 尚未实现。
+DEV-009A 的 ProductionTask 通过可空 `copy_revision_id` 兼容旧任务；正式 API 创建时必须绑定该篇当前最大 `revision_no` 的 ContentCopyRevision。任务固定在该正式文案版本，后续确认新 Revision 不自动换版或重置图稿状态。仅显式 `use-current-copy` 可在无 ChannelTask 时切换并重置图稿为 `not_started`；批准图稿要求仍绑定当前正式 Revision。DEV-009A 已完成并合入 main。详见 `DEV-009A_PRODUCTION_TASK_API.md`。
+
+### 渠道流程（DEV-W05 已实现服务端 API）
+
+DEV-W05 把 ChannelTask 数据骨架升级为真实可执行的微信公众号与微信视频号工作流。渠道只引用共享 Production，不复制篇目与文案；渠道创建、视频终态、排期与正式发布都以「当前正式 Revision + 已验收共享图稿」为门禁，`artwork_status`、`video_status`、`publish_status` 三者互不推导。
+
+`channel_tasks` 新增 `scheduled_at`（内部发布排期）与 `published_at`（实际发布确认），两列均可空、既有行迁移后为 null，数据库统一按 UTC 存储；客户端提交的 datetime 显式换算为 UTC 后落库。首次进入 `published` 时缺省用 `now()`，之后不可通过普通接口改写；已发布不允许退回 `unpublished`，也不允许整链 reset。
+
+确认新正式 Revision 后，Production 与所有渠道状态都不会自动改动，Resource 的 `is_production_copy_current` 变为 `false`；stale 期间中间视频状态可保留，但视频 `approved`、发布 `scheduled` / `published` 一律拒绝。DEV-009A 的 `use-current-copy` 只覆盖无 ChannelTask 的情形，因此 DEV-W05 提供显式的 `restart-with-current-copy` 整链 reset：它保留 ChannelTask 的 id 与 channel，只重置状态与时间，且在任何渠道已发布时拒绝执行。
+
+并发上统一采用 `ContentItem → ProductionTask → ChannelTask` 的行锁顺序，与 DEV-009A 一致。发布状态只是内部工作台记录，本轮不调用任何微信真实 API、不保存 access_token、不做自动发布，也不建模渠道专属文案。前端 Channel / Production UI、Asset 体系与 AI 生图 / 视频均不在本轮范围。详见 `DEV_W05_CHANNEL_TASK_API.md`。
 
 ### 内容页与版本模型（DEV-006A/B、DEV-007A、DEV-W04 已实现）
 
@@ -68,4 +78,4 @@ SourceReference 归属 Project，并可选择归属同 Project 的 ContentItem�
 3. **Source Reference 范围**：DEV-008B 导入器会检查历史 11 个本地来源文件并写入相对路径引用。SourceReference 的通用 HTTP API 与 UI 尚未实现；引用不表示源文件已上传或持续同步。
 4. **历史 fixtures 待对齐**：隔离区及豆包旧分支中的样本属于另一任务。导入前要核对其 Project 归属、状态语义、Column 表名及正式 schema。
 5. **资产关系尚无数据库约束**：本轮仅定义未来接口。实现 Asset 表时必须为 Project / Content Item / Production Task 一致性及跨项目拒绝补测试，不能依赖字符串路径或可覆盖的固定字段。
-6. **阶段顺序尚未由服务层约束**：Channel Task 的数据结构表示渠道衍生任务，但数据库无法判断共享生产是否已验收。后续创建渠道任务的服务须核对图稿验收状态，不能仅以存在 Production Task 推断生产完成。
+6. **阶段顺序已由 DEV-W05 服务层约束**：Channel Task 的数据结构表示渠道衍生任务，数据库本身无法判断共享生产是否已验收。DEV-W05 起，创建渠道任务必须核对图稿验收状态与当前正式 Revision，不能仅以存在 Production Task 推断生产完成。

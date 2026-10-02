@@ -11,7 +11,7 @@
 | `topics` | `id`, `project_id`, `content_column_id`, `title`, `description`, timestamps | `(project_id, content_column_id)` 复合外键 | 选题不得指向其他 Project 的栏目 |
 | `content_items` | `id`, `project_id`, `content_column_id`, `topic_id`, `title`, `copy_status`, timestamps | `(project_id, content_column_id, topic_id)` 复合外键 | 篇目与其选题、栏目保持同 Project、同 Column |
 | `production_tasks` | `id`, `project_id`, `content_item_id`, 可空 `copy_revision_id`, `artwork_status`, timestamps | `(project_id, content_item_id)` 与 `(project_id, content_item_id, copy_revision_id)` 复合外键；`content_item_id` 唯一 | 每篇一套共享生产任务，正式 API 固定绑定制作依据的文案 Revision |
-| `channel_tasks` | `id`, `project_id`, `production_task_id`, `channel`, `video_status`, `publish_status`, timestamps | `(project_id, production_task_id)` 复合外键；`(production_task_id, channel)` 唯一 | 渠道任务引用共享生产，不复制篇目 |
+| `channel_tasks` | `id`, `project_id`, `production_task_id`, `channel`, `video_status`, `publish_status`, 可空 `scheduled_at`, 可空 `published_at`, timestamps | `(project_id, production_task_id)` 复合外键；`(production_task_id, channel)` 唯一 | 渠道任务引用共享生产，不复制篇目 |
 
 删除 Project 时相关表目前按数据库外键级联删除。产品层删除/归档策略尚未制定，开放删除操作前必须重新审查，不能直接暴露级联删除。`slug` 只作稳定路径标识，不作为权限凭据。当前不建立任何默认品牌数据。
 
@@ -29,6 +29,8 @@
 `channel` 在数据库中是字符串、在 PHP Model 中受 `Channel` 枚举控制；当前值为 `wechat_official` 和 `wechat_channels`。新增渠道需新增代码枚举值，不需要改数据库 Enum。
 
 DEV-009A 新增迁移在 `production_tasks` 增加可空 `copy_revision_id`，保留旧未绑定任务；复合外键 `(project_id, content_item_id, copy_revision_id)` 指向 `content_copy_revisions(project_id, content_item_id, id)` 的复合唯一键，删除被引用 Revision 时采用 restrict。新 API 创建必须绑定本篇当前正式 Revision；文案确认新 Revision 不自动更换任务绑定。正式文案历史原有的 restrict 外键已限制 Project / ContentItem 硬删除，当前也没有公开删除 API。详见 `DEV-009A_PRODUCTION_TASK_API.md`。
+
+DEV-W05 新增迁移在 `channel_tasks` 增加可空 `scheduled_at` 与可空 `published_at`，为纯 additive 变更，不修改 DEV-002 / DEV-004 的历史迁移。两列不设默认值，因此所有既有 ChannelTask 行迁移后必然为 null；`down()` 直接 drop 两列，SQLite 与 MySQL 8.4 的迁移、回滚与重跑均已验证。`scheduled_at` 是内部发布排期时间，`published_at` 是实际发布确认时间，两者按 UTC 存储：`scheduled` 必填 `scheduled_at`，首次进入 `published` 缺省用 `now()`，已发布后两者均不可通过普通接口改写，`unpublished` 统一清空两列。Eloquent 的 datetime cast 写库时使用 `Y-m-d H:i:s` 会丢弃时区偏移，因此服务层在落库前显式把客户端 datetime 换算为 UTC。PHP Model 对两列 cast 到 `datetime`，枚举与既有三列保持一致。详见 `DEV_W05_CHANNEL_TASK_API.md`。
 
 ## 内容页与版本表（DEV-006B 已实现）
 

@@ -13,7 +13,7 @@ class ChannelTask extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['channel', 'video_status', 'publish_status'];
+    protected $fillable = ['channel', 'video_status', 'publish_status', 'scheduled_at', 'published_at'];
 
     protected function casts(): array
     {
@@ -21,6 +21,9 @@ class ChannelTask extends Model
             'channel' => Channel::class,
             'video_status' => VideoStatus::class,
             'publish_status' => PublishStatus::class,
+            // DEV-W05: both timestamps are stored in UTC by the database.
+            'scheduled_at' => 'datetime',
+            'published_at' => 'datetime',
         ];
     }
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ChannelTaskController;
 use App\Http\Controllers\ContentColumnController;
 use App\Http\Controllers\ContentItemController;
 use App\Http\Controllers\ContentPageController;
@@ -88,4 +89,13 @@ Route::prefix('api')->group(function (): void {
     Route::post('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production', [ProductionTaskController::class, 'store']);
     Route::patch('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production', [ProductionTaskController::class, 'update']);
     Route::post('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/use-current-copy', [ProductionTaskController::class, 'useCurrentCopy']);
+
+    // DEV-W05 ChannelTask — 微信公众号 / 微信视频号渠道流程。渠道只引用共享 Production，
+    // 不复制篇目与文案。不开放 DELETE：Lite V1.0 没有任何删除 API。
+    Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/channels', [ChannelTaskController::class, 'index']);
+    Route::post('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/channels', [ChannelTaskController::class, 'store']);
+    Route::post('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/restart-with-current-copy', [ChannelTaskController::class, 'restartWithCurrentCopy']);
+    Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/channels/{channel}', [ChannelTaskController::class, 'show']);
+    Route::patch('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/channels/{channel}/video', [ChannelTaskController::class, 'updateVideo']);
+    Route::patch('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/channels/{channel}/publish', [ChannelTaskController::class, 'updatePublish']);
 });
