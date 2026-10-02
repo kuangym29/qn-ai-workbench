@@ -46,28 +46,32 @@
 
 ---
 
-## 3. 换行规则（raw → normalized）
+## 3. 换行规则与标点保真（raw → normalized）
 
 ### 允许的标准化（唯一一项）
 - 历史 Markdown 中用于表示画面换行的特殊分隔符「／」（全角斜杠）→ 数据库真实换行 `\n`
 - 其它已明确作为换行标记的分隔符 → `\n`
 
 ### 禁止的操作
-- ❌ 引号样式转换（中文引号 "" ↔ 英文引号 ""）
+- ❌ 引号样式转换（中文双引号 ↔ 英文半角双引号）
 - ❌ 全角/半角标点转换
 - ❌ 正文润色
 - ❌ 措辞修正
 - ❌ 空格增减
 
-### 原则
-- 所有中文引号、英文引号、中文冒号、中文逗号、中文句号、感叹号、问号、省略号、破折号、空格，全部以权威 Markdown 原文为准
-- 不同页面使用不同引号风格时，原样保留，不统一风格
+### 引号字符定义（明确 Unicode 码位）
+- **中文左双引号**：“ （U+201C）
+- **中文右双引号**：” （U+201D）
+- **英文半角双引号**：" （U+0022）
+
+> 以上三种引号在权威源中可能出现。映射时逐字保留，不做任何转换。
+> 不同页面使用不同引号风格时，原样保留，不统一风格。
 
 ### 示例
 | Raw source | Normalized database value |
 | --- | --- |
 | `孩子出门／总磨蹭／先别急着催` | `孩子出门\n总磨蹭\n先别急着催` |
-| `少说："快一点！"／试试："先把这只鞋拿起来。"` | `少说："快一点！"\n试试："先把这只鞋拿起来。"` |
+| `少说：“快一点！”／试试：“先把这只鞋拿起来。”` | `少说：“快一点！”\n试试：“先把这只鞋拿起来。”` |
 
 ---
 
@@ -111,17 +115,17 @@
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | cover | 生活小能力 | 孩子出门\n总磨蹭\n先别急着催 | 把催促换成孩子听得懂的一小步 | null | null | null | null |
 | 2 | content | null | null | null | 先看孩子\n卡在哪一步 | 先观察孩子停在哪儿，不急着催。 | null | null |
-| 3 | content | null | null | null | 把催促换成\n具体一步 | 少说："快一点！"\n试试："先把这只鞋拿起来。" | null | null |
+| 3 | content | null | null | null | 把催促换成\n具体一步 | 少说：“快一点！”\n试试：“先把这只鞋拿起来。” | null | null |
 | 4 | content | null | null | null | 说完，\n停一停 | 给孩子一点时间，自己拿起鞋。 | null | null |
 | 5 | content | null | null | null | 完成一步，\n再说下一步 | 第一只穿好，再准备另一只。 | null | null |
-| 6 | content | null | null | null | 第二只鞋\n也穿好啦 | "妈妈，我穿好啦！" | null | null |
-| 7 | content | null | null | null | 看见这一小步\n具体夸一夸 | "我看到你把第二只鞋也穿好了，真棒！" | null | null |
+| 6 | content | null | null | null | 第二只鞋\n也穿好啦 | “妈妈，我穿好啦！” | null | null |
+| 7 | content | null | null | null | 看见这一小步\n具体夸一夸 | “我看到你把第二只鞋也穿好了，真棒！” | null | null |
 | 8 | content | null | null | null | 准备好了，\n一起出门！ | 穿好鞋，和妈妈高高兴兴走出家门。 | null | null |
-| 9 | column_closing | null | null | null | null | null | 你在身边，\n"我自己来"更有底气。 | 图文版共享收尾句 |
+| 9 | column_closing | null | null | null | null | null | 你在身边，\n“我自己来”更有底气。 | 图文版共享收尾句 |
 | 10 | fixed_back_cover | null | null | null | null | null | null | 使用既有固定封底模板 |
 
 **特殊收尾句说明**：
-- 图文版共享收尾句（进入 `ContentPageVersion.closing_line`）：`你在身边，\n"我自己来"更有底气。`（中文引号，与权威源完全一致）
+- 图文版共享收尾句（进入 `ContentPageVersion.closing_line`）：`你在身边，\n“我自己来”更有底气。`（中文双引号 U+201C / U+201D，与权威源完全一致）
 - 视频版专属收尾句（**不进入共享 ContentPageVersion**，标记 `CHANNEL_SPECIFIC_COPY`）：`你等的这一会儿，\n是她自己来的底气。`
 - 未来归属：`wechat_channels` 渠道专属文案 / script override
 - 禁止覆盖图文版本
@@ -137,11 +141,11 @@
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | cover | 看见小情绪 | 积木倒了\n孩子哭了\n先别急着搭 | 他搭了好久的\n小房子，散了一地。 | null | null | null | null |
 | 2 | content | null | null | null | 妈妈先蹲下\n没去扶积木 | 确认没有受伤，她先把注意力放在孩子身上。 | null | null |
-| 3 | content | null | null | null | 他握起屋顶\n小声说"我的……" | 妈妈没有接过积木，等他把话说完。 | null | null |
-| 4 | content | null | null | null | "你搭了好久，\n倒了很难过吧？" | 先接住他的失落，不急着讲办法。 | null | null |
-| 5 | content | null | null | null | "想先歇一会儿，\n还是一起再搭？" | 等他能听进去，妈妈才把选择交给他。 | null | null |
-| 6 | content | null | null | null | 他自己挑一块\n轻轻放稳了 | 妈妈说："你自己挑的这块，放得很稳。" | null | null |
-| 7 | content | null | null | null | 屋顶重新放好\n他笑着看妈妈 | 这一次，是他自己选了"再试试"。 | null | null |
+| 3 | content | null | null | null | 他握起屋顶\n小声说“我的……” | 妈妈没有接过积木，等他把话说完。 | null | null |
+| 4 | content | null | null | null | “你搭了好久，\n倒了很难过吧？” | 先接住他的失落，不急着讲办法。 | null | null |
+| 5 | content | null | null | null | “想先歇一会儿，\n还是一起再搭？” | 等他能听进去，妈妈才把选择交给他。 | null | null |
+| 6 | content | null | null | null | 他自己挑一块\n轻轻放稳了 | 妈妈说：“你自己挑的这块，放得很稳。” | null | null |
+| 7 | content | null | null | null | 屋顶重新放好\n他笑着看妈妈 | 这一次，是他自己选了“再试试”。 | null | null |
 | 8 | column_closing | null | null | null | null | null | 你肯听，情绪就有了出口。 | null |
 | 9 | fixed_back_cover | null | null | null | null | null | null | 使用既有固定封底模板 |
 
@@ -161,10 +165,10 @@
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | cover | 相处小智慧 | 弟弟想玩车\n姐姐还没玩完\n先别催她让 | 一辆小车，两个孩子；\n先别急着判谁该让。 | null | null | null | null |
 | 2 | content | null | null | null | 弟弟伸手拿\n姐姐抱紧车 | 争抢刚起，妈妈先走近两个孩子。 | null | null |
-| 3 | content | null | null | null | 妈妈蹲下来\n"先不抢。" | 先挡住拿车的动作，不从姐姐手里夺车。 | null | null |
+| 3 | content | null | null | null | 妈妈蹲下来\n“先不抢。” | 先挡住拿车的动作，不从姐姐手里夺车。 | null | null |
 | 4 | content | null | null | null | 妈妈先听见\n两个人的需要 | 姐姐还在玩，弟弟也想玩。怎么办？ | null | null |
-| 5 | content | null | null | null | "再开一圈，\n就给弟弟玩。" | 姐姐说出顺序，妈妈再让弟弟知道。 | null | null |
-| 6 | content | null | null | null | 弟弟等得急\n妈妈陪他等 | "你很想玩呀，我陪你等她开完。" | null | null |
+| 5 | content | null | null | null | “再开一圈，\n就给弟弟玩。” | 姐姐说出顺序，妈妈再让弟弟知道。 | null | null |
+| 6 | content | null | null | null | 弟弟等得急\n妈妈陪他等 | “你很想玩呀，我陪你等她开完。” | null | null |
 | 7 | content | null | null | null | 姐姐玩好了\n把车递给弟弟 | 姐姐的这一圈没被打断；弟弟也等到了。 | null | null |
 | 8 | content | null | null | null | 弟弟开着车\n姐姐在旁指路 | 愿意时一起玩，不想一起也不用勉强。 | null | null |
 | 9 | column_closing | null | null | null | null | null | 轮流不是催姐姐让，\n而是让两个孩子都被听见。 | 本篇专属栏目收尾 |
@@ -181,9 +185,9 @@
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | cover | 原来在长大 | 一只纸箱\n开了家水果店 | 孩子在玩什么？先听听他的设定。 | null | null | null | null |
 | 2 | content | null | null | null | 纸箱成了小店\n他在玩假装游戏 | 他让纸箱当小店，自己当卖水果的人。 | null | null |
-| 3 | content | null | null | null | 他招呼爸爸\n"来买苹果吧" | 游戏由孩子发起，爸爸先听他的安排。 | null | null |
-| 4 | content | null | null | null | 爸爸坐下来\n当第一位顾客 | "你好，我想买一个苹果。" | null | null |
-| 5 | content | null | null | null | 他挑出苹果\n递到爸爸面前 | "给你。"爸爸回应："谢谢你，店长。" | null | null |
+| 3 | content | null | null | null | 他招呼爸爸\n“来买苹果吧” | 游戏由孩子发起，爸爸先听他的安排。 | null | null |
+| 4 | content | null | null | null | 爸爸坐下来\n当第一位顾客 | “你好，我想买一个苹果。” | null | null |
+| 5 | content | null | null | null | 他挑出苹果\n递到爸爸面前 | “给你。”爸爸回应：“谢谢你，店长。” | null | null |
 | 6 | content | null | null | null | 爸爸拿着苹果\n弟弟挥手说再见 | 孩子邀请时，先听设定，再接一句。 | null | null |
 | 7 | column_closing | null | null | null | null | null | 他把纸箱当成小店，\n你认真走进他的想象。 | 本篇专属栏目收尾 |
 | 8 | fixed_back_cover | null | null | null | null | null | null | 使用既有固定封底模板 |
@@ -194,7 +198,7 @@
 
 | 篇目 | 图文版共享收尾句 | 视频版专属收尾句 | 标记 |
 | --- | --- | --- | --- |
-| 孩子出门总磨蹭 | 你在身边，\n"我自己来"更有底气。 | 你等的这一会儿，\n是她自己来的底气。 | CHANNEL_SPECIFIC_COPY（视频版不进共享） |
+| 孩子出门总磨蹭 | 你在身边，\n“我自己来”更有底气。 | 你等的这一会儿，\n是她自己来的底气。 | CHANNEL_SPECIFIC_COPY（视频版不进共享） |
 | 积木倒了，孩子哭了 | 你肯听，情绪就有了出口。 | null | 无视频版专属差异 |
 | 弟弟想玩车，姐姐还没玩完 | 轮流不是催姐姐让，\n而是让两个孩子都被听见。 | null | 无视频任务 |
 | 一只纸箱，开了家水果店 | 他把纸箱当成小店，\n你认真走进他的想象。 | null | 无视频任务 |
@@ -296,4 +300,4 @@
 - ✅ 37 页逐页映射完整
 - ✅ 换行规则明确（仅允许 ／→\n，其余标点原样保留）
 - ✅ 特殊收尾句独立标记，不覆盖
-- ✅ 所有中文引号与权威源完全一致
+- ✅ 所有中文双引号（U+201C / U+201D）与权威源完全一致
