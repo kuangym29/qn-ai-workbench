@@ -6,6 +6,7 @@ use App\Http\Controllers\ContentItemController;
 use App\Http\Controllers\ContentPageController;
 use App\Http\Controllers\ProductionTaskController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\SourceReferenceController;
 use App\Http\Controllers\TopicController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -56,6 +57,16 @@ Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/pro
     'topicId' => $topic,
     'itemId' => $item,
 ]))->name('items.production');
+
+// Source reference management (DEV-W07) — Project level and per content item.
+// Inertia entries only; all data comes from the DEV-W07 API under /api.
+Route::get('/projects/{project}/sources', fn (int $project) => Inertia::render('Sources/ProjectSources', ['projectId' => $project]))->name('sources.project');
+Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/sources', fn (int $project, int $column, int $topic, int $item) => Inertia::render('Sources/ItemSources', [
+    'projectId' => $project,
+    'columnId' => $column,
+    'topicId' => $topic,
+    'itemId' => $item,
+]))->name('sources.item');
 
 // Real DEV-003 REST API. Same-origin browser session + CSRF. All responses are wrapped
 // as {"data": ...}. The current project lives in the server session (ProjectContext),
@@ -108,4 +119,16 @@ Route::prefix('api')->group(function (): void {
     Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/channels/{channel}', [ChannelTaskController::class, 'show']);
     Route::patch('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/channels/{channel}/video', [ChannelTaskController::class, 'updateVideo']);
     Route::patch('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/channels/{channel}/publish', [ChannelTaskController::class, 'updatePublish']);
+    // DEV-W07 SourceReference Lite API. Project-scoped and item-scoped roles are managed
+    // through separate paths; a record reached through the wrong scope is 404. There is
+    // intentionally NO DELETE route: provenance records are not deletable here.
+    Route::get('/projects/{project}/sources', [SourceReferenceController::class, 'projectIndex']);
+    Route::post('/projects/{project}/sources', [SourceReferenceController::class, 'projectStore']);
+    Route::get('/projects/{project}/sources/{sourceReference}', [SourceReferenceController::class, 'projectShow']);
+    Route::patch('/projects/{project}/sources/{sourceReference}', [SourceReferenceController::class, 'projectUpdate']);
+
+    Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/sources', [SourceReferenceController::class, 'itemIndex']);
+    Route::post('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/sources', [SourceReferenceController::class, 'itemStore']);
+    Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/sources/{sourceReference}', [SourceReferenceController::class, 'itemShow']);
+    Route::patch('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/sources/{sourceReference}', [SourceReferenceController::class, 'itemUpdate']);
 });
