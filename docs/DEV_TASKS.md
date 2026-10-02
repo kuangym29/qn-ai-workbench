@@ -73,9 +73,11 @@ V1.1 校正：authority 语义正式收敛为四类（authoritative / evidence /
 
 新增可空 `copy_revision_id` 兼容旧任务，以复合外键限定同 Project、同 ContentItem 的正式文案 Revision。新增 GET、POST、PATCH 与显式 `use-current-copy` 服务端 API；创建必须从 confirmed 文案绑定当前正式 Revision，批准图稿需与当前 Revision 对齐，后续文案确认不自动换版。详见 `DEV-009A_PRODUCTION_TASK_API.md`。本轮不实现 ChannelTask API、前端 UI 或资产系统。
 
-## DEV-W05：ChannelTask 渠道流程 API 与发布排期（已完成并合入 main）
+## DEV-W05：ChannelTask 渠道流程 API 与发布排期（已完成开发，等待终审 / 合并）
 
-在既有 ChannelTask 骨架上实现微信公众号 / 微信视频号的真实服务端流程：新增可空 `scheduled_at`、`published_at` 两个时间列（additive 迁移，既有行为 null，统一按 UTC 存储），提供渠道创建、列表、单渠道读取、视频状态推进、发布排期与实际发布记录，以及 Production stale 门禁与显式 `restart-with-current-copy` 整链 reset。四维状态严格独立，已发布是历史事实不可被普通接口或 reset 抹掉。统一行锁顺序为 ContentItem → ProductionTask → ChannelTask。本轮不调用任何微信真实 API，不做自动发布，不开发渠道专属文案、Channel / Production 前端 UI、Asset 体系与 AI 生图 / 视频。详见 `DEV_W05_CHANNEL_TASK_API.md`。
+在既有 ChannelTask 骨架上实现微信公众号 / 微信视频号的真实服务端流程：新增可空 `scheduled_at`、`published_at` 两个时间列（additive 迁移，既有行为 null，统一按 UTC 存储），提供渠道创建、列表、单渠道读取、视频状态推进、发布排期与实际发布记录，以及 Production stale 门禁与显式 `restart-with-current-copy` 整链 reset。四维状态严格独立，已发布是普通 Publish API 的终态、不可被普通接口或 reset 抹掉。统一行锁顺序为 ContentItem → ProductionTask → ChannelTask。本轮不调用任何微信真实 API，不做自动发布，不开发渠道专属文案、Channel / Production 前端 UI、Asset 体系与 AI 生图 / 视频。详见 `DEV-W05_CHANNEL_TASK_API.md`。
+
+DEV-W05.1 为终审收口：修正「父 ProductionTask 不存在时创建渠道任务应返回 404」、「`published` 为普通 Publish API 终态（含 `published → scheduled` 拒绝）」与「发布请求禁止携带 `scheduled_at`」，并订正文档中的合并状态、MySQL 8.4 验证状态与文件名引用。同样等待终审 / 合并。
 
 ## 后续待拆分
 

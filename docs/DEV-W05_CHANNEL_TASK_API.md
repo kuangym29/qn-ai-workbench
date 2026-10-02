@@ -31,11 +31,11 @@
 
 POST 创建渠道前必须同时满足：
 
-1. ProductionTask 已存在；
+1. ProductionTask 已存在；**父 ProductionTask 不存在时返回 404**（URL 明确位于 `/production/channels` 之下，父资源缺失属于资源不存在，不是业务状态校验失败）；
 2. `ProductionTask.artwork_status = approved`；
 3. `ProductionTask.copy_revision_id` 非空且等于该 ContentItem 当前最大正式 Revision.id。
 
-否则 422 `errors.channel`。理由：渠道衍生只能建立在「当前正式文案 + 已验收共享图稿」之上。
+不满足第 2、3 条时返回 422 `errors.channel`。理由：渠道衍生只能建立在「当前正式文案 + 已验收共享图稿」之上。
 
 POST 只接受 `channel`。`project_id`、`production_task_id`、`video_status`、`publish_status`、`scheduled_at`、`published_at` 全部由服务端决定，客户端提交一律 422 `prohibited`。
 
@@ -64,20 +64,33 @@ PATCH `.../publish` 接受 `publish_status`，并按目标状态校验时间字�
 | 目标状态 | scheduled_at | published_at |
 | --- | --- | --- |
 | `scheduled` | required | prohibited |
-| `published` | 保留原值 | nullable，缺省 `now()` |
-| `unpublished` | 拒绝提交 | 拒绝提交 |
+| `published` | prohibited | nullable，缺省 `now()` |
+| `unpublished` | prohibited | prohibited |
 
 客户端提交 datetime，Laravel 校验后**统一换算为 UTC 落库**（`2026-10-10T10:00:00+08:00` 存为 `2026-10-10T02:00:00Z`）。本轮不要求 `scheduled_at` 晚于当前时间，系统需要支持历史补录。
+
+注意 `published` 请求**禁止携带 `scheduled_at`**：若该渠道此前处于 `scheduled`，服务端会原样保留库中的 `scheduled_at` 作为排期历史，客户端不得借发布请求改写它。
 
 ### scheduled 门禁
 
 要求 ProductionTask `artwork_status = approved` 且绑定当前正式 Revision。视频号额外要求 `video_status = approved`；公众号无需视频验收。否则 422 `errors.publish_status`。已处于 `scheduled` 时可再次提交以修改 `scheduled_at`，不影响视频与图稿。
 
-### published 门禁与幂等
+### published 门禁
 
-同样要求 Production approved + current；视频号额外要求视频 `approved`。首次进入 `published` 时客户端可提供 `published_at`，未提供则用 `now()`。若此前是 `scheduled`，**保留原 `scheduled_at` 作为排期历史**，不自动清空。
+进入 `published` 要求 Production approved + current；视频号额外要求视频 `approved`。首次进入 `published` 时客户端可提供 `published_at`，未提供则用 `now()`。若此前是 `scheduled`，**保留原 `scheduled_at` 作为排期历史**，不自动清空。
 
-已 `published` 后再次提交 `published` 且未带 `published_at` → 200 no-op，保留原 `published_at`，不重新 `now()`；若试图提交新的 `published_at` → 422。
+### published 是普通 Publish API 的终态
+
+已发布是历史事实。当前 `publish_status = published` 时，普通 Publish API 的行为固定为：
+
+| 请求 | 结果 |
+| --- | --- |
+| `published`（未提交新的 `published_at`） | 200 no-op，保留原 `published_at`，不重新 `now()` |
+| `published` + 新的 `published_at` | 422 `errors.published_at` |
+| `unpublished` | 422 `errors.publish_status` |
+| `scheduled` | 422 `errors.publish_status` |
+
+也就是说 `published` 在本接口是终态，不能用同一个 ChannelTask 把已发布退回排期或未发布。未来若需要再次发布、重新发布或纠错，应另设发布记录模型或管理员纠错动作，不复用本接口改写既有记录。
 
 ### unpublished 规则
 
@@ -108,6 +121,10 @@ stale 期间：中间视频状态 `not_started` / `in_progress` / `pending_revie
 
 渠道创建在锁内先检查是否已存在，`unique(production_task_id, channel)` 作为最后一道并发约束；并发的唯一键冲突会被转成 422 `errors.channel`，不会漏成 500。
 
+## 验证状态
+
+Feature 测试在 SQLite 内存库执行（含 migration up、既有行 NULL 默认、rollback / re-run 由迁移层另行实测）。**MySQL 8.4 本轮尚未完成实机验证**：本机 MySQL 8.4.11 在运行，但无可安全使用的独立测试库凭据，未猜测密码也未创建账号，状态为 `MYSQL_8_4_VALIDATION_BLOCKED`。部署前或获得独立测试库凭据后必须补跑 MySQL 8.4 的 migration / rollback / re-run 与本 API 定向测试。
+
 ## 错误响应
 
-统一 422 结构 `{"message":"...","errors":{"field":["..."]}}`，字段取 `channel`、`video_status`、`publish_status`、`production`。未知字段与伪造归属字段 422 `prohibited`。非法枚举值 422。缺失 ProductionTask / ChannelTask、未知 Channel、任一祖先错配返回 404。
+统一 422 结构 `{"message":"...","errors":{"field":["..."]}}`，字段取 `channel`、`video_status`、`publish_status`、`production`、`scheduled_at`、`published_at`。未知字段与伪造归属字段 422 `prohibited`。非法枚举值 422。缺失 ProductionTask / ChannelTask、未知 Channel、任一祖先错配返回 404。

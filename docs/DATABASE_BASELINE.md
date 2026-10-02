@@ -30,7 +30,9 @@
 
 DEV-009A 新增迁移在 `production_tasks` 增加可空 `copy_revision_id`，保留旧未绑定任务；复合外键 `(project_id, content_item_id, copy_revision_id)` 指向 `content_copy_revisions(project_id, content_item_id, id)` 的复合唯一键，删除被引用 Revision 时采用 restrict。新 API 创建必须绑定本篇当前正式 Revision；文案确认新 Revision 不自动更换任务绑定。正式文案历史原有的 restrict 外键已限制 Project / ContentItem 硬删除，当前也没有公开删除 API。详见 `DEV-009A_PRODUCTION_TASK_API.md`。
 
-DEV-W05 新增迁移在 `channel_tasks` 增加可空 `scheduled_at` 与可空 `published_at`，为纯 additive 变更，不修改 DEV-002 / DEV-004 的历史迁移。两列不设默认值，因此所有既有 ChannelTask 行迁移后必然为 null；`down()` 直接 drop 两列，SQLite 与 MySQL 8.4 的迁移、回滚与重跑均已验证。`scheduled_at` 是内部发布排期时间，`published_at` 是实际发布确认时间，两者按 UTC 存储：`scheduled` 必填 `scheduled_at`，首次进入 `published` 缺省用 `now()`，已发布后两者均不可通过普通接口改写，`unpublished` 统一清空两列。Eloquent 的 datetime cast 写库时使用 `Y-m-d H:i:s` 会丢弃时区偏移，因此服务层在落库前显式把客户端 datetime 换算为 UTC。PHP Model 对两列 cast 到 `datetime`，枚举与既有三列保持一致。详见 `DEV_W05_CHANNEL_TASK_API.md`。
+DEV-W05 新增迁移在 `channel_tasks` 增加可空 `scheduled_at` 与可空 `published_at`，为纯 additive 变更，不修改 DEV-002 / DEV-004 的历史迁移。两列不设默认值，因此所有既有 ChannelTask 行迁移后必然为 null；`down()` 直接 drop 两列。`scheduled_at` 是内部发布排期时间，`published_at` 是实际发布确认时间，两者按 UTC 存储：`scheduled` 必填 `scheduled_at`，发布请求不得携带 `scheduled_at`，首次进入 `published` 缺省用 `now()`，已发布是普通 Publish API 的终态、两个时间均不可再改写，`unpublished` 统一清空两列。Eloquent 的 datetime cast 写库时使用 `Y-m-d H:i:s` 会丢弃时区偏移，因此服务层在落库前显式把客户端 datetime 换算为 UTC。PHP Model 对两列 cast 到 `datetime`，枚举与既有三列保持一致。详见 `DEV-W05_CHANNEL_TASK_API.md`。
+
+迁移验证状态：该 additive migration 已在 SQLite 完成 up / rollback / re-run 实测。**MySQL 8.4 本轮因安全测试凭据不可用尚未完成实机验证**（本机 MySQL 8.4.11 在运行，但无可安全使用的独立测试库凭据，未猜测密码也未创建账号）。部署前或获得独立测试库凭据后，必须补跑 MySQL 8.4 的 migration / rollback / re-run 与 ChannelTask 定向测试，不得以 SQLite 结果替代。
 
 ## 内容页与版本表（DEV-006B 已实现）
 

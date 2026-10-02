@@ -177,11 +177,11 @@ class ChannelTaskApiTest extends TestCase
         [, , , $item, $url] = $this->context();
         $channelsUrl = $url.'/channels';
 
-        // 1) 没有 ProductionTask → 422（Production 不存在由 restart 场景另测 404）
+        // 1) 没有 ProductionTask → 404（父资源不存在，不是业务状态校验失败）
         $this->revision($item);
         $item->update(['copy_status' => CopyStatus::Confirmed]);
-        $this->postJson($channelsUrl, ['channel' => 'wechat_official'])
-            ->assertUnprocessable()->assertJsonValidationErrors('channel');
+        $this->postJson($channelsUrl, ['channel' => 'wechat_official'])->assertNotFound();
+        $this->assertDatabaseCount('channel_tasks', 0);
 
         $this->postJson($url)->assertCreated();
 
@@ -411,6 +411,79 @@ class ChannelTaskApiTest extends TestCase
             'channel' => 'wechat_official', 'publish_status' => 'published',
         ]);
         $this->assertSame($original, $this->getJson($this->channelUrl($url, 'wechat_official'))->json('data.published_at'));
+    }
+
+    public function test_published_is_final_and_cannot_return_to_scheduled(): void
+    {
+        [, , , , $url] = $this->readyProduction();
+        $this->postJson($url.'/channels', ['channel' => 'wechat_official'])->assertCreated();
+        $publish = $this->channelUrl($url, 'wechat_official', '/publish');
+
+        // 先排期再发布，保留排期历史
+        $this->patchJson($publish, [
+            'publish_status' => 'scheduled', 'scheduled_at' => '2026-10-10T10:00:00+08:00',
+        ])->assertOk();
+        $published = $this->patchJson($publish, [
+            'publish_status' => 'published', 'published_at' => '2026-10-11T08:00:00+08:00',
+        ])->assertOk()->json('data');
+        $originalPublished = $published['published_at'];
+        $originalScheduled = $published['scheduled_at'];
+        $this->assertSame('2026-10-10T02:00:00.000000Z', $originalScheduled);
+
+        // published → scheduled → 422
+        $this->patchJson($publish, [
+            'publish_status' => 'scheduled', 'scheduled_at' => '2026-11-20T10:00:00+08:00',
+        ])->assertUnprocessable()->assertJsonValidationErrors('publish_status');
+
+        // 数据库三列全部保持原值，不被修改
+        $after = $this->getJson($this->channelUrl($url, 'wechat_official'))->assertOk()->json('data');
+        $this->assertSame('published', $after['publish_status']);
+        $this->assertSame($originalPublished, $after['published_at']);
+        $this->assertSame($originalScheduled, $after['scheduled_at']);
+        $this->assertDatabaseHas('channel_tasks', [
+            'channel' => 'wechat_official', 'publish_status' => 'published',
+        ]);
+    }
+
+    public function test_published_request_rejects_scheduled_at(): void
+    {
+        [, , , , $url] = $this->readyProduction();
+        $this->postJson($url.'/channels', ['channel' => 'wechat_official'])->assertCreated();
+        $publish = $this->channelUrl($url, 'wechat_official', '/publish');
+
+        // 发布请求不得携带 scheduled_at
+        $this->patchJson($publish, [
+            'publish_status' => 'published', 'scheduled_at' => '2026-10-10T10:00:00+08:00',
+        ])->assertUnprocessable()->assertJsonValidationErrors('scheduled_at');
+
+        // 即使之前已 scheduled，正常发布仍允许，服务端保留库里的排期历史
+        $this->patchJson($publish, [
+            'publish_status' => 'scheduled', 'scheduled_at' => '2026-10-10T10:00:00+08:00',
+        ])->assertOk();
+        $result = $this->patchJson($publish, ['publish_status' => 'published'])->assertOk()->json('data');
+        $this->assertSame('published', $result['publish_status']);
+        $this->assertSame('2026-10-10T02:00:00.000000Z', $result['scheduled_at']);
+        $this->assertNotNull($result['published_at']);
+    }
+
+    public function test_create_without_production_task_returns_404(): void
+    {
+        [, , , $item, $url] = $this->context();
+
+        // ContentItem 与正式 Revision 都存在，但没有 ProductionTask
+        $this->revision($item);
+        $item->update(['copy_status' => CopyStatus::Confirmed]);
+        $this->assertDatabaseCount('production_tasks', 0);
+
+        foreach (['wechat_official', 'wechat_channels'] as $channel) {
+            $this->postJson($url.'/channels', ['channel' => $channel])->assertNotFound();
+        }
+
+        // 其它读接口同样 404
+        $this->getJson($url.'/channels')->assertNotFound();
+        $this->getJson($this->channelUrl($url, 'wechat_official'))->assertNotFound();
+
+        $this->assertDatabaseCount('channel_tasks', 0);
     }
 
     public function test_unpublished_request_refuses_forged_timestamps(): void

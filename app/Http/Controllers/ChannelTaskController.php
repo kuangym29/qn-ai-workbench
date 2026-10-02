@@ -161,7 +161,9 @@ class ChannelTaskController extends Controller
             $production = $lockedItem->productionTask()->lockForUpdate()->first();
 
             if ($production === null) {
-                $this->fail('channel', 'Start a production task before creating a channel task.');
+                // URL 明确位于 /production/channels 之下：父资源 ProductionTask 不存在属于
+                // 资源不存在（404），而不是业务状态校验失败（422）。
+                abort(404);
             }
 
             if (! $this->productionIsReady($lockedItem, $production)) {
@@ -272,9 +274,11 @@ class ChannelTaskController extends Controller
 
             $isPublished = $channelTask->publish_status === PublishStatus::Published;
 
-            // 已发布是历史事实：不允许通过普通接口抹掉。
-            if ($isPublished && $target === PublishStatus::Unpublished) {
-                $this->fail('publish_status', 'A published channel task cannot be reset to unpublished.');
+            // `published` 是普通 Publish API 的终态：已发布是历史事实，不能通过同一个
+            // ChannelTask 退回 scheduled 或 unpublished。再次发布 / 重新发布 / 纠错应另设
+            // 发布记录模型或管理员纠错动作，不复用本接口。
+            if ($isPublished && $target !== PublishStatus::Published) {
+                $this->fail('publish_status', 'A published channel task is final; it cannot return to scheduled or unpublished.');
             }
 
             // 幂等：已发布再次 published 且未提供新时间 → 200 no-op，保留原 published_at。

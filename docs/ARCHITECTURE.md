@@ -35,7 +35,7 @@ DEV-W05 把 ChannelTask 数据骨架升级为真实可执行的微信公众号�
 
 确认新正式 Revision 后，Production 与所有渠道状态都不会自动改动，Resource 的 `is_production_copy_current` 变为 `false`；stale 期间中间视频状态可保留，但视频 `approved`、发布 `scheduled` / `published` 一律拒绝。DEV-009A 的 `use-current-copy` 只覆盖无 ChannelTask 的情形，因此 DEV-W05 提供显式的 `restart-with-current-copy` 整链 reset：它保留 ChannelTask 的 id 与 channel，只重置状态与时间，且在任何渠道已发布时拒绝执行。
 
-并发上统一采用 `ContentItem → ProductionTask → ChannelTask` 的行锁顺序，与 DEV-009A 一致。发布状态只是内部工作台记录，本轮不调用任何微信真实 API、不保存 access_token、不做自动发布，也不建模渠道专属文案。前端 Channel / Production UI、Asset 体系与 AI 生图 / 视频均不在本轮范围。详见 `DEV_W05_CHANNEL_TASK_API.md`。
+并发上统一采用 `ContentItem → ProductionTask → ChannelTask` 的行锁顺序，与 DEV-009A 一致。发布状态只是内部工作台记录，本轮不调用任何微信真实 API、不保存 access_token、不做自动发布，也不建模渠道专属文案。前端 Channel / Production UI、Asset 体系与 AI 生图 / 视频均不在本轮范围。详见 `DEV-W05_CHANNEL_TASK_API.md`。
 
 ### 内容页与版本模型（DEV-006A/B、DEV-007A、DEV-W04 已实现）
 
