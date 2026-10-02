@@ -3,6 +3,7 @@
 use App\Http\Controllers\ContentColumnController;
 use App\Http\Controllers\ContentItemController;
 use App\Http\Controllers\ContentPageController;
+use App\Http\Controllers\ProductionTaskController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TopicController;
 use Illuminate\Support\Facades\Route;
@@ -82,4 +83,9 @@ Route::prefix('api')->group(function (): void {
     Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/copy/revisions/{revision}', [ContentPageController::class, 'revision']);
     Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/copy/current', [ContentPageController::class, 'current']);
     Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/copy/working', [ContentPageController::class, 'working']);
+
+    Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production', [ProductionTaskController::class, 'show']);
+    Route::post('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production', [ProductionTaskController::class, 'store']);
+    Route::patch('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production', [ProductionTaskController::class, 'update']);
+    Route::post('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/use-current-copy', [ProductionTaskController::class, 'useCurrentCopy']);
 });

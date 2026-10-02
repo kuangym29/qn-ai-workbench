@@ -10,7 +10,7 @@
 | `content_columns` | `id`, `project_id`, `name`, `slug`, `description`, `sort_order`, timestamps | `project_id` 外键；`(project_id, slug)`、`(project_id, id)` 唯一 | Project 内的小栏目；由旧 `columns` 迁移改名 |
 | `topics` | `id`, `project_id`, `content_column_id`, `title`, `description`, timestamps | `(project_id, content_column_id)` 复合外键 | 选题不得指向其他 Project 的栏目 |
 | `content_items` | `id`, `project_id`, `content_column_id`, `topic_id`, `title`, `copy_status`, timestamps | `(project_id, content_column_id, topic_id)` 复合外键 | 篇目与其选题、栏目保持同 Project、同 Column |
-| `production_tasks` | `id`, `project_id`, `content_item_id`, `artwork_status`, timestamps | `(project_id, content_item_id)` 复合外键；`content_item_id` 唯一 | 每篇一套共享生产任务 |
+| `production_tasks` | `id`, `project_id`, `content_item_id`, 可空 `copy_revision_id`, `artwork_status`, timestamps | `(project_id, content_item_id)` 与 `(project_id, content_item_id, copy_revision_id)` 复合外键；`content_item_id` 唯一 | 每篇一套共享生产任务，正式 API 固定绑定制作依据的文案 Revision |
 | `channel_tasks` | `id`, `project_id`, `production_task_id`, `channel`, `video_status`, `publish_status`, timestamps | `(project_id, production_task_id)` 复合外键；`(production_task_id, channel)` 唯一 | 渠道任务引用共享生产，不复制篇目 |
 
 删除 Project 时相关表目前按数据库外键级联删除。产品层删除/归档策略尚未制定，开放删除操作前必须重新审查，不能直接暴露级联删除。`slug` 只作稳定路径标识，不作为权限凭据。当前不建立任何默认品牌数据。
@@ -27,6 +27,8 @@
 `video_status` 正式为非空：数据库默认 `not_applicable`，视频号 Factory 明确设为 `not_started`。DEV-004 correction migration 先回填旧数据的 `draft → not_started`、`not_published → unpublished`、`video_status = null → not_applicable`，再更新列默认值与非空约束。回滚仅恢复旧列定义，不反向改写已转换的数据；重新运行可安全重复回填。SQLite 变更列定义时暂时关闭外键检查以避免表重建引发级联删除；MySQL 8.4 保持正常外键检查。
 
 `channel` 在数据库中是字符串、在 PHP Model 中受 `Channel` 枚举控制；当前值为 `wechat_official` 和 `wechat_channels`。新增渠道需新增代码枚举值，不需要改数据库 Enum。
+
+DEV-009A 新增迁移在 `production_tasks` 增加可空 `copy_revision_id`，保留旧未绑定任务；复合外键 `(project_id, content_item_id, copy_revision_id)` 指向 `content_copy_revisions(project_id, content_item_id, id)` 的复合唯一键，删除被引用 Revision 时采用 restrict。新 API 创建必须绑定本篇当前正式 Revision；文案确认新 Revision 不自动更换任务绑定。正式文案历史原有的 restrict 外键已限制 Project / ContentItem 硬删除，当前也没有公开删除 API。详见 `DEV-009A_PRODUCTION_TASK_API.md`。
 
 ## 内容页与版本表（DEV-006B 已实现）
 

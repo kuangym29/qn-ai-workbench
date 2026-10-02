@@ -39,4 +39,9 @@ class ContentCopyRevision extends Model
     {
         return $this->hasMany(ContentPageVersion::class, 'copy_revision_id');
     }
+
+    public function productionTasks(): HasMany
+    {
+        return $this->hasMany(ProductionTask::class, 'copy_revision_id');
+    }
 }
