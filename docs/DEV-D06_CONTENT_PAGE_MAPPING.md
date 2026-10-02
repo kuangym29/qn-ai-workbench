@@ -48,10 +48,20 @@
 
 ## 3. 换行规则（raw → normalized）
 
-### 规则
-- 历史 Markdown 中使用「／」（全角斜杠）表示画面内换行，不印在画面上
-- 数据库 `page_title` / `page_small_text` / `cover_title` / `cover_subtitle` / `closing_line` 中应存为实际换行符 `\n`
-- 不擅自"美化"原文，不调整标点，不润色字句
+### 允许的标准化（唯一一项）
+- 历史 Markdown 中用于表示画面换行的特殊分隔符「／」（全角斜杠）→ 数据库真实换行 `\n`
+- 其它已明确作为换行标记的分隔符 → `\n`
+
+### 禁止的操作
+- ❌ 引号样式转换（中文引号 "" ↔ 英文引号 ""）
+- ❌ 全角/半角标点转换
+- ❌ 正文润色
+- ❌ 措辞修正
+- ❌ 空格增减
+
+### 原则
+- 所有中文引号、英文引号、中文冒号、中文逗号、中文句号、感叹号、问号、省略号、破折号、空格，全部以权威 Markdown 原文为准
+- 不同页面使用不同引号风格时，原样保留，不统一风格
 
 ### 示例
 | Raw source | Normalized database value |
@@ -111,7 +121,7 @@
 | 10 | fixed_back_cover | null | null | null | null | null | null | 使用既有固定封底模板 |
 
 **特殊收尾句说明**：
-- 图文版共享收尾句（进入 `ContentPageVersion.closing_line`）：`你在身边，\n"我自己来"更有底气。`
+- 图文版共享收尾句（进入 `ContentPageVersion.closing_line`）：`你在身边，\n"我自己来"更有底气。`（中文引号，与权威源完全一致）
 - 视频版专属收尾句（**不进入共享 ContentPageVersion**，标记 `CHANNEL_SPECIFIC_COPY`）：`你等的这一会儿，\n是她自己来的底气。`
 - 未来归属：`wechat_channels` 渠道专属文案 / script override
 - 禁止覆盖图文版本
@@ -168,7 +178,7 @@
 > source_path = `01_2.5D家庭IP形象/原来在长大/图文/最终上图文案.md`
 
 | page_no | page_type | column_label | cover_title | cover_subtitle | page_title | page_small_text | closing_line | note |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | 1 | cover | 原来在长大 | 一只纸箱\n开了家水果店 | 孩子在玩什么？先听听他的设定。 | null | null | null | null |
 | 2 | content | null | null | null | 纸箱成了小店\n他在玩假装游戏 | 他让纸箱当小店，自己当卖水果的人。 | null | null |
 | 3 | content | null | null | null | 他招呼爸爸\n"来买苹果吧" | 游戏由孩子发起，爸爸先听他的安排。 | null | null |
@@ -204,14 +214,24 @@
 
 ## 9. 与旧 Fixture 的差异
 
-| 项目 | 旧 Fixture | 权威 Markdown | 处理 |
-| --- | --- | --- | --- |
-| 逐页文案内容 | 旧 Fixture 有逐页字段 | 以 Markdown 为准 | 冲突时 Markdown 优先 |
-| 换行表示 | 旧 Fixture 用 `/` 或 `\n` | 权威源用 `／`（全角斜杠） | 统一转换为 `\n` 入库 |
-| 收尾句 | 旧 Fixture 有 closing_line_source 字段 | 以 Markdown 中实际内容为准 | 以 Markdown 为准 |
-| 页数 | 旧 Fixture 记录 10/9/10/8 | 实际核对一致 | 无差异 |
+### 结构差异（已确认）
 
-> 本次审计未发现 Fixture 与权威 Markdown 在页数、篇名、栏目归属上的不一致。文案细节以 Markdown 为最终权威。
+| 项目 | 旧 Fixture | 权威 Markdown | 结果 |
+| --- | --- | --- | --- |
+| 页数 | 10/9/10/8 | 10/9/10/8 | ✅ 一致 |
+| 篇名 | 4 篇 | 4 篇 | ✅ 一致 |
+| 栏目归属 | 4 个栏目 | 4 个栏目 | ✅ 一致 |
+
+**STRUCTURE_DIFF_COUNT = 0**
+
+### 逐页文案差异（未穷尽比较）
+
+> **COPY_DIFF_NOT_EXHAUSTIVELY_COMPARED**
+>
+> 本次审计已逐字段读取权威 Markdown 并建立映射，但未对旧 Fixture 中每一页的每一个文案字段做逐字逐句的完整 diff 比较。
+> 已知 Fixture 中换行表示法（`/` vs `／`）与权威源不同，已统一转换为 `\n`。
+> 其余文案细节以权威 Markdown 为最终权威。
+> 若需确认是否存在逐字差异，需后续对 Fixture 每个字段做完整 diff。
 
 ---
 
@@ -244,15 +264,15 @@
 
 > 本轮不建 SourceReference 表，仅记录真实观察，供后续 DEV-006C 参考。
 
-### 12.1 实际存在的 source role 观察
+### 12.1 实际存在的 source role 观察（含验证状态）
 
-| role | 实际情况 | 是否需要 |
-| --- | --- | --- |
-| `final_image_copy` | 4 篇各 1 个 Markdown 文件，整篇复用 | ✅ 需要，篇目级引用 |
-| `source_script` | 每篇 Markdown 头部引用了逐页脚本路径（如 `孩子出门总磨蹭_十页补全_待确认/逐页内容脚本_待用户确认.md`） | 可能需要，篇目级 |
-| `content_ledger` | 栏目收尾句另同步到 `2.5D栏目收尾文案台账.md` | 可能需要，栏目级 |
-| `closing_line_registry` | 栏目收尾文案台账 | 可能需要，栏目级 |
-| `navigation_index` | `00_总入口与归档索引` | 可能需要，项目级 |
+| role | 实际文件 | verification_status | 说明 |
+| --- | --- | --- | --- |
+| `final_image_copy` | 4 个栏目下的 `图文/最终上图文案.md` | **READ_AND_VERIFIED** | 已逐文件读取内容并逐字段核对标点 |
+| `source_script` | 每篇 Markdown 头部引用的逐页内容脚本路径（如 `逐页内容脚本_待用户确认.md`） | **REFERENCED_NOT_READ** | 被权威 Markdown 引用，但本次未直接读取内容 |
+| `content_ledger` | `00_总入口与归档索引/六栏目内容台账.md` | **REFERENCED_NOT_READ** | 文件已确认存在，但本次未直接读取内容 |
+| `closing_line_registry` | `00_总入口与归档索引/2.5D栏目收尾文案台账.md` | **REFERENCED_NOT_READ** | 文件已确认存在，但本次未直接读取内容 |
+| `navigation_index` | `00_总入口与归档索引/2.5D逐篇最终上图文案.md` | **REFERENCED_NOT_READ** | 文件已确认存在，但本次未直接读取内容 |
 
 ### 12.2 粒度观察
 
@@ -261,8 +281,7 @@
 | 哪些 source ref 是篇目级？ | `final_image_copy` 和 `source_script` 都是篇目级（一篇一个文件） |
 | 哪些是页面级？ | 当前无页面级独立 source 文件，所有页面都在同一篇 Markdown 中 |
 | 是否同一路径被整篇复用？ | ✅ 是 — 同一篇的所有页面共享同一个 `final_image_copy` 路径 |
-| 是否真的需要 content_page_id？ | 当前看，篇目级引用足够；页面级 source ref 暂不需要独立 content_page_id 关联 |
-| 哪些 role 实际存在？ | 实际确认存在：`final_image_copy`（4 篇各 1）。其余 role 为文档中引用但未直接读取，需后续确认 |
+| 是否真的需要 content_page_id？ | **基于当前 4 篇 / 37 页的实际观察：不需要**。篇目级引用足够；页面级 source ref 暂不需要独立 content_page_id 关联。但这不是永久禁止——未来如果出现页面级独立来源文件，应再评估。 |
 
 ---
 
@@ -275,5 +294,6 @@
 - ✅ 本文档为 Derived Migration Mapping，不是新的内容权威源
 - ✅ 发生冲突时最终上图文案.md 优先
 - ✅ 37 页逐页映射完整
-- ✅ 换行规则明确（／→\n）
+- ✅ 换行规则明确（仅允许 ／→\n，其余标点原样保留）
 - ✅ 特殊收尾句独立标记，不覆盖
+- ✅ 所有中文引号与权威源完全一致
