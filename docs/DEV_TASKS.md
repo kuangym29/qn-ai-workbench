@@ -87,13 +87,26 @@ DEV-W05.1 为终审收口：修正「父 ProductionTask 不存在时创建渠道
 
 DEV-W06.1 为终审收口：拆分 `handleLoadError` / `handleActionError`，使业务门禁 422 只弹 Toast 而不再把工作台替换成 ErrorState；补齐图稿审核通过与 `use-current-copy` 的前端门禁镜像（均要求文案已确认且 Production current）；实际发布时间非法输入明确阻止发布。DEV-W06 / W06.1 已通过终审并合入 main；浏览器级 Smoke 仍按 `DEV-W06_PRODUCTION_CHANNEL_UI.md` 中的 `BROWSER_SMOKE_BLOCKED` 说明待后续安全测试环境补验。
 
+## DEV-010A：Shared Visual Asset 核心数据层（已完成并合入 main）
+
+新增 `AssetRole`、`files`、`assets`、`asset_versions` 与相关 Model / Factory / 复合外键测试。Asset 是 ProductionTask 下按 ContentPage + Role 定义的稳定槽位，Role 首批只有 `clean_master` / `copy_master`；AssetVersion append-only，并固定记录创建时的正式 `copy_revision_id` 与 File。ProductionTask 改绑新 Revision 不改旧版本。未实现上传、Asset HTTP API、Channel Asset Binding 或第二套图稿状态机。SQLite 全套与独立 MySQL 8.4 建表 / 定向约束 / rollback / re-run 均已验证。详见 `DEV-010A_SHARED_VISUAL_ASSET_CORE.md`。
+
+## DEV-D08 / D08.1 / D08.2：查重语料 + 收尾句 Golden Dataset（已完成并合入 main）
+
+基于青柠育见 4 篇 / 37 页正式内容建立 `tests/Fixtures/duplicate_check/yujian_history_baseline.json`，PageType 分布为 4 / 25 / 4 / 4，并完成正式收尾句与视频号专属收尾的隔离审计。查重基线明确三层处理：Source Representation Canonicalization → Exact Normalization → Overlap Normalization；V1.0 不使用 Vector DB / Embedding，Overlap 只做候选发现、最终人工确认。D08.1 修正正式栏目 slug、Unicode 引号与 normalization 逻辑；D08.2 修复 JSON 语法并完成机器解析验证。详见 `DEV-D08_DUPLICATE_CLOSINGLINE_BASELINE.md`。
+
+## DEV-W07 / W07.1：SourceReference Lite API + 来源管理 UI（已完成并合入 main）
+
+在 DEV-008A / 008B 之上新增 Project / Item 两级 SourceReference list / show / create / update API 和来源管理 UI；Authority 由服务端按 Role 派生，Role Scope、完整祖先链与 ProjectContext 均由服务端校验。路径只保存品牌源根目录下相对路径，统一 canonicalization，拒绝绝对路径、UNC、`..` 与规范化后为空的输入；同 scope + role + canonical path 重复 422，但同一路径可跨 Item 共用。没有 DELETE、文件上传或 file_exists。W07.1 收口了规范化为空路径和 Sources 页面切换 Project 的 stale URL 问题。浏览器级 Smoke 仍为 `BROWSER_SMOKE_BLOCKED`。详见 `DEV-W07_SOURCE_REFERENCE_API_UI.md`。
+
 ## 后续待拆分
 
 以下能力尚未实现，需分别规划独立任务：
 
-- **共享视觉资产**：Asset / AssetVersion / File 表与 ProductionTask 关联
-- **查重**：跨栏目收尾句 / 文案查重能力
-- **Production / Channel 前端 UI**：已由 DEV-W06 实现服务端 API 接线；跨篇目的生产看板与统计仍待规划
-- **渠道专属文案**：渠道适配文案建模（DEV-W05 / DEV-W06 只做状态与排期，不建模渠道文案）
-- **微信平台真实发布**：access_token 与公众号 / 视频号真实发布接口（DEV-W05 只记录内部工作台状态）
-- **用户认证与权限**：多用户、成员关系、Project 访问授权
+- **Asset API / Asset UI / 文件登记**：基于 DEV-010A 核心表实现 Asset 槽位读取、AssetVersion 追加、当前 Production Revision 版本选择、File 元数据登记与生产工作台展示；真实文件上传仍需单独确定存储策略。
+- **Channel Asset Binding**：明确公众号选择 `copy_master`、视频号选择 `clean_master` 时如何绑定具体 AssetVersion，并保持历史可追溯；不能把 ChannelTask 直接变成第二套母资产。
+- **查重生产能力**：基于 DEV-D08 Golden Dataset 实现 Exact / Overlap 候选服务、收尾句 Registry 使用方式与人工审核流程；阈值需更多真实样本校准。
+- **跨篇生产看板与统计**：DEV-W06 已完成单篇 Production / Channel 工作台；全局看板、日历、KPI 仍未规划。
+- **渠道专属文案**：渠道适配文案建模（DEV-W05 / DEV-W06 只做状态与排期，不建模渠道文案）。
+- **微信平台真实发布**：access_token 与公众号 / 视频号真实发布接口（当前只记录内部工作台状态）。
+- **用户认证与权限**：Lite admin 登录/退出/密码/账户启停，以及后续多用户、成员关系、Project 访问授权。

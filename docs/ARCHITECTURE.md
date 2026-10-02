@@ -4,7 +4,7 @@
 
 技术栈：Laravel 13、MySQL 8.4 LTS、Vue 3、Inertia、TypeScript、Vite。Laravel 负责路由、校验、持久化及服务端授权；Inertia 连接服务端页面与 Vue。Vite 只负责前端构建。DEV-003 与 DEV-W02/W02.1 已将 Project / ContentColumn 工作台接入真实服务端数据。DEV-W03 已完成 Topic / ContentItem 业务编辑 UI。
 
-正式业务层级：`Project → ContentColumn → Topic → ContentItem → ProductionTask → ChannelTask`。Project 是最高隔离边界；所有后续业务查询必须经当前 Project 限定，子对象 URL 也必须校验祖先归属。Project 选择在栏目和选题之前。不得从客户端传入的 `project_id` 单独推断访问权限。
+正式业务主链为 `Project → ContentColumn → Topic → ContentItem → ProductionTask → ChannelTask`；ContentItem 同时拥有 ContentPage / ContentCopyRevision / SourceReference，ProductionTask 进一步拥有共享视觉 `Asset → AssetVersion → File`。Project 是最高隔离边界；所有后续业务查询必须经当前 Project 限定，子对象 URL 也必须校验祖先归属。Project 选择在栏目和选题之前。不得从客户端传入的 `project_id` 单独推断访问权限。
 
 ## 内容生产原则
 
@@ -63,19 +63,29 @@ DEV-006A 完成 ContentPage / CopyRevision / PageVersion 数据模型设计；DE
   3. 将 ContentItem 的 `copy_status` 更新为 `confirmed`
 - Revision 创建后不可变，不允许修改或删除已确认的 PageVersion 正式快照。
 
-### 未来共享视觉资产关系接口（DEV-002 不建表）
+### 共享视觉资产核心（DEV-010A 已实现）
 
-一个 Production Task 未来可关联多个共享视觉资产，首批角色为 `clean_master`（无文案定稿底图）和 `copy_master`（有文案定稿图）。资产记录必须与同一个 Project、Content Item、Production Task 对齐，后续迁移需用可验证的关联约束防止跨项目引用，并补对应测试。Channel Task 只引用共享资产，不复制独立母资产：公众号默认选 `copy_master`，视频号默认选 `clean_master`。渠道适配版可作为衍生资产，但不能覆盖共享母资产或正式版本。多页、多版本不应被 Production Task 上两个固定图片 ID 限制。真正的 Asset / AssetVersion / File 结构放到独立任务设计与实现。
+DEV-010A 已正式建立 `ProductionTask → Asset → AssetVersion → File`。Asset 是某篇、某页、某角色的稳定逻辑槽位，首批角色只有 `clean_master`（无文案底图）和 `copy_master`（有文案图）；同一 ProductionTask + ContentPage + Role 只能有一个槽位，但同页两种角色可并存。Asset 不绑定 CopyRevision，因此 ProductionTask 显式换版后槽位身份继续存在。
 
-### Source Reference 核心数据层（DEV-008A 已实现）
+AssetVersion 是 append-only 实际版本，每条都固定记录创建时依据的 `copy_revision_id` 与 `file_id`。ProductionTask 从 Revision 1 改绑 Revision 2 时，旧 AssetVersion 不修改、不删除；“当前 Production Revision 的资产候选版本”必须在 `copy_revision_id = ProductionTask.copy_revision_id` 的版本内再取最大 `version_no`，不能简单取 Asset 的全局最新版本。File 仅保存存储定位与图片元数据，本轮不负责上传、读取、哈希去重或对象存储。
 
-SourceReference 归属 Project，并可选择归属同 Project 的 ContentItem；Project 级台账的 `content_item_id` 为 null。五类 SourceRole 与四类 SourceAuthority 由 PHP string backed Enum 管理，复合外键阻止跨 Project 引用。路径保存为品牌源根目录下的相对路径，允许多个 Item 共享同一路径，也允许一篇引用多个脚本版本。当前不建 Column/Page 来源关系。DEV-008B 已实现青柠育见 4 篇 / 37 页历史文案与 11 条来源引用的预检式导入；详见 `DEV-008A_SOURCE_REFERENCE_IMPLEMENTATION.md`、`DEV-008B_YUJIAN_HISTORY_IMPORTER.md`。
+数据库通过复合外键保证 Asset 的 Project / ContentItem / ProductionTask / ContentPage 对齐，并保证 AssetVersion 的 Asset / CopyRevision / File 与 Project、ContentItem 同域。AssetVersion 在 Model 层禁止 UPDATE / DELETE，Asset 的身份与 Role 也不可随意改归属。ChannelTask 尚未绑定具体 AssetVersion；公众号选择 `copy_master`、视频号选择 `clean_master` 的绑定与文件上传留给后续 Asset API / UI 任务。详见 `DEV-010A_SHARED_VISUAL_ASSET_CORE.md`。
+
+### Source Reference（DEV-008A / DEV-008B / DEV-W07 已实现）
+
+SourceReference 归属 Project，并可选择归属同 Project 的 ContentItem；Project 级台账的 `content_item_id` 为 null。五类 SourceRole 与四类 SourceAuthority 由 PHP string backed Enum 管理，Authority 始终由服务端根据 Role 派生；复合外键阻止跨 Project Item 引用。路径只保存品牌源根目录下的相对路径，不表示文件已上传或服务器能够访问本地磁盘。
+
+DEV-008B 已实现青柠育见 4 篇 / 37 页历史文案与 11 条来源引用的预检式导入。DEV-W07 / W07.1 已补齐 Project 级与 Item 级 SourceReference API 和来源管理 UI：支持 list / show / create / update，不提供 DELETE、上传或 file_exists 检查；Project / Item Role 通过不同作用域 API 管理，错域创建 422、错域访问 404。相对路径统一规范化为 `/`，拒绝绝对路径、UNC、`..` 及规范化后为空的值；同一 scope + role + 规范化路径重复时 422，但相同路径可跨 Item 复用。Sources 页面切换 Project 时先更新 Session Project，再进入新项目 `/sources`。详见 `DEV-008A_SOURCE_REFERENCE_IMPLEMENTATION.md`、`DEV-008B_YUJIAN_HISTORY_IMPORTER.md`、`DEV-W07_SOURCE_REFERENCE_API_UI.md`。
+
+### 查重语料基线（DEV-D08 已实现）
+
+DEV-D08 / D08.1 / D08.2 已建立青柠育见 4 篇 / 37 页 Golden Dataset 与查重规则基线，PageType 分布为 cover 4 / content 25 / column_closing 4 / fixed_back_cover 4。正式规则分为 Source Representation Canonicalization → Exact Normalization → Overlap Normalization；Exact 与 Overlap 必须分层，Overlap Candidate 只用于候选发现，不能自动判定重复。V1.0 不使用 Vector DB / Embedding，字符 3-gram Jaccard 仅作为待更多真实语料校准的候选方法，最终由人工确认。视频号专属收尾句与共享 Formal Copy 保持隔离。详见 `DEV-D08_DUPLICATE_CLOSINGLINE_BASELINE.md`。
 
 ## 架构风险与待决策点
 
 1. **Project 访问授权尚未实现**：DEV-003 的会话当前 Project 约束请求范围，但选择接口目前可选择任何现有 Project，列表也列出全部 Project。多用户开放前必须确定身份及成员关系，并约束列表、选择和写入；当前作用域不等于访问授权。
 2. **生产任务基数**：Lite V1.0 暂按一篇一套共享生产任务建唯一约束。若后续确需多轮独立生产任务，应先明确版本与历史保留方式，再迁移该约束。
-3. **Source Reference 范围**：DEV-008B 导入器会检查历史 11 个本地来源文件并写入相对路径引用。SourceReference 的通用 HTTP API 与 UI 尚未实现；引用不表示源文件已上传或持续同步。
-4. **历史 fixtures 待对齐**：隔离区及豆包旧分支中的样本属于另一任务。导入前要核对其 Project 归属、状态语义、Column 表名及正式 schema。
-5. **资产关系尚无数据库约束**：本轮仅定义未来接口。实现 Asset 表时必须为 Project / Content Item / Production Task 一致性及跨项目拒绝补测试，不能依赖字符串路径或可覆盖的固定字段。
-6. **阶段顺序已由 DEV-W05 服务层约束**：Channel Task 的数据结构表示渠道衍生任务，数据库本身无法判断共享生产是否已验收。DEV-W05 起，创建渠道任务必须核对图稿验收状态与当前正式 Revision，不能仅以存在 Production Task 推断生产完成。
+3. **Source Reference 仍只是引用管理**：DEV-W07 已有 API / UI，但它只保存相对路径，不上传、不同步、不验证服务器文件存在。未来若引入 Local Agent / 云文件同步，必须作为独立能力设计，不能把 SourceReference 偷换成文件对象。
+4. **Asset 已有核心数据层但还没有写入 API / UI**：DEV-010A 已建立 File / Asset / AssetVersion 与复合约束；下一步需要定义安全的版本追加、当前 Revision 资产选择、File 元数据登记与工作台展示。ChannelTask 如何绑定具体 AssetVersion 仍未实现。
+5. **查重阈值尚未校准**：DEV-D08 的 4 篇 / 37 页真实样本没有足够的自然 Overlap 案例；3-gram Jaccard 阈值只能作为初始研究值。生产查重必须保留 Exact / Overlap 分层、Golden Dataset 回归与人工最终确认。
+6. **阶段顺序已由 DEV-W05 服务层约束**：Channel Task 的数据结构表示渠道衍生任务，创建渠道任务必须核对图稿验收状态与当前正式 Revision，不能仅以存在 Production Task 推断生产完成。已发布记录仍是普通 Publish API 的终态，不允许被普通 reset 抹掉。
