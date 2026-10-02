@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\ContentColumnController;
 use App\Http\Controllers\ContentItemController;
+use App\Http\Controllers\ContentPageController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\TopicController;
 use Illuminate\Support\Facades\Route;
@@ -59,4 +60,17 @@ Route::prefix('api')->group(function (): void {
     Route::post('/projects/{project}/columns/{column}/topics/{topic}/items', [ContentItemController::class, 'store']);
     Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}', [ContentItemController::class, 'show']);
     Route::patch('/projects/{project}/columns/{column}/topics/{topic}/items/{item}', [ContentItemController::class, 'update']);
+
+    Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/pages', [ContentPageController::class, 'index']);
+    Route::post('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/pages', [ContentPageController::class, 'store']);
+    Route::post('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/pages/reorder', [ContentPageController::class, 'reorder']);
+    Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/pages/{page}', [ContentPageController::class, 'show']);
+    Route::patch('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/pages/{page}', [ContentPageController::class, 'update']);
+    Route::post('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/pages/{page}/drafts', [ContentPageController::class, 'appendDraft']);
+
+    Route::post('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/copy/confirm', [ContentPageController::class, 'confirm']);
+    Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/copy/revisions', [ContentPageController::class, 'revisions']);
+    Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/copy/revisions/{revision}', [ContentPageController::class, 'revision']);
+    Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/copy/current', [ContentPageController::class, 'current']);
+    Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/copy/working', [ContentPageController::class, 'working']);
 });
