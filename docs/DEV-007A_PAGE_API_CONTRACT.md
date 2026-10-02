@@ -32,6 +32,8 @@ PATCH Page：`{"page_type":"content"}`。`page_type` 必填且必须是上述合
 
 确认：无请求体；服务端调用 `ContentCopyService::confirmContentItem`。每页须有版本，页面编号连续且文案符合 PageType 最小规则。成功后新增完整整篇 Revision 快照，未修改页也复制到新修订，`copy_status = confirmed`。校验失败返回 422，事务不留下部分修订。
 
+`/copy/confirm` 是普通 HTTP 客户端使 ContentItem 进入 `confirmed` 的唯一正式入口；ContentItem 创建和普通 PATCH 均不能直接指定 `confirmed`。
+
 ## 响应字段
 
 Page：`id`、`project_id`、`content_item_id`、`page_no`、`page_type`、`latest_version`、`created_at`、`updated_at`。列表不包含全历史版本；`latest_version` 在无版本时为 `null`。Working 使用同一 Page 形状，各页 `latest_version` 取最大 `version_no`，可为草稿或正式快照。

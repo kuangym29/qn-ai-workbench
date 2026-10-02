@@ -19,7 +19,7 @@
 
 Topic 创建：`title` 必填，字符串，最多 200 字符；`description` 可选，可为 `null`，非空时为字符串。PATCH 可以只提交需要变更的字段；提交 `title` 时不能是空值。
 
-ContentItem 创建：`title` 必填，字符串，最多 200 字符；`copy_status` 可选，必须是 `App\Enums\CopyStatus` 的合法值。未提交时默认为 `not_started`。PATCH 可以只提交需要变更的字段；`copy_status` 不接受 `null` 或非法值。合法值：`not_started`、`editing`、`pending_confirmation`、`confirmed`。
+ContentItem 创建：`title` 必填，字符串，最多 200 字符；不接受客户端提交 `copy_status`（包括 `null`），新记录由服务端固定为 `not_started`。PATCH 可以只提交需要变更的字段；普通 PATCH 的 `copy_status` 仅允许 `not_started`、`editing`、`pending_confirmation`，不接受 `null` 或 `confirmed`。正式确认必须使用 DEV-007A 的 `POST .../copy/confirm`，由服务端同时生成完整 CopyRevision 快照。
 
 Topic 写请求禁止 `project_id`、`content_column_id`；ContentItem 写请求另禁止 `topic_id`。即使传入的值与 URL 相同也返回 422。归属只来自服务端逐层校验后的 Project、Column、Topic；创建 ContentItem **不会**自动创建 ProductionTask。
 
