@@ -36,6 +36,15 @@ Route::get('/projects/{project}/columns/{column}/topics/{topic}/items', fn (int 
 Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/create', fn (int $project, int $column, int $topic) => Inertia::render('ContentItems/Form', ['mode' => 'create', 'projectId' => $project, 'columnId' => $column, 'topicId' => $topic]))->name('items.create');
 Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/edit', fn (int $project, int $column, int $topic, int $item) => Inertia::render('ContentItems/Form', ['mode' => 'edit', 'projectId' => $project, 'columnId' => $column, 'topicId' => $topic, 'id' => $item]))->name('items.edit');
 
+// ContentPage copy editor (DEV-W04) — scoped to Project → Column → Topic → ContentItem.
+// Inertia entry only; all data is fetched client-side from the DEV-007A API under /api.
+Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/copy', fn (int $project, int $column, int $topic, int $item) => Inertia::render('ContentPages/Editor', [
+    'projectId' => $project,
+    'columnId' => $column,
+    'topicId' => $topic,
+    'itemId' => $item,
+]))->name('items.copy');
+
 // Real DEV-003 REST API. Same-origin browser session + CSRF. All responses are wrapped
 // as {"data": ...}. The current project lives in the server session (ProjectContext),
 // so there is deliberately NO GET /api/projects/{project} show endpoint.
