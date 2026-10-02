@@ -55,11 +55,15 @@ DEV-006A 完成 ContentPage / CopyRevision / PageVersion 数据模型设计；DE
 
 一个 Production Task 未来可关联多个共享视觉资产，首批角色为 `clean_master`（无文案定稿底图）和 `copy_master`（有文案定稿图）。资产记录必须与同一个 Project、Content Item、Production Task 对齐，后续迁移需用可验证的关联约束防止跨项目引用，并补对应测试。Channel Task 只引用共享资产，不复制独立母资产：公众号默认选 `copy_master`，视频号默认选 `clean_master`。渠道适配版可作为衍生资产，但不能覆盖共享母资产或正式版本。多页、多版本不应被 Production Task 上两个固定图片 ID 限制。真正的 Asset / AssetVersion / File 结构放到独立任务设计与实现。
 
+### Source Reference 核心数据层（DEV-008A 已实现）
+
+SourceReference 归属 Project，并可选择归属同 Project 的 ContentItem；Project 级台账的 `content_item_id` 为 null。五类 SourceRole 与四类 SourceAuthority 由 PHP string backed Enum 管理，复合外键阻止跨 Project 引用。路径保存为品牌源根目录下的相对路径，允许多个 Item 共享同一路径，也允许一篇引用多个脚本版本。当前不建 Column/Page 来源关系；来源文件读取与历史导入留待独立任务。详见 `DEV-008A_SOURCE_REFERENCE_IMPLEMENTATION.md`。
+
 ## 架构风险与待决策点
 
 1. **Project 访问授权尚未实现**：DEV-003 的会话当前 Project 约束请求范围，但选择接口目前可选择任何现有 Project，列表也列出全部 Project。多用户开放前必须确定身份及成员关系，并约束列表、选择和写入；当前作用域不等于访问授权。
 2. **生产任务基数**：Lite V1.0 暂按一篇一套共享生产任务建唯一约束。若后续确需多轮独立生产任务，应先明确版本与历史保留方式，再迁移该约束。
-3. **Source Reference 尚未实现**：历史来源文件（逐页脚本、台账、导航）的正式引用建模留待后续独立任务。当前 ContentPageVersion 快照已保留正式文案，但来源追溯尚未数据库化。
+3. **Source Reference 写入流程尚未实现**：DEV-008A 已建立核心数据层与来源角色约束辅助方法；历史来源自动导入、HTTP API 和 UI 尚未实现。不能把数据库引用误认为已经读取或验证了源文件。
 4. **历史 fixtures 待对齐**：隔离区及豆包旧分支中的样本属于另一任务。导入前要核对其 Project 归属、状态语义、Column 表名及正式 schema。
 5. **资产关系尚无数据库约束**：本轮仅定义未来接口。实现 Asset 表时必须为 Project / Content Item / Production Task 一致性及跨项目拒绝补测试，不能依赖字符串路径或可覆盖的固定字段。
 6. **阶段顺序尚未由服务层约束**：Channel Task 的数据结构表示渠道衍生任务，但数据库无法判断共享生产是否已验收。后续创建渠道任务的服务须核对图稿验收状态，不能仅以存在 Production Task 推断生产完成。

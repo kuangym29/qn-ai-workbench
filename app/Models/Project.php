@@ -27,6 +27,11 @@ class Project extends Model
         return $this->hasMany(ContentItem::class);
     }
 
+    public function sourceReferences(): HasMany
+    {
+        return $this->hasMany(SourceReference::class);
+    }
+
     public function productionTasks(): HasMany
     {
         return $this->hasMany(ProductionTask::class);
