@@ -65,9 +65,13 @@ V1.1 校正：authority 语义正式收敛为四类（authoritative / evidence /
 
 新增 `source_references` Migration、SourceRole / SourceAuthority Enum、Model 关系、Factory 和数据库测试。Project 级引用允许空 `content_item_id`；Item 级引用由复合外键禁止跨 Project。来源路径可被多个 Item 共用，同一 Item 可引用多个脚本版本。实现说明见 `DEV-008A_SOURCE_REFERENCE_IMPLEMENTATION.md`。本轮不实现 API、UI、Importer 或 Markdown Parser。
 
-## DEV-008B：青柠育见 4 篇 / 37 页正式历史 Importer（本任务）
+## DEV-008B：青柠育见 4 篇 / 37 页正式历史 Importer（已完成并合入 main）
 
 实现必填 `--source-root` 的 Artisan 命令；默认只预检，`--apply` 才在整批事务内写入。直接读取四个 `最终上图文案.md`，以 DEV-D06 作为独立验收对照，导入 1 Project、6 Column、4 Topic、4 Item、37 Page、4 历史 Revision、37 正式 PageVersion 和 11 SourceReference。重复执行核对历史基线后 no-op；冲突即停止。不创建生产任务或渠道任务。详见 `DEV-008B_YUJIAN_HISTORY_IMPORTER.md`。
+
+## DEV-009A：ProductionTask 正式文案版本绑定与服务端 API（当前任务）
+
+新增可空 `copy_revision_id` 兼容旧任务，以复合外键限定同 Project、同 ContentItem 的正式文案 Revision。新增 GET、POST、PATCH 与显式 `use-current-copy` 服务端 API；创建必须从 confirmed 文案绑定当前正式 Revision，批准图稿需与当前 Revision 对齐，后续文案确认不自动换版。详见 `DEV-009A_PRODUCTION_TASK_API.md`。本轮不实现 ChannelTask API、前端 UI 或资产系统。
 
 ## 后续待拆分
 

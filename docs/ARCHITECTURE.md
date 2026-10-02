@@ -25,6 +25,8 @@ DEV-004 把四维状态统一为独立的 PHP string backed Enum，数据库继�
 
 DEV-005 已实现 Topic、ContentItem 服务端 API，按 Session 当前 Project 与 URL 祖先链逐层限定。创建 ContentItem 不自动创建 ProductionTask。具体路由、字段与错误契约见 `DEV-005_API_CONTRACT.md`。DEV-W03 已完成 Topic / ContentItem 业务编辑 UI。
 
+DEV-009A 的 ProductionTask 通过可空 `copy_revision_id` 兼容旧任务；正式 API 创建时必须绑定该篇当前最大 `revision_no` 的 ContentCopyRevision。任务固定在该正式文案版本，后续确认新 Revision 不自动换版或重置图稿状态。仅显式 `use-current-copy` 可在无 ChannelTask 时切换并重置图稿为 `not_started`；批准图稿要求仍绑定当前正式 Revision。详见 `DEV-009A_PRODUCTION_TASK_API.md`。ChannelTask API 尚未实现。
+
 ### 内容页与版本模型（DEV-006A/B、DEV-007A、DEV-W04 已实现）
 
 DEV-006A 完成 ContentPage / CopyRevision / PageVersion 数据模型设计；DEV-006B 完成核心数据层与不可变保护；DEV-007A 完成 Page / Revision API 与 confirmed 唯一入口；DEV-W04 完成文案编辑 UI 与 ProjectContext 修正。

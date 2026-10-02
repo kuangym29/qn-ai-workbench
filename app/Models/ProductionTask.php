@@ -29,6 +29,11 @@ class ProductionTask extends Model
         return $this->belongsTo(ContentItem::class);
     }
 
+    public function copyRevision(): BelongsTo
+    {
+        return $this->belongsTo(ContentCopyRevision::class, 'copy_revision_id');
+    }
+
     public function channelTasks(): HasMany
     {
         return $this->hasMany(ChannelTask::class);
