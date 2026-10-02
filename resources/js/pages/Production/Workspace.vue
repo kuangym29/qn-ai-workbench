@@ -134,20 +134,48 @@ const channelCreateBlockedReason = computed(() => {
   return '';
 });
 
-/** Restart requires a confirmed copy (DEV-W05) plus at least one channel task. */
-const restartBlockedReason = computed(() => {
-  if (anyPublished.value) return '已有渠道正式发布，不能重置生产链。已发布记录是历史事实。';
-  if (!hasChannelTasks.value) return '还没有渠道任务，请改用「切换到最新正式文案」。';
+/**
+ * Artwork approval gate (mirrors DEV-009A). The server requires BOTH a confirmed copy and
+ * a production task that is still bound to the current formal revision. A confirmed
+ * revision is not enough on its own: while a newer revision exists the task is stale and
+ * the artwork must be reworked before it can be approved.
+ */
+const artworkApproveBlockedReason = computed(() => {
+  if (!productionCurrent.value) return '正式文案已有新版本，请先处理图稿版本。';
   if (item.value !== null && item.value.copy_status !== 'confirmed') {
-    return '请先完成当前文案确认，再重新开始生产。';
+    return '当前文案存在尚未正式确认的修改，请先完成文案确认。';
   }
   return '';
 });
-const canRestart = computed(() => productionStale.value && restartBlockedReason.value === '');
+const canApproveArtwork = computed(
+  () =>
+    production.value !== null &&
+    production.value.artwork_status === 'pending_review' &&
+    artworkApproveBlockedReason.value === '',
+);
 
-/** use-current-copy only applies while no channel task exists (DEV-009A). */
+const copyConfirmed = computed(() => item.value !== null && item.value.copy_status === 'confirmed');
+
+/**
+ * Stale-repair routing (DEV-009A use-current-copy vs DEV-W05 restart-with-current-copy).
+ * A / B use use-current-copy, C / D use restart, E is always blocked. Both paths require a
+ * confirmed copy on the server side, so an unconfirmed copy must disable both.
+ */
+const staleRepairBlockedReason = computed(() => {
+  // E — a published channel is a historical fact and can never be reset.
+  if (anyPublished.value) return '已有渠道正式发布，不能重置生产链。已发布记录是历史事实。';
+  if (!copyConfirmed.value) return '请先完成当前文案确认，再切换制作任务到最新正式版本。';
+  // A / B — no channel task yet, so DEV-009A use-current-copy is the right action.
+  if (!hasChannelTasks.value) return '';
+  return '';
+});
+/** A / B: no channel task + confirmed copy → use-current-copy is executable. */
 const canUseCurrentCopy = computed(
-  () => productionStale.value && !hasChannelTasks.value,
+  () => productionStale.value && !hasChannelTasks.value && staleRepairBlockedReason.value === '',
+);
+/** C / D: channel tasks exist + confirmed copy + nothing published → restart is executable. */
+const canRestart = computed(
+  () => productionStale.value && hasChannelTasks.value && staleRepairBlockedReason.value === '',
 );
 
 /** Shared publish gate: artwork approved + production current. */
@@ -241,15 +269,33 @@ function publishVariant(value: PublishStatus): 'default' | 'muted' | 'active' | 
 // ---- error handling -----------------------------------------------------
 
 /** 404 means the scope does not match the server session — never auto-select a project. */
-function handleScopeError(e: unknown): void {
-  if (is404(e)) {
-    toast.error('当前项目、栏目、选题或篇目不在当前会话作用域内，已返回项目列表');
-    router.visit('/projects');
-    return;
-  }
-  toast.error(firstErrorMessage(e) ?? '操作失败');
-  loadError.value = firstErrorMessage(e) ?? '操作失败';
+// 404 means the scope does not match the server session. We never auto-select a project;
+// the user is returned to the project list instead.
+function handleScopeRedirect(e: unknown): boolean {
+  if (!is404(e)) return false;
+  toast.error('当前项目、栏目、选题或篇目不在当前会话作用域内，已返回项目列表');
+  router.visit('/projects');
+  return true;
+}
+
+/**
+ * Initial page load only. A non-404 failure replaces the workspace with ErrorState,
+ * because there is nothing meaningful to show yet.
+ */
+function handleLoadError(e: unknown): void {
+  if (handleScopeRedirect(e)) return;
+  loadError.value = firstErrorMessage(e) ?? '加载失败';
   status.value = 'error';
+}
+
+/**
+ * Every write action. A business gate rejection (422 etc.) must NOT tear down the page:
+ * it only surfaces the server's real message and keeps the current state on screen so
+ * the user can adjust and retry. Only a scope 404 leaves the page.
+ */
+function handleActionError(e: unknown): void {
+  if (handleScopeRedirect(e)) return;
+  toast.error(firstErrorMessage(e) ?? '操作失败');
 }
 
 // ---- data loading -------------------------------------------------------
@@ -278,7 +324,7 @@ async function load(): Promise<void> {
     await reload();
     status.value = 'ready';
   } catch (e) {
-    handleScopeError(e);
+    handleLoadError(e);
   }
 }
 
@@ -304,7 +350,7 @@ async function setArtwork(status: ArtworkStatus): Promise<void> {
     confirm.value.open = false;
     await reload();
   } catch (e) {
-    handleScopeError(e);
+    handleActionError(e);
   } finally {
     updatingArtwork.value = false;
   }
@@ -319,7 +365,7 @@ async function createProduction(): Promise<void> {
     toast.success('已开始共享图稿制作');
     await reload();
   } catch (e) {
-    handleScopeError(e);
+    handleActionError(e);
   } finally {
     creatingProduction.value = false;
   }
@@ -346,7 +392,7 @@ async function useCurrentCopy(): Promise<void> {
     confirm.value.open = false;
     await reload();
   } catch (e) {
-    handleScopeError(e);
+    handleActionError(e);
   } finally {
     switchingCopy.value = false;
   }
@@ -379,7 +425,7 @@ async function restart(): Promise<void> {
     confirm.value.open = false;
     await reload();
   } catch (e) {
-    handleScopeError(e);
+    handleActionError(e);
   } finally {
     restartingProduction.value = false;
   }
@@ -416,7 +462,7 @@ async function createChannel(channel: Channel): Promise<void> {
     toast.success(`已创建${CHANNEL_LABELS[channel]}任务`);
     await reload();
   } catch (e) {
-    handleScopeError(e);
+    handleActionError(e);
   } finally {
     creatingChannel.value = null;
   }
@@ -444,7 +490,7 @@ async function setVideo(channel: Channel, videoStatus: VideoStatus): Promise<voi
     confirm.value.open = false;
     await reload();
   } catch (e) {
-    handleScopeError(e);
+    handleActionError(e);
   } finally {
     updatingVideo.value = null;
   }
@@ -466,7 +512,7 @@ async function setSchedule(channel: Channel): Promise<void> {
     scheduleInput.value[channel] = '';
     await reload();
   } catch (e) {
-    handleScopeError(e);
+    handleActionError(e);
   } finally {
     updatingPublish.value = null;
   }
@@ -481,7 +527,7 @@ async function cancelSchedule(channel: Channel): Promise<void> {
     scheduleInput.value[channel] = '';
     await reload();
   } catch (e) {
-    handleScopeError(e);
+    handleActionError(e);
   } finally {
     updatingPublish.value = null;
   }
@@ -507,9 +553,22 @@ async function markPublished(channel: Channel): Promise<void> {
   try {
     // DEV-W05.1: a published request must NOT resend scheduled_at — the server keeps the
     // stored value as scheduling history and rejects the field.
-    const iso = localInputToIso(publishedAtInput.value[channel]);
-    const payload: PublishUpdate =
-      iso === null ? { publish_status: 'published' } : { publish_status: 'published', published_at: iso };
+    //
+    // A non-empty but unparseable value must abort the action. Silently degrading to
+    // "no timestamp supplied" would make the server stamp now() and record a publish time
+    // the user never chose.
+    const raw = publishedAtInput.value[channel];
+    let payload: PublishUpdate;
+    if (raw === '') {
+      payload = { publish_status: 'published' };
+    } else {
+      const iso = localInputToIso(raw);
+      if (iso === null) {
+        toast.error('请选择有效的实际发布时间');
+        return;
+      }
+      payload = { publish_status: 'published', published_at: iso };
+    }
     await channelTasksApi.updatePublish(scope.value, channel, payload);
     toast.success('已标记为正式发布');
     confirm.value.open = false;
@@ -517,7 +576,7 @@ async function markPublished(channel: Channel): Promise<void> {
     scheduleInput.value[channel] = '';
     await reload();
   } catch (e) {
-    handleScopeError(e);
+    handleActionError(e);
   } finally {
     updatingPublish.value = null;
   }
@@ -693,8 +752,8 @@ onMounted(load);
             <button
               v-if="production.artwork_status === 'pending_review'"
               type="button"
-              :disabled="updatingArtwork"
-              class="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+              :disabled="!canApproveArtwork || updatingArtwork"
+              class="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
               @click="askArtworkApproved"
             >
               审核通过
@@ -708,6 +767,12 @@ onMounted(load);
             >
               退回制作
             </button>
+            <span
+              v-if="production.artwork_status === 'pending_review' && !canApproveArtwork"
+              class="text-xs text-amber-700"
+            >
+              {{ artworkApproveBlockedReason }}
+            </span>
             <span
               v-if="production.artwork_status === 'approved'"
               class="text-sm text-emerald-700"
@@ -742,9 +807,9 @@ onMounted(load);
               disabled
               class="cursor-not-allowed rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-400"
             >
-              无法重新开始
+              {{ hasChannelTasks ? '无法重新开始' : '无法切换版本' }}
             </button>
-            <p class="text-sm text-slate-500">{{ restartBlockedReason }}</p>
+            <p class="text-sm text-slate-500">{{ staleRepairBlockedReason }}</p>
           </div>
 
           <p class="border-t border-slate-100 pt-3 text-xs text-slate-400">

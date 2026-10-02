@@ -83,7 +83,22 @@
 
 ## 错误与刷新
 
-所有写操作都处理 404 与 422：422 优先显示服务端第一条真实错误（`firstErrorMessage()`，必要时 `extractFieldErrors()`），不显示泛化「请求失败」。每次成功写操作后都重新 GET 正式服务端数据（Production、Channels、ContentItem、Current Revision），不手工猜测状态。
+错误处理按职责拆成两个入口，**互不混用**：
+
+- `handleLoadError(e)` —— 仅用于初次页面加载。404 走 scope 提示并返回 `/projects`；其它错误才写入 `loadError` 并切换到 `status = 'error'` 显示 ErrorState。
+- `handleActionError(e)` —— 用于**所有写操作**（create Production / update Artwork / use-current-copy / restart / create Channel / update Video / schedule / cancel schedule / publish）。404 同样跳 `/projects`；其余错误（含 422 业务门禁）**只弹 Toast**，绝不写 `loadError`、绝不把 `status` 置为 `error`。
+
+这条区分很关键：图稿审核、渠道创建、排期与发布都可能被服务端门禁拒绝（422）。如果一次 422 就把整个工作台替换成 ErrorState，用户会丢失当前上下文、无法就地修正后重试。现在业务门禁失败后页面保持原状态，只提示服务端第一条真实错误（`firstErrorMessage()`，必要时 `extractFieldErrors()`）。
+
+每次成功写操作后都重新 GET 正式服务端数据（Production、Channels、ContentItem、Current Revision），不手工猜测状态。
+
+## 前端门禁镜像
+
+前端只做「合理的 disabled + 真实原因提示」，服务端始终是最终 Gate：
+
+- **图稿审核通过**（`canApproveArtwork` / `artworkApproveBlockedReason`）要求同时满足 `is_copy_revision_current === true` 与 `copy_status === 'confirmed'`。Production stale 时提示「正式文案已有新版本，请先处理图稿版本。」；文案有未确认修改时提示「当前文案存在尚未正式确认的修改，请先完成文案确认。」按钮**保留可见**但置灰，不隐藏。
+- **stale 版本修复**按 `staleRepairBlockedReason` 统一分流：无 ChannelTask 且文案已确认 → `use-current-copy` 可执行；无 ChannelTask 但文案未确认 → 禁用「无法切换版本」；已有 ChannelTask 且文案已确认且无 published → `restart-with-current-copy` 可执行；已有 ChannelTask 但文案未确认 → 禁用并提示先确认文案；任一渠道 `published` → 禁用「无法重新开始」并说明已发布不可重置。两条路径都要求 `copy_status === 'confirmed'`，因为 DEV-009A 与 DEV-W05 都会拒绝未确认的文案。
+- **实际发布时间**输入非空但解析失败时会直接提示「请选择有效的实际发布时间」并中止请求，不会退化成「未填写」而让服务端盖上 `now()`——否则会记录一个用户并未选择的发布时间。只有留空时才发送 `{ publish_status: 'published' }` 由服务端取当前时间。排期时间同样有非法值拦截。
 
 每个主要动作都有独立 busy 状态（creatingProduction / updatingArtwork / switchingCopy / restartingProduction / creatingChannel / updatingVideo / updatingPublish），操作中按钮禁用且文案变为「处理中…」，不会被连续点击。
 

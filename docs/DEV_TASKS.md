@@ -85,6 +85,8 @@ DEV-W05.1 为终审收口：修正「父 ProductionTask 不存在时创建渠道
 
 前端一律采用服务端返回的 `is_copy_revision_current` / `is_production_copy_current` 判断版本新旧，不用 `copy_status` 推断；`published` 作为发布终态不提供任何回退入口；标记已发布不回传 `scheduled_at`（DEV-W05.1 契约）；`datetime-local` 提交前统一转 UTC ISO，UTC 返回值按浏览器本地时区显示。本轮不修改后端状态机、不新增 Migration、不开发 Asset、不调用真实微信 API。详见 `DEV-W06_PRODUCTION_CHANNEL_UI.md`。
 
+DEV-W06.1 为终审收口：拆分 `handleLoadError` / `handleActionError`，使业务门禁 422 只弹 Toast 而不再把工作台替换成 ErrorState；补齐图稿审核通过与 `use-current-copy` 的前端门禁镜像（均要求文案已确认且 Production current）；实际发布时间非法输入明确阻止发布。同样等待终审 / 合并。
+
 ## 后续待拆分
 
 以下能力尚未实现，需分别规划独立任务：
