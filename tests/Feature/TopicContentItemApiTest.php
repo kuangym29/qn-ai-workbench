@@ -75,10 +75,21 @@ class TopicContentItemApiTest extends TestCase
         $this->assertDatabaseCount('production_tasks', 0);
         $this->getJson($url)->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $id);
         $this->getJson("$url/$id")->assertOk()->assertJsonPath('data.title', '篇目');
-        foreach (['editing', 'pending_confirmation', 'confirmed'] as $status) {
+        foreach (['not_started', 'editing', 'pending_confirmation'] as $status) {
             $this->patchJson("$url/$id", ['copy_status' => $status])->assertOk()->assertJsonPath('data.copy_status', $status);
             $this->assertDatabaseHas('content_items', ['id' => $id, 'copy_status' => $status]);
         }
+        foreach (['not_started', 'editing', 'pending_confirmation', 'confirmed'] as $status) {
+            $this->postJson($url, ['title' => '禁止指定状态', 'copy_status' => $status])
+                ->assertUnprocessable()->assertJsonValidationErrors('copy_status');
+        }
+        $this->postJson($url, ['title' => '禁止空状态', 'copy_status' => null])
+            ->assertUnprocessable()->assertJsonValidationErrors('copy_status');
+        $this->patchJson("$url/$id", ['copy_status' => 'confirmed'])
+            ->assertUnprocessable()->assertJsonValidationErrors('copy_status')
+            ->assertSee('Use the copy confirmation endpoint to confirm content.');
+        $this->assertDatabaseHas('content_items', ['id' => $id, 'copy_status' => 'pending_confirmation']);
+        $this->assertDatabaseCount('content_copy_revisions', 0);
         $this->patchJson("$url/$id", ['title' => '新篇目'])->assertOk()->assertJsonPath('data.title', '新篇目');
     }
 
@@ -105,5 +116,38 @@ class TopicContentItemApiTest extends TestCase
         $this->postJson($url, ['title' => 'x', 'copy_status' => 'draft'])->assertUnprocessable()->assertJsonValidationErrors('copy_status');
         $this->patchJson("$url/{$item->id}", ['copy_status' => 'bad'])->assertUnprocessable()->assertJsonValidationErrors('copy_status');
         $this->assertDatabaseCount('content_items', 1);
+    }
+
+    public function test_confirmed_status_requires_the_copy_confirmation_endpoint(): void
+    {
+        [$project, $column] = $this->context();
+        $topic = Topic::factory()->create([
+            'project_id' => $project->id, 'content_column_id' => $column->id,
+        ]);
+        $base = "/api/projects/{$project->id}/columns/{$column->id}/topics/{$topic->id}/items";
+        $itemId = $this->postJson($base, ['title' => '正式链路'])->assertCreated()->json('data.id');
+        $itemUrl = "$base/$itemId";
+        $this->patchJson($itemUrl, ['copy_status' => 'confirmed'])
+            ->assertUnprocessable()->assertJsonValidationErrors('copy_status');
+        $this->assertDatabaseHas('content_items', ['id' => $itemId, 'copy_status' => 'not_started']);
+        $this->assertDatabaseCount('content_copy_revisions', 0);
+
+        $pageId = $this->postJson("$itemUrl/pages", ['page_no' => 1, 'page_type' => 'content'])
+            ->assertCreated()->json('data.id');
+        $this->postJson("$itemUrl/pages/$pageId/drafts", ['page_title' => '正式文案'])
+            ->assertCreated();
+        $revision = $this->postJson("$itemUrl/copy/confirm")
+            ->assertCreated()->assertJsonPath('data.revision_no', 1)
+            ->assertJsonCount(1, 'data.page_versions');
+        $this->assertDatabaseHas('content_items', ['id' => $itemId, 'copy_status' => 'confirmed']);
+        $this->assertDatabaseHas('content_copy_revisions', [
+            'id' => $revision->json('data.id'), 'content_item_id' => $itemId,
+        ]);
+        $this->assertDatabaseHas('content_page_versions', [
+            'content_page_id' => $pageId,
+            'copy_revision_id' => $revision->json('data.id'),
+            'page_title' => '正式文案',
+        ]);
+        $this->assertDatabaseCount('content_copy_revisions', 1);
     }
 }

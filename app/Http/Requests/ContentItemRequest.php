@@ -20,10 +20,19 @@ class ContentItemRequest extends FormRequest
     {
         return [
             'title' => [$this->isMethod('post') ? 'required' : 'sometimes', 'required', 'string', 'max:200'],
-            'copy_status' => ['sometimes', 'required', Rule::enum(CopyStatus::class)],
+            'copy_status' => $this->isMethod('post')
+                ? ['missing']
+                : ['sometimes', 'required', Rule::enum(CopyStatus::class), Rule::notIn([CopyStatus::Confirmed->value])],
             'project_id' => ['prohibited'],
             'content_column_id' => ['prohibited'],
             'topic_id' => ['prohibited'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'copy_status.not_in' => 'Use the copy confirmation endpoint to confirm content.',
         ];
     }
 }
