@@ -18,7 +18,6 @@ import { columnsApi } from '../../api/columns';
 import { topicsApi } from '../../api/topics';
 import { contentItemsApi } from '../../api/contentItems';
 import { contentPagesApi } from '../../api/contentPages';
-import { selectProject } from '../../stores/projectContext';
 import { is404, extractFieldErrors, firstErrorMessage, type FieldErrors } from '../../api/errors';
 import { toast } from '../../ui/toast';
 import AdminLayout from '../../layouts/AdminLayout.vue';
@@ -210,8 +209,11 @@ function nextDefaultPageNo(): number {
 async function load(): Promise<void> {
   status.value = 'loading';
   try {
-    // DEV-007A requires the session project to match the URL; select it on the server first.
-    await selectProject(props.projectId);
+    // NOTE (DEV-W04.1): Never auto-select the project from the URL. The server-side
+    // ProjectContext (session) is the sole authority for the current scope. If the URL
+    // project differs from the session project, the scope-bound calls below (columns /
+    // topics / content-items / pages) return 404 and the existing scope UX redirects the
+    // user to /projects. We must NOT silently switch the session here.
     const [list, col, top] = await Promise.all([
       projectsApi.list(),
       columnsApi.get(props.projectId, props.columnId),

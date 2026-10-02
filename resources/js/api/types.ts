@@ -46,6 +46,12 @@ export interface Topic {
 // so 'draft' / 'completed' / 'approved' must never appear anywhere in the UI.
 export type CopyStatus = 'not_started' | 'editing' | 'pending_confirmation' | 'confirmed';
 
+// The subset a normal ContentItem form may PUT/PATCH. `confirmed` is intentionally EXCLUDED:
+// it is only ever produced by the formal copy-confirmation flow in the ContentPage editor.
+// DEV-007A.1 already rejects `confirmed` on a plain PATCH with 422; this type makes the
+// same rule enforceable at compile time. (Read models keep the full `CopyStatus`.)
+export type EditableCopyStatus = Exclude<CopyStatus, 'confirmed'>;
+
 export const COPY_STATUSES: CopyStatus[] = [
   'not_started',
   'editing',
@@ -167,5 +173,7 @@ export interface TopicInput {
 export interface ContentItemInput {
   title: string;
   // Omitted on create on purpose: the server defaults a new item to 'not_started'.
-  copy_status?: CopyStatus;
+  // Only the three mutable states are acceptable here — `confirmed` is excluded (see
+  // EditableCopyStatus); it can only be set by the copy editor's formal confirm flow.
+  copy_status?: EditableCopyStatus;
 }

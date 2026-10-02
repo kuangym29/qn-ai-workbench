@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { COPY_STATUSES, COPY_STATUS_LABELS } from '../../api/types';
-import type { Column, ContentItemInput, CopyStatus, Project, Topic } from '../../api/types';
+import type { Column, ContentItemInput, CopyStatus, EditableCopyStatus, Project, Topic } from '../../api/types';
 import { projectsApi } from '../../api/projects';
 import { columnsApi } from '../../api/columns';
 import { topicsApi } from '../../api/topics';
@@ -91,7 +91,10 @@ async function submit(): Promise<void> {
   // confirmed item is never downgraded by a plain title save (confirmation is owned by
   // the copy editor's formal confirm flow).
   const payload: ContentItemInput = { title: form.value.title.trim() };
-  if (mode === 'edit' && !isConfirmed.value) payload.copy_status = form.value.copy_status;
+  if (mode === 'edit' && !isConfirmed.value) {
+    // Safe: the isConfirmed guard guarantees copy_status is not 'confirmed' at runtime.
+    payload.copy_status = form.value.copy_status as EditableCopyStatus;
+  }
   try {
     if (mode === 'edit' && props.id) {
       await contentItemsApi.update(
