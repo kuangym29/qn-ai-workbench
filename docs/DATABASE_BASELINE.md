@@ -93,11 +93,18 @@
 - foreign(`project_id`, `content_item_id`, `content_page_id`) references content_pages(复合主键), restrictOnDelete
 - foreign(`project_id`, `content_item_id`, `copy_revision_id`) references content_copy_revisions(复合主键), restrictOnDelete
 
-**版本模型核心规则**：
-- Working Copy = 各 ContentPage 最大 `version_no` 的版本（`copy_revision_id` 为 null）
-- Formal Copy = 对应 ContentCopyRevision 的完整 PageVersion 快照（`copy_revision_id` 非空）
-- PageVersion append-only：不覆盖、不删除
-- 进入 confirmed 的唯一入口：`POST .../copy/confirm`，必须同时创建 ContentCopyRevision + 完整 PageVersion 正式快照
+**版本模型核心规则（V1.1 校正 Working Copy 定义）**：
+
+- **Working Copy** = 各 ContentPage 当前最大 `version_no` 的 PageVersion。
+  - 它可能是**正式快照**（`copy_revision_id != null`）——例如刚完成正式确认且之后尚未新建草稿。
+  - 它也可能是**草稿**（`copy_revision_id = null`）——例如正式确认后又保存了新草稿。
+  - **是否属于正式稿，不能通过"是不是当前最大版本"判断。**
+
+- **Formal Copy** = 对应 ContentCopyRevision 及其 `copy_revision_id` 对应的完整 PageVersion 快照集合。
+  - 正式稿的判定依据是 `copy_revision_id` 是否指向某个 ContentCopyRevision，而不是版本号大小。
+
+- PageVersion append-only：不覆盖、不删除。
+- 进入 confirmed 的唯一入口：`POST .../copy/confirm`，必须同时创建 ContentCopyRevision + 完整 PageVersion 正式快照。
 
 ## 共享视觉资产的未来关系（未迁移）
 
@@ -105,4 +112,9 @@ Production Task 未来为共享视觉资产的一对多父节点。资产至少�
 
 ## Source Reference（未迁移）
 
-历史来源文件（逐页脚本、内容台账、收尾句台账、导航索引）的正式数据库引用建模留待后续独立任务。当前 ContentPageVersion 快照已保留正式文案字段，但来源追溯（source_path、role、authority 等）尚未数据库化。详见 `DEV-D07_SOURCE_PROVENANCE_AUDIT.md`。
+历史来源文件（逐页脚本、内容台账、收尾句台账、导航索引）的正式数据库引用建模留待后续独立任务。当前 ContentPageVersion 快照已保留正式文案字段，但来源追溯（source_path / role / authority 等）尚未数据库化。
+
+**当前最小字段建议（V1.1 校正，仅设计方向）**：
+`id` / `project_id` / `content_item_id`(nullable) / `role` / `authority` / `source_path` / `note`(nullable) / timestamps。
+
+不包含 `content_column_id` 和 `content_page_id`（理由见 `DEV-D07_SOURCE_PROVENANCE_AUDIT.md`）。

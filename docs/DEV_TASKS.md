@@ -55,16 +55,18 @@ Topic / ContentItem 工作台接入 DEV-005 真实接口，实现列表、创建
 
 完成青柠育见 4 篇 / 37 页历史内容到正式 ContentPage Schema 的逐页映射审计。以各栏目 `最终上图文案.md` 为逐页正式文案权威源，旧 Fixture 仅作 legacy ID 辅助。完成 Unicode 标点保真校正（中文双引号 U+201C/U+201D）。映射文档见 `DEV-D06_CONTENT_PAGE_MAPPING.md`。本轮为纯文档/审计任务，不创建 Importer / Migration / Model。
 
-## DEV-D07：Source Provenance 实源审计 + 正式架构文档基线同步（本分支）
+## DEV-D07 / D07.1：Source Provenance 实源审计 + 正式架构文档基线同步（本分支）
 
-完成历史来源文件（逐页脚本、内容台账、收尾句台账、导航索引）的实源审计，明确每个 source role 的 scope / authority / verification_status。同步更新 ARCHITECTURE / DATABASE_BASELINE / DEV_TASKS 三份正式文档，反映 ContentPage 与版本模型已正式实现的当前事实。审计文档见 `DEV-D07_SOURCE_PROVENANCE_AUDIT.md`。本轮为纯文档任务，不创建 Migration / Model / SourceReference 表 / Importer。
+完成历史来源文件（逐页脚本、内容台账、收尾句台账、导航索引）的实源审计，明确每个 source role 的 scope / authority / verification_status。同步更新 ARCHITECTURE / DATABASE_BASELINE / DEV_TASKS 三份正式文档，反映 ContentPage 与版本模型已正式实现的当前事实。
+
+V1.1 校正：authority 语义正式收敛为四类（authoritative / evidence / index / reference）；确认当前不需要 `content_column_id`；修正 Working Copy 定义。审计文档见 `DEV-D07_SOURCE_PROVENANCE_AUDIT.md`。本轮为纯文档任务，不创建 Migration / Model / SourceReference 表 / Importer。
 
 ## 后续待拆分
 
 以下能力尚未实现，需分别规划独立任务：
 
-- **Source Reference**：历史来源文件的数据库引用建模（project_id / content_item_id / role / authority / source_path）
-- **历史内容 Importer**：将 37 页历史正式文案导入正式数据库
+- **Source Reference**：历史来源文件的数据库引用建模。最小字段方向：`project_id` / `content_item_id`(nullable) / `role` / `authority` / `source_path`。当前不需要 `content_column_id` 和 `content_page_id`。详见 `DEV-D07_SOURCE_PROVENANCE_AUDIT.md`。
+- **历史内容 Importer**：将 37 页历史正式文案导入正式数据库。权威源为各栏目 `最终上图文案.md`，DEV-D06 mapping 仅用于校验。
 - **共享视觉资产**：Asset / AssetVersion / File 表与 ProductionTask 关联
 - **查重**：跨栏目收尾句 / 文案查重能力
 - **渠道生产 API**：视频状态推进、发布排期等
