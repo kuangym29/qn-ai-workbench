@@ -23,6 +23,18 @@ Route::get('/projects/{project}/columns', fn (int $project) => Inertia::render('
 Route::get('/projects/{project}/columns/create', fn (int $project) => Inertia::render('Columns/Form', ['mode' => 'create', 'projectId' => $project]))->name('columns.create');
 Route::get('/projects/{project}/columns/{column}/edit', fn (int $project, int $column) => Inertia::render('Columns/Form', ['mode' => 'edit', 'projectId' => $project, 'id' => $column]))->name('columns.edit');
 
+// Topics (DEV-W03) — always nested under Project → Column. These are Inertia page entries
+// only; all real data comes from the frozen DEV-005 API under /api (see below).
+Route::get('/projects/{project}/columns/{column}/topics', fn (int $project, int $column) => Inertia::render('Topics/Index', ['projectId' => $project, 'columnId' => $column]))->name('topics.index');
+Route::get('/projects/{project}/columns/{column}/topics/create', fn (int $project, int $column) => Inertia::render('Topics/Form', ['mode' => 'create', 'projectId' => $project, 'columnId' => $column]))->name('topics.create');
+Route::get('/projects/{project}/columns/{column}/topics/{topic}/edit', fn (int $project, int $column, int $topic) => Inertia::render('Topics/Form', ['mode' => 'edit', 'projectId' => $project, 'columnId' => $column, 'id' => $topic]))->name('topics.edit');
+
+// ContentItems (DEV-W03) — always nested under Project → Column → Topic. Inertia page
+// entries only; data comes from the DEV-005 API.
+Route::get('/projects/{project}/columns/{column}/topics/{topic}/items', fn (int $project, int $column, int $topic) => Inertia::render('ContentItems/Index', ['projectId' => $project, 'columnId' => $column, 'topicId' => $topic]))->name('items.index');
+Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/create', fn (int $project, int $column, int $topic) => Inertia::render('ContentItems/Form', ['mode' => 'create', 'projectId' => $project, 'columnId' => $column, 'topicId' => $topic]))->name('items.create');
+Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/edit', fn (int $project, int $column, int $topic, int $item) => Inertia::render('ContentItems/Form', ['mode' => 'edit', 'projectId' => $project, 'columnId' => $column, 'topicId' => $topic, 'id' => $item]))->name('items.edit');
+
 // Real DEV-003 REST API. Same-origin browser session + CSRF. All responses are wrapped
 // as {"data": ...}. The current project lives in the server session (ProjectContext),
 // so there is deliberately NO GET /api/projects/{project} show endpoint.
