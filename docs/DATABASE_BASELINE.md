@@ -28,6 +28,93 @@
 
 `channel` 在数据库中是字符串、在 PHP Model 中受 `Channel` 枚举控制；当前值为 `wechat_official` 和 `wechat_channels`。新增渠道需新增代码枚举值，不需要改数据库 Enum。
 
+## 内容页与版本表（DEV-006B 已实现）
+
+以下三张表由 DEV-006B 创建，构成 ContentPage 稳定身份与 append-only 文案版本模型。
+
+### content_pages
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | bigint, PK | 页面稳定身份 |
+| `project_id` | foreignId, restrictOnDelete | 归属 Project |
+| `content_item_id` | unsignedBigInteger | 所属 ContentItem |
+| `page_no` | unsignedBigInteger | 页码（从 1 开始） |
+| `page_type` | string(40) | 页面类型：`cover` / `content` / `column_closing` / `fixed_back_cover` |
+| timestamps | | |
+
+**约束**：
+- unique(`content_item_id`, `page_no`) → 同篇目内页码唯一
+- unique(`project_id`, `content_item_id`, `id`) → Project 作用域内 ID 唯一
+- foreign(`project_id`, `content_item_id`) references content_items(`project_id`, `id`), restrictOnDelete
+
+### content_copy_revisions
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | bigint, PK | Revision ID |
+| `project_id` | foreignId, restrictOnDelete | 归属 Project |
+| `content_item_id` | unsignedBigInteger | 所属 ContentItem |
+| `revision_no` | unsignedBigInteger | 版本号（同 ContentItem 内递增） |
+| `confirmed_at` | timestamp | 正式确认时间 |
+| timestamps | | |
+
+**约束**：
+- unique(`content_item_id`, `revision_no`) → 同篇目内版本号唯一
+- unique(`project_id`, `content_item_id`, `id`) → Project 作用域内 ID 唯一
+- foreign(`project_id`, `content_item_id`) references content_items(`project_id`, `id`), restrictOnDelete
+
+**正式 Revision 定义**：当前正式 Revision = 同 ContentItem 最大 `revision_no`。不建立 `content_items.current_revision_id` 冗余字段。
+
+### content_page_versions
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | bigint, PK | PageVersion ID |
+| `project_id` | foreignId, restrictOnDelete | 归属 Project |
+| `content_item_id` | unsignedBigInteger | 所属 ContentItem |
+| `content_page_id` | unsignedBigInteger | 所属 ContentPage |
+| `copy_revision_id` | unsignedBigInteger, nullable | 关联的正式 Revision（草稿版本为 null） |
+| `version_no` | unsignedBigInteger | 页面版本号（同 Page 内递增） |
+| `page_no_snapshot` | unsignedBigInteger, nullable | 确认时页码快照 |
+| `page_type_snapshot` | string(40), nullable | 确认时页面类型快照 |
+| `column_label` | text, nullable | 栏目名 |
+| `cover_title` | text, nullable | 封面标题 |
+| `cover_subtitle` | text, nullable | 封面副标题 |
+| `page_title` | text, nullable | 内容页标题 |
+| `page_small_text` | text, nullable | 内容页小字 |
+| `closing_line` | text, nullable | 收尾句 |
+| `note` | text, nullable | 备注 |
+| timestamps | | |
+
+**约束**：
+- unique(`content_page_id`, `version_no`) → 同页面内版本号唯一
+- unique(`copy_revision_id`, `content_page_id`) → 同一次正式确认内每页只有一个正式快照
+- foreign(`project_id`, `content_item_id`, `content_page_id`) references content_pages(复合主键), restrictOnDelete
+- foreign(`project_id`, `content_item_id`, `copy_revision_id`) references content_copy_revisions(复合主键), restrictOnDelete
+
+**版本模型核心规则（V1.1 校正 Working Copy 定义）**：
+
+- **Working Copy** = 各 ContentPage 当前最大 `version_no` 的 PageVersion。
+  - 它可能是**正式快照**（`copy_revision_id != null`）——例如刚完成正式确认且之后尚未新建草稿。
+  - 它也可能是**草稿**（`copy_revision_id = null`）——例如正式确认后又保存了新草稿。
+  - **是否属于正式稿，不能通过"是不是当前最大版本"判断。**
+
+- **Formal Copy** = 对应 ContentCopyRevision 及其 `copy_revision_id` 对应的完整 PageVersion 快照集合。
+  - 正式稿的判定依据是 `copy_revision_id` 是否指向某个 ContentCopyRevision，而不是版本号大小。
+
+- PageVersion append-only：不覆盖、不删除。
+- 进入 confirmed 的唯一入口：`POST .../copy/confirm`，必须同时创建 ContentCopyRevision + 完整 PageVersion 正式快照。
+
 ## 共享视觉资产的未来关系（未迁移）
 
 Production Task 未来为共享视觉资产的一对多父节点。资产至少有 `clean_master`、`copy_master` 两类角色，且必须与父任务的 Project、Content Item 一致；渠道任务引用资产，公众号默认 `copy_master`，视频号默认 `clean_master`。衍生适配版和正式版本须独立记录，不覆盖母资产。未来 Asset / AssetVersion / File 迁移需设计复合关联并补跨 Project 拒绝测试；DEV-002 不建这些表，也不在 `production_tasks` 增加固定图片 ID。
+
+## Source Reference（未迁移）
+
+历史来源文件（逐页脚本、内容台账、收尾句台账、导航索引）的正式数据库引用建模留待后续独立任务。当前 ContentPageVersion 快照已保留正式文案字段，但来源追溯（source_path / role / authority 等）尚未数据库化。
+
+**当前最小字段建议（V1.1 校正，仅设计方向）**：
+`id` / `project_id` / `content_item_id`(nullable) / `role` / `authority` / `source_path` / `note`(nullable) / timestamps。
+
+不包含 `content_column_id` 和 `content_page_id`（理由见 `DEV-D07_SOURCE_PROVENANCE_AUDIT.md`）。
