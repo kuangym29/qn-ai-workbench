@@ -90,8 +90,8 @@
 **约束**：
 - unique(`content_page_id`, `version_no`) → 同页面内版本号唯一
 - unique(`copy_revision_id`, `content_page_id`) → 同一次正式确认内每页只有一个正式快照
-- foreign(`project_id`, `content_item_id`, `content_page_id`) references content_pages(复合主键), restrictOnDelete
-- foreign(`project_id`, `content_item_id`, `copy_revision_id`) references content_copy_revisions(复合主键), restrictOnDelete
+- foreign(`project_id`, `content_item_id`, `content_page_id`) references content_pages(`project_id`, `content_item_id`, `id`) 的复合唯一键（composite unique key）, restrictOnDelete
+- foreign(`project_id`, `content_item_id`, `copy_revision_id`) references content_copy_revisions(`project_id`, `content_item_id`, `id`) 的复合唯一键（composite unique key）, restrictOnDelete
 
 **版本模型核心规则（V1.1 校正 Working Copy 定义）**：
 
@@ -110,11 +110,8 @@
 
 Production Task 未来为共享视觉资产的一对多父节点。资产至少有 `clean_master`、`copy_master` 两类角色，且必须与父任务的 Project、Content Item 一致；渠道任务引用资产，公众号默认 `copy_master`，视频号默认 `clean_master`。衍生适配版和正式版本须独立记录，不覆盖母资产。未来 Asset / AssetVersion / File 迁移需设计复合关联并补跨 Project 拒绝测试；DEV-002 不建这些表，也不在 `production_tasks` 增加固定图片 ID。
 
-## Source Reference（未迁移）
+## Source Reference（DEV-008A 核心数据层已实现）
 
-历史来源文件（逐页脚本、内容台账、收尾句台账、导航索引）的正式数据库引用建模留待后续独立任务。当前 ContentPageVersion 快照已保留正式文案字段，但来源追溯（source_path / role / authority 等）尚未数据库化。
+`source_references` 包含 `id`、`project_id`、可空 `content_item_id`、`role` string(40)、`authority` string(40)、`source_path` string(1000)、可空 `note` text、timestamps。Role / Authority 在 PHP 层 cast 到 string backed Enum，不使用数据库 ENUM 或 Role/Scope CHECK。普通索引为 `(project_id, role)` 与 `(project_id, content_item_id, role)`；`source_path` 不唯一、不建索引。
 
-**当前最小字段建议（V1.1 校正，仅设计方向）**：
-`id` / `project_id` / `content_item_id`(nullable) / `role` / `authority` / `source_path` / `note`(nullable) / timestamps。
-
-不包含 `content_column_id` 和 `content_page_id`（理由见 `DEV-D07_SOURCE_PROVENANCE_AUDIT.md`）。
+`project_id` 外键与 `(project_id, content_item_id)` → `content_items(project_id, id)` 复合唯一键均级联删除。后者在 `content_item_id = null` 时允许 Project 级引用，在非空时拒绝跨 Project Item。Project 删除会清理所有来源引用；ContentItem 删除只清理其 Item 级引用。两种数据库的迁移、回滚重跑和删除测试已验证。未建立 `content_column_id`、`content_page_id`、polymorphic 关系或路径唯一约束。详见 `DEV-008A_SOURCE_REFERENCE_IMPLEMENTATION.md`；Importer / API / UI 尚未实现。

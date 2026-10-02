@@ -45,6 +45,11 @@ class ContentItem extends Model
         return $this->hasMany(ContentCopyRevision::class);
     }
 
+    public function sourceReferences(): HasMany
+    {
+        return $this->hasMany(SourceReference::class);
+    }
+
     public function productionTask(): HasOne
     {
         return $this->hasOne(ProductionTask::class);
