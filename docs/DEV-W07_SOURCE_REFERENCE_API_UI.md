@@ -53,6 +53,14 @@
 
 允许中文与空格。落库前统一规范化为 `/` 分隔、压缩重复分隔符、去掉开头的 `./`，因此 `a\b.md`、`a//b.md`、`./a/b.md` 视为同一路径。校验只做字符串层面判断，**不访问文件系统**。
 
+**规范化后必须仍是非空的相对路径。** 校验规则直接作用于「最终会落库的那个值」，而不是原始输入：
+
+- `""`、`"   "`、`"./"`、`"././"`、`"./././"` 以及 `.//.` 这类只由 `.` 组成的输入，一律 422 `errors.source_path`（`The source path must resolve to a non-empty relative path.`）。它们原始串非空、能通过全部基础安全检查，但规范化后会归零，若放行就会把 `source_path = ''` 写进库。
+- 只由 `.` 段组成的路径（`.`、`././`）本质是目录引用而非来源文件，同样按空处理。
+- `./a/b.md` 仍然**合法**，落库为 `a/b.md`——拒绝的是「规范化后为空」，不是禁止正常的 `./` 前缀。
+
+规范化只有一份实现：Request 的 `normalisePath()` 既是校验依据，也通过 `canonicalSourcePath()` 提供给 Controller 落库，Controller 不再维护第二套规则，因此「校验的字符串」与「存入的字符串」不可能漂移。
+
 ## 重复规则
 
 数据库允许同一路径被多个 ContentItem 共享（正式能力），因此**没有**全局 `source_path` 唯一约束。HTTP API 层判定重复的口径是：
@@ -91,6 +99,19 @@ Session 当前 Project 是服务端作用域事实，URL 不得自动切换 Sess
 - Item 级请求逐层验证 `Project → ContentColumn → Topic → ContentItem`，任一错配 404。
 
 页面沿用 DEV-W06.1 的错误处理分工：**加载失败**才切 ErrorState，**写操作失败（含 422）只 Toast**，业务门禁被拒时页面保持当前状态、用户可继续修改。422 优先显示服务端第一条真实错误（`firstErrorMessage()`）。
+
+### 切换项目后的落点
+
+来源是项目级作用域。若用户停留在 `/projects/OLD/sources`（或 OLD 篇目的 Item Sources）却在顶部切换到 NEW 项目，Session 已经是 NEW，但 URL 与页面仍显示 OLD 的记录，随后任何写操作都会因为「URL 的 OLD + Session 的 NEW」而 404——这是应当避免的 stale UI。
+
+因此 `AdminLayout.onSwitch()` 在 `await selectProject(id)` 成功之后，额外把来源页面带到新项目：
+
+- Project Sources：`/projects/OLD/sources` → `/projects/NEW/sources`
+- Item Sources：同样进入 `/projects/NEW/sources`
+
+Item Sources 切换后**不猜测**新项目的 Column / Topic / Item——这些层级 ID 在新项目里没有可安全推导的关系，统一落到项目级来源页是 Lite 阶段的正确行为。
+
+顺序原则不变：先 `await selectProject(id)` 让服务端 Session 切换成功，再 `router.visit(...)`；绝不根据 URL 自动 selectProject，也不先跳 URL 再切 Session。Topic / Item / Production 等页面的切换落点本轮**不**改动。
 
 ## UI
 

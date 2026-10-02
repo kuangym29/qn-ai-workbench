@@ -409,4 +409,37 @@ class SourceReferenceApiTest extends TestCase
         $this->postJson("/api/projects/{$other->id}/select")->assertOk();
         $this->getJson($projectUrl)->assertNotFound();
     }
+
+    public function test_paths_that_normalise_to_empty_are_rejected(): void
+    {
+        [, , , , $projectUrl, $itemUrl] = $this->context();
+
+        // 这些输入原始串非空，能通过基础安全检查，但规范化后为空，
+        // 绝不允许落库成 source_path = ''。
+        $emptyAfterNormalising = ['', '   ', './', '././', './././', './/.', '.\\.\\.'];
+
+        foreach ($emptyAfterNormalising as $path) {
+            $this->postJson($projectUrl, ['role' => 'content_ledger', 'source_path' => $path])
+                ->assertUnprocessable()->assertJsonValidationErrors('source_path');
+            $this->postJson($itemUrl, ['role' => 'source_script', 'source_path' => $path])
+                ->assertUnprocessable()->assertJsonValidationErrors('source_path');
+        }
+
+        $this->assertDatabaseCount('source_references', 0);
+    }
+
+    public function test_dot_slash_prefix_is_still_allowed_and_normalised_away(): void
+    {
+        // 只拒绝「规范化后为空」，不是禁止正常的 ./ 前缀。
+        [, , , , $projectUrl, $itemUrl] = $this->context();
+
+        $this->postJson($projectUrl, ['role' => 'content_ledger', 'source_path' => './a/b.md'])
+            ->assertCreated()->assertJsonPath('data.source_path', 'a/b.md');
+
+        $this->postJson($itemUrl, ['role' => 'source_script', 'source_path' => './a/b.md'])
+            ->assertCreated()->assertJsonPath('data.source_path', 'a/b.md');
+
+        $this->assertDatabaseCount('source_references', 2);
+        $this->assertDatabaseMissing('source_references', ['source_path' => '']);
+    }
 }

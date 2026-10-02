@@ -73,8 +73,11 @@ async function onSwitch(event: Event): Promise<void> {
     const selected = await selectProject(id);
     if (USE_MOCK) setCurrentProject(selected);
     toast.success(`已切换到项目：${selected.name}`);
-    // If we're inside a column view, follow the switch into the new project's columns.
+    // Follow the switch into the new project. Sources is project scoped, so a stale
+    // OLD/sources URL would keep showing the previous project's records (and 404 on
+    // every write, because the session is already the NEW project).
     if (isColumnsActive.value) router.visit(`/projects/${selected.id}/columns`);
+    if (isSourcesActive.value) router.visit(`/projects/${selected.id}/sources`);
   } catch {
     toast.error('切换项目失败，请重试');
   }

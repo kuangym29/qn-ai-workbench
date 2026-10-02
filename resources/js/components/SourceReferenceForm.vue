@@ -42,7 +42,9 @@ function submit(): void {
     return;
   }
   // Client-side mirror of the server's relative-path rule; the server stays the gate.
-  const normalised = path.replace(/\\/g, '/');
+  // Mirror the same normalisation steps as the server so a value that would normalise
+  // down to nothing is caught here instead of bouncing off a 422.
+  const normalised = path.replace(/\\/g, '/').replace(/\/{2,}/g, '/');
   if (normalised.startsWith('/') || /^[A-Za-z]:\//.test(normalised) || normalised.startsWith('//')) {
     error.value = '请填写相对路径，不能是绝对路径';
     return;
@@ -52,10 +54,20 @@ function submit(): void {
     return;
   }
 
+  // Strip leading './' segments the same way the server does, then require a remainder.
+  let canonical = normalised;
+  while (canonical.startsWith('./')) {
+    canonical = canonical.slice(2);
+  }
+  if (canonical.replace(/^\/+|\/+$/g, '') === '') {
+    error.value = '请填写有效的相对路径';
+    return;
+  }
+
   error.value = '';
   emit('submit', {
     role: role.value,
-    source_path: normalised,
+    source_path: canonical,
     note: note.value.trim() === '' ? null : note.value.trim(),
   });
 }

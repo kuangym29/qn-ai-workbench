@@ -102,8 +102,13 @@ abstract class SourceReferenceRequest extends FormRequest
             }
         }
 
-        if (trim($normalised, '/') === '') {
-            $fail('The source path must be a non-empty relative path.');
+        // The FINAL gate: validation must judge the value that will actually be stored.
+        // `./`, `././`, `./././` all pass every check above (the raw string is non-empty)
+        // but normalise down to an empty string, which would persist source_path = ''.
+        // Re-use this class's own normaliser so the rule and the stored value can never
+        // drift apart.
+        if ($this->normalisePath($value) === '') {
+            $fail('The source path must resolve to a non-empty relative path.');
         }
     }
 
@@ -120,6 +125,25 @@ abstract class SourceReferenceRequest extends FormRequest
             $path = substr($path, 2);
         }
 
-        return trim($path, '/');
+        $path = trim($path, '/');
+
+        // A path consisting only of `.` segments (`.`, `.//.`) is a directory
+        // reference rather than a source file, so it counts as empty.
+        if ($path !== '' && str_replace('.', '', $path) === '') {
+            return '';
+        }
+
+        return $path;
+    }
+
+    /**
+     * Canonical value the server will actually persist for $field.
+     *
+     * Validation judges this same value, so the rule and the stored path can never
+     * drift apart (this is what rejects `./`, `././`, `.//.` …).
+     */
+    public function canonicalSourcePath(string $field): string
+    {
+        return $this->normalisePath((string) $this->validated($field));
     }
 }

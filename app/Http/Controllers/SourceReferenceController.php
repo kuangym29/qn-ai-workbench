@@ -117,19 +117,15 @@ class SourceReferenceController extends Controller
     }
 
     /**
-     * 规范化路径：统一 `/` 分隔、压缩重复分隔符、去掉开头 `./`。
-     * 让 `a\b.md`、`a//b.md`、`./a/b.md` 落到同一字符串，重复判定才可靠。
+     * Canonical path to persist. Delegates to the request, which owns the single
+     * normalisation definition (backslashes → `/`, collapsed separators, leading `./`
+     * removed) and already validated that the result is a non-empty relative path.
+     * Keeping one implementation is what guarantees the duplicate check compares the
+     * same string that gets stored.
      */
     private function normalisePath(ProjectSourceReferenceRequest|ItemSourceReferenceRequest $request, string $field): string
     {
-        $path = str_replace('\\', '/', trim((string) $request->validated($field)));
-        $path = (string) preg_replace('#/+#', '/', $path);
-
-        while (str_starts_with($path, './')) {
-            $path = substr($path, 2);
-        }
-
-        return $path;
+        return $request->canonicalSourcePath($field);
     }
 
     // ------------------------------------------------------------ Project 级
