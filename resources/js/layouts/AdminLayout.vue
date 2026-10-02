@@ -17,6 +17,7 @@ import ToastHost from '../components/ToastHost.vue';
 const page = usePage();
 const isProjectsActive = computed(() => String(page.component).startsWith('Projects'));
 const isColumnsActive = computed(() => String(page.component).startsWith('Columns'));
+const isSourcesActive = computed(() => String(page.component).startsWith('Sources'));
 
 const projects = ref<Project[]>([]);
 
@@ -51,6 +52,17 @@ function goToColumns(): void {
   router.visit(`/projects/${projectContext.current.id}/columns`);
 }
 
+// 来源管理 is project scoped: enter only when a project is selected, and never
+// auto-select a project from the URL (the server session stays the only authority).
+function goToSources(): void {
+  if (!projectContext.current) {
+    toast.info('请先选择一个项目');
+    router.visit('/projects');
+    return;
+  }
+  router.visit(`/projects/${projectContext.current.id}/sources`);
+}
+
 // Top switcher: MUST select on the server FIRST, then mirror locally.
 // Never just rewrite localStorage. Lite V1.0 has no "clear current project" action, so
 // an empty selection is ignored.
@@ -81,6 +93,7 @@ async function onSwitch(event: Event): Promise<void> {
       <nav class="flex-1 space-y-1 px-3 py-4">
         <Link href="/projects" :class="navClass(isProjectsActive)">项目</Link>
         <button type="button" :class="navClass(isColumnsActive)" @click="goToColumns">小栏目</button>
+        <button type="button" :class="navClass(isSourcesActive)" @click="goToSources">来源管理</button>
 
         <!--
           内容流程：选题 / 篇目 / 制作与渠道都已实现（DEV-W05 起 ProductionTask 与

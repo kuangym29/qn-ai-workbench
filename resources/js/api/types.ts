@@ -291,3 +291,81 @@ export interface ProductionRestartResult {
   production: ProductionTask;
   channels: ChannelTask[];
 }
+
+// ---------------------------------------------------------------------------
+// SourceReference (DEV-008A data layer, DEV-W07 HTTP API + UI)
+// ---------------------------------------------------------------------------
+//
+// Provenance records: a SourceReference is a *pointer* to a file under the brand source
+// root, never a copy of its content. The five roles split into two scopes:
+//   * item-scoped    → final_image_copy, source_script            (content_item_id set)
+//   * project-scoped → content_ledger, closing_line_registry,
+//                      navigation_index                            (content_item_id null)
+// The scope split is owned by the backend (SourceRole::isContentItemScoped()); these
+// helpers only mirror it for rendering and for picking which form to show.
+
+export type SourceRole =
+  | 'final_image_copy'
+  | 'source_script'
+  | 'content_ledger'
+  | 'closing_line_registry'
+  | 'navigation_index';
+
+export type SourceAuthority = 'authoritative' | 'evidence' | 'index' | 'reference';
+
+export const SOURCE_ROLES: SourceRole[] = [
+  'final_image_copy',
+  'source_script',
+  'content_ledger',
+  'closing_line_registry',
+  'navigation_index',
+];
+
+/** Roles reachable through the Project-level API/UI. */
+export const PROJECT_SCOPED_SOURCE_ROLES: SourceRole[] = [
+  'content_ledger',
+  'closing_line_registry',
+  'navigation_index',
+];
+
+/** Roles reachable through the per-ContentItem API/UI. */
+export const ITEM_SCOPED_SOURCE_ROLES: SourceRole[] = ['final_image_copy', 'source_script'];
+
+export const SOURCE_ROLE_LABELS: Record<SourceRole, string> = {
+  final_image_copy: '最终上图文案',
+  source_script: '来源脚本',
+  content_ledger: '内容台账',
+  closing_line_registry: '收尾句台账',
+  navigation_index: '导航索引',
+};
+
+export const SOURCE_AUTHORITY_LABELS: Record<SourceAuthority, string> = {
+  authoritative: '权威源',
+  evidence: '证据源',
+  index: '索引',
+  reference: '参考源',
+};
+
+// Mirrors SourceRole::isContentItemScoped() on the backend.
+export function isItemScopedRole(role: SourceRole): boolean {
+  return role === 'final_image_copy' || role === 'source_script';
+}
+
+export interface SourceReference {
+  id: number;
+  project_id: number;
+  content_item_id: number | null;
+  role: SourceRole;
+  authority: SourceAuthority;
+  source_path: string;
+  note: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/** Create/update payload: ownership keys and authority are server-derived. */
+export interface SourceReferenceInput {
+  role: SourceRole;
+  source_path: string;
+  note?: string | null;
+}

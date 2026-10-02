@@ -146,6 +146,12 @@ onMounted(load);
                   制作与渠道
                 </Link>
                 <Link
+                  :href="`/projects/${projectId}/columns/${columnId}/topics/${topicId}/items/${item.id}/sources`"
+                  class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  来源
+                </Link>
+                <Link
                   :href="`/projects/${projectId}/columns/${columnId}/topics/${topicId}/items/${item.id}/edit`"
                   class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
                 >
