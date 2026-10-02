@@ -1,0 +1,481 @@
+{
+  "project": {
+    "name": "青柠育见",
+    "slug": "qingning-yujian",
+    "description": "0-6岁家庭育儿内容品牌"
+  },
+  "project_sources": {
+    "content_ledger": "00_总入口与归档索引/六栏目内容台账.md",
+    "closing_line_registry": "00_总入口与归档索引/2.5D栏目收尾文案台账.md",
+    "navigation_index": "00_总入口与归档索引/2.5D逐篇最终上图文案.md"
+  },
+  "items": [
+    {
+      "legacy_id": "CI-LIFE-001",
+      "title": "孩子出门总磨蹭",
+      "column_name": "生活小能力",
+      "column_slug": "life-skills",
+      "page_count": 10,
+      "source_metadata": {
+        "final_image_copy_path": "01_2.5D家庭IP形象/生活小能力/图文/最终上图文案.md",
+        "source_script_path": "2.5D家庭IP形象/04_内容与封面模板/图文轮播标准/孩子出门总磨蹭_十页补全_待确认/逐页内容脚本_待用户确认.md"
+      },
+      "pages": [
+        {
+          "page_no": 1,
+          "page_type": "cover",
+          "column_label": "生活小能力",
+          "cover_title": "孩子出门\n总磨蹭\n先别急着催",
+          "cover_subtitle": "把催促换成孩子听得懂的一小步",
+          "page_title": null,
+          "page_small_text": null,
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 2,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "先看孩子\n卡在哪一步",
+          "page_small_text": "先观察孩子停在哪儿，不急着催。",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 3,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "把催促换成\n具体一步",
+          "page_small_text": "少说：“快一点！”\n试试：“先把这只鞋拿起来。”",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 4,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "说完，\n停一停",
+          "page_small_text": "给孩子一点时间，自己拿起鞋。",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 5,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "完成一步，\n再说下一步",
+          "page_small_text": "第一只穿好，再准备另一只。",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 6,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "第二只鞋\n也穿好啦",
+          "page_small_text": "“妈妈，我穿好啦！”",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 7,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "看见这一小步\n具体夸一夸",
+          "page_small_text": "“我看到你把第二只鞋也穿好了，真棒！”",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 8,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "准备好了，\n一起出门！",
+          "page_small_text": "穿好鞋，和妈妈高高兴兴走出家门。",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 9,
+          "page_type": "column_closing",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": null,
+          "page_small_text": null,
+          "closing_line": "你在身边，\n“我自己来”更有底气。",
+          "note": "图文版共享收尾句"
+        },
+        {
+          "page_no": 10,
+          "page_type": "fixed_back_cover",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": null,
+          "page_small_text": null,
+          "closing_line": null,
+          "note": "使用既有固定封底模板"
+        }
+      ]
+    },
+    {
+      "legacy_id": "CI-EMO-001",
+      "title": "积木倒了，孩子哭了",
+      "column_name": "看见小情绪",
+      "column_slug": "see-emotions",
+      "page_count": 9,
+      "source_metadata": {
+        "final_image_copy_path": "01_2.5D家庭IP形象/看见小情绪/图文/最终上图文案.md",
+        "source_script_path": "2.5D家庭IP形象/04_内容与封面模板/图文轮播标准/试稿_看见小情绪_积木倒了/11_v6九页逐页确认卡_待用户确认.md"
+      },
+      "pages": [
+        {
+          "page_no": 1,
+          "page_type": "cover",
+          "column_label": "看见小情绪",
+          "cover_title": "积木倒了\n孩子哭了\n先别急着搭",
+          "cover_subtitle": "他搭了好久的\n小房子，散了一地。",
+          "page_title": null,
+          "page_small_text": null,
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 2,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "妈妈先蹲下\n没去扶积木",
+          "page_small_text": "确认没有受伤，她先把注意力放在孩子身上。",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 3,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "他握起屋顶\n小声说“我的……”",
+          "page_small_text": "妈妈没有接过积木，等他把话说完。",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 4,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "“你搭了好久，\n倒了很难过吧？”",
+          "page_small_text": "先接住他的失落，不急着讲办法。",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 5,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "“想先歇一会儿，\n还是一起再搭？”",
+          "page_small_text": "等他能听进去，妈妈才把选择交给他。",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 6,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "他自己挑一块\n轻轻放稳了",
+          "page_small_text": "妈妈说：“你自己挑的这块，放得很稳。”",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 7,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "屋顶重新放好\n他笑着看妈妈",
+          "page_small_text": "这一次，是他自己选了“再试试”。",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 8,
+          "page_type": "column_closing",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": null,
+          "page_small_text": null,
+          "closing_line": "你肯听，情绪就有了出口。",
+          "note": null
+        },
+        {
+          "page_no": 9,
+          "page_type": "fixed_back_cover",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": null,
+          "page_small_text": null,
+          "closing_line": null,
+          "note": "使用既有固定封底模板"
+        }
+      ]
+    },
+    {
+      "legacy_id": "CI-SOC-001",
+      "title": "弟弟想玩车，姐姐还没玩完",
+      "column_name": "相处小智慧",
+      "column_slug": "social-skills",
+      "page_count": 10,
+      "source_metadata": {
+        "final_image_copy_path": "01_2.5D家庭IP形象/相处小智慧/图文/最终上图文案.md",
+        "source_script_path": "2.5D家庭IP形象/04_内容与封面模板/图文轮播标准/试稿_相处小智慧_姐弟都想玩小车/03_十页逐页确认卡_v2_待用户确认.md"
+      },
+      "pages": [
+        {
+          "page_no": 1,
+          "page_type": "cover",
+          "column_label": "相处小智慧",
+          "cover_title": "弟弟想玩车\n姐姐还没玩完\n先别催她让",
+          "cover_subtitle": "一辆小车，两个孩子；\n先别急着判谁该让。",
+          "page_title": null,
+          "page_small_text": null,
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 2,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "弟弟伸手拿\n姐姐抱紧车",
+          "page_small_text": "争抢刚起，妈妈先走近两个孩子。",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 3,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "妈妈蹲下来\n“先不抢。”",
+          "page_small_text": "先挡住拿车的动作，不从姐姐手里夺车。",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 4,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "妈妈先听见\n两个人的需要",
+          "page_small_text": "姐姐还在玩，弟弟也想玩。怎么办？",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 5,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "“再开一圈，\n就给弟弟玩。”",
+          "page_small_text": "姐姐说出顺序，妈妈再让弟弟知道。",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 6,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "弟弟等得急\n妈妈陪他等",
+          "page_small_text": "“你很想玩呀，我陪你等她开完。”",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 7,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "姐姐玩好了\n把车递给弟弟",
+          "page_small_text": "姐姐的这一圈没被打断；弟弟也等到了。",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 8,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "弟弟开着车\n姐姐在旁指路",
+          "page_small_text": "愿意时一起玩，不想一起也不用勉强。",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 9,
+          "page_type": "column_closing",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": null,
+          "page_small_text": null,
+          "closing_line": "轮流不是催姐姐让，\n而是让两个孩子都被听见。",
+          "note": "本篇专属栏目收尾"
+        },
+        {
+          "page_no": 10,
+          "page_type": "fixed_back_cover",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": null,
+          "page_small_text": null,
+          "closing_line": null,
+          "note": "使用既有固定封底模板"
+        }
+      ]
+    },
+    {
+      "legacy_id": "CI-GROW-001",
+      "title": "一只纸箱，开了家水果店",
+      "column_name": "原来在长大",
+      "column_slug": "growing-up",
+      "page_count": 8,
+      "source_metadata": {
+        "final_image_copy_path": "01_2.5D家庭IP形象/原来在长大/图文/最终上图文案.md",
+        "source_script_path": "2.5D家庭IP形象/04_内容与封面模板/图文轮播标准/试稿_原来在长大_纸箱水果店/01_单篇生产任务单_逐页内容待确认.md"
+      },
+      "pages": [
+        {
+          "page_no": 1,
+          "page_type": "cover",
+          "column_label": "原来在长大",
+          "cover_title": "一只纸箱\n开了家水果店",
+          "cover_subtitle": "孩子在玩什么？先听听他的设定。",
+          "page_title": null,
+          "page_small_text": null,
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 2,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "纸箱成了小店\n他在玩假装游戏",
+          "page_small_text": "他让纸箱当小店，自己当卖水果的人。",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 3,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "他招呼爸爸\n“来买苹果吧”",
+          "page_small_text": "游戏由孩子发起，爸爸先听他的安排。",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 4,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "爸爸坐下来\n当第一位顾客",
+          "page_small_text": "“你好，我想买一个苹果。”",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 5,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "他挑出苹果\n递到爸爸面前",
+          "page_small_text": "“给你。”爸爸回应：“谢谢你，店长。”",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 6,
+          "page_type": "content",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": "爸爸拿着苹果\n弟弟挥手说再见",
+          "page_small_text": "孩子邀请时，先听设定，再接一句。",
+          "closing_line": null,
+          "note": null
+        },
+        {
+          "page_no": 7,
+          "page_type": "column_closing",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": null,
+          "page_small_text": null,
+          "closing_line": "他把纸箱当成小店，\n你认真走进他的想象。",
+          "note": "本篇专属栏目收尾"
+        },
+        {
+          "page_no": 8,
+          "page_type": "fixed_back_cover",
+          "column_label": null,
+          "cover_title": null,
+          "cover_subtitle": null,
+          "page_title": null,
+          "page_small_text": null,
+          "closing_line": null,
+          "note": "使用既有固定封底模板"
+        }
+      ]
+    }
+  ],
+  "channel_specific_examples": {
+    "wechat_channels": {
+      "CI-LIFE-001": {
+        "closing_line_channel_specific": "你等的这一会儿，\n是她自己来的底气。",
+        "note": "视频号动态故事版专属收尾句，不进入共享 Formal Copy"
+      }
+    }
+  }
+}
