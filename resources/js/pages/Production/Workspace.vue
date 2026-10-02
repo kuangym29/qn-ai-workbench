@@ -39,6 +39,13 @@ import ErrorState from '../../components/ErrorState.vue';
 import EmptyState from '../../components/EmptyState.vue';
 import Badge from '../../components/Badge.vue';
 import ConfirmDialog from '../../components/ConfirmDialog.vue';
+import ProductionAssets from '../../components/ProductionAssets.vue';
+import { assetsApi } from '../../api/assets';
+import type {
+  AssetDetail,
+  AssetVersionAppendInput,
+  AssetWorkspace,
+} from '../../api/types';
 
 const props = defineProps<{
   projectId: string;
@@ -65,6 +72,15 @@ const item = ref<ContentItem | null>(null);
 const currentRevision = ref<ContentCopyRevision | null>(null);
 const production = ref<ProductionTask | null>(null);
 const channels = ref<ChannelTask[]>([]);
+
+// Shared visual assets. `assetWorkspace` is only loaded once a production task exists —
+// without one there is nothing to pin assets to, and the API does not apply.
+const assetWorkspace = ref<AssetWorkspace | null>(null);
+const assetLoading = ref(false);
+const assetError = ref('');
+const assetSaving = ref(false);
+const assetDetail = ref<AssetDetail | null>(null);
+const assetDetailLoading = ref(false);
 
 // Independent busy flags so one in-flight action never blocks or double-fires another.
 const creatingProduction = ref(false);
@@ -300,6 +316,40 @@ function handleActionError(e: unknown): void {
 
 // ---- data loading -------------------------------------------------------
 
+/**
+ * Load the shared visual asset matrix.
+ *
+ * Only called when a production task exists. Asset versions are pinned to a copy
+ * revision, so `use-current-copy` and `restart-with-current-copy` change what is
+ * "current" — going through reload() keeps the displayed versions honest.
+ *
+ * A 404 here means the scope no longer matches the server session, so it reuses the
+ * shared scope handling. A 422 (or any other failure) is confined to this section and
+ * must never tear down the whole production workspace.
+ */
+async function loadAssets(): Promise<void> {
+  if (production.value === null) {
+    assetWorkspace.value = null;
+    assetError.value = '';
+    return;
+  }
+
+  assetLoading.value = true;
+  assetError.value = '';
+  try {
+    assetWorkspace.value = await assetsApi.workspace(scope.value);
+  } catch (e) {
+    if (is404(e)) {
+      assetWorkspace.value = null;
+      handleActionError(e);
+      return;
+    }
+    assetError.value = firstErrorMessage(e) ?? '加载视觉资产失败';
+  } finally {
+    assetLoading.value = false;
+  }
+}
+
 async function reload(): Promise<void> {
   const [it, current, productionTask] = await Promise.all([
     contentItemsApi.get(props.projectId, props.columnId, props.topicId, props.itemId),
@@ -312,6 +362,57 @@ async function reload(): Promise<void> {
 
   // The channel endpoint 404s without a production task, so only call it when present.
   channels.value = productionTask === null ? [] : await channelTasksApi.list(scope.value);
+
+  // Same for assets: they hang off the production task.
+  await loadAssets();
+}
+
+/**
+ * Register a new asset version. On success we always re-read the workspace from the
+ * server rather than patching a local version number.
+ */
+async function appendAssetVersion(payload: AssetVersionAppendInput): Promise<void> {
+  assetSaving.value = true;
+  try {
+    await assetsApi.appendVersion(scope.value, payload);
+    toast.success('已登记资产版本');
+    await loadAssets();
+  } catch (e) {
+    // 422 keeps the dialog open with the user's input intact (the child resets only on open).
+    handleActionError(e);
+  } finally {
+    assetSaving.value = false;
+  }
+}
+
+/** Load the read-only version history for one slot. */
+async function openAssetHistory(assetId: number): Promise<void> {
+  assetDetailLoading.value = true;
+  try {
+    assetDetail.value = await assetsApi.detail(scope.value, assetId);
+  } catch (e) {
+    handleActionError(e);
+  } finally {
+    assetDetailLoading.value = false;
+  }
+}
+
+function closeAssetHistory(): void {
+  assetDetail.value = null;
+}
+
+/** A legacy production task with no pinned revision cannot accept registrations. */
+const assetRegistrationDisabled = computed(
+  () => production.value !== null && production.value.copy_revision_id === null,
+);
+const assetRegistrationDisabledReason = '此历史制作任务尚未绑定正式文案版本，无法登记资产。';
+
+/** Format an Asset version's file size for display. */
+function formatAssetBytes(size: number | null): string {
+  if (size === null || !Number.isFinite(size)) return '';
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 async function load(): Promise<void> {
@@ -818,6 +919,20 @@ onMounted(load);
         </div>
       </section>
 
+      <!-- 共享视觉资产：per production task, not a standalone global page -->
+      <ProductionAssets
+        v-if="production"
+        :workspace="assetWorkspace"
+        :loading="assetLoading"
+        :error-message="assetError"
+        :saving="assetSaving"
+        :registration-disabled="assetRegistrationDisabled"
+        :registration-disabled-reason="assetRegistrationDisabledReason"
+        @append="appendAssetVersion"
+        @open-history="openAssetHistory"
+        @reload="loadAssets"
+      />
+
       <!-- E/F/G. 渠道任务区域 -->
       <section>
         <h2 class="mb-3 text-base font-semibold text-slate-900">渠道任务</h2>
@@ -1112,6 +1227,67 @@ onMounted(load);
         </div>
         <p class="mt-3 text-xs text-slate-400">{{ timezoneNote }}</p>
       </section>
+    </div>
+
+    <!-- Asset version history: strictly read-only (no edit / delete / rollback) -->
+    <div
+      v-if="assetDetail !== null || assetDetailLoading"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      @click.self="closeAssetHistory"
+    >
+      <div class="w-full max-w-2xl rounded-lg bg-white p-6 shadow-xl">
+        <div class="flex items-start justify-between gap-4">
+          <h3 class="text-base font-semibold text-slate-900">资产版本历史</h3>
+          <button
+            type="button"
+            class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            @click="closeAssetHistory"
+          >
+            关闭
+          </button>
+        </div>
+        <p class="mt-1 text-xs text-slate-400">历史版本为只读记录，不能编辑、删除或回滚。</p>
+
+        <p v-if="assetDetailLoading" class="mt-4 text-sm text-slate-400">加载版本历史…</p>
+
+        <ul v-else-if="assetDetail" class="mt-4 space-y-3">
+          <li
+            v-for="version in assetDetail.versions"
+            :key="version.id"
+            class="rounded-md border border-slate-200 bg-slate-50 px-4 py-3"
+          >
+            <div class="flex flex-wrap items-center gap-2 text-sm">
+              <span class="font-medium text-slate-800">v{{ version.version_no }}</span>
+              <span class="text-slate-500">
+                {{
+                  version.copy_revision_no === null
+                    ? '未知 Revision'
+                    : `Revision ${version.copy_revision_no}`
+                }}
+              </span>
+            </div>
+            <p class="mt-1 truncate text-xs text-slate-700">{{ version.file.original_name }}</p>
+            <p class="mt-0.5 truncate text-xs text-slate-400">
+              {{ version.file.storage_disk }} : {{ version.file.storage_path }}
+            </p>
+            <p
+              v-if="version.file.width !== null && version.file.height !== null"
+              class="mt-0.5 text-xs text-slate-400"
+            >
+              {{ version.file.width }} × {{ version.file.height }}
+              <span v-if="formatAssetBytes(version.file.size_bytes)">
+                · {{ formatAssetBytes(version.file.size_bytes) }}
+              </span>
+            </p>
+            <p v-if="version.note" class="mt-0.5 text-xs text-slate-500">{{ version.note }}</p>
+            <p class="mt-0.5 text-xs text-slate-400">{{ fmtLocal(version.created_at) }}</p>
+          </li>
+        </ul>
+
+        <p v-if="assetDetail && assetDetail.versions.length === 0" class="mt-4 text-sm text-slate-500">
+          暂无版本记录。
+        </p>
+      </div>
     </div>
 
     <ConfirmDialog
