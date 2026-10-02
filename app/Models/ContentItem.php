@@ -54,4 +54,14 @@ class ContentItem extends Model
     {
         return $this->hasOne(ProductionTask::class);
     }
+
+    public function assets(): HasMany
+    {
+        return $this->hasMany(Asset::class);
+    }
+
+    public function assetVersions(): HasMany
+    {
+        return $this->hasMany(AssetVersion::class);
+    }
 }
