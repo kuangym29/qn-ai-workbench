@@ -132,12 +132,20 @@ onMounted(load);
               />
             </td>
             <td class="px-4 py-3 text-right">
-              <Link
-                :href="`/projects/${projectId}/columns/${columnId}/topics/${topicId}/items/${item.id}/edit`"
-                class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
-              >
-                编辑
-              </Link>
+              <div class="flex items-center justify-end gap-2">
+                <Link
+                  :href="`/projects/${projectId}/columns/${columnId}/topics/${topicId}/items/${item.id}/copy`"
+                  class="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+                >
+                  编辑文案
+                </Link>
+                <Link
+                  :href="`/projects/${projectId}/columns/${columnId}/topics/${topicId}/items/${item.id}/edit`"
+                  class="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  编辑
+                </Link>
+              </div>
             </td>
           </tr>
         </tbody>

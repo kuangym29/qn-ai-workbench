@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { COPY_STATUSES, COPY_STATUS_LABELS } from '../../api/types';
 import type { Column, ContentItemInput, CopyStatus, Project, Topic } from '../../api/types';
@@ -14,6 +14,7 @@ import PageHeader from '../../components/PageHeader.vue';
 import Breadcrumb from '../../components/Breadcrumb.vue';
 import LoadingState from '../../components/LoadingState.vue';
 import ErrorState from '../../components/ErrorState.vue';
+import Badge from '../../components/Badge.vue';
 
 const page = usePage();
 const props = defineProps<{
@@ -36,6 +37,12 @@ const form = ref<{ title: string; copy_status: CopyStatus }>({
   copy_status: 'not_started',
 });
 const errors = ref<{ title?: string; copy_status?: string }>({});
+
+// DEV-W04 rule: `confirmed` is NEVER a normal user-selectable status — it is produced only
+// by the formal confirmation flow in the copy editor. So the editable dropdown offers the
+// three mutable states, and a confirmed item is shown read-only (title stays decoupled).
+const editableStatuses = COPY_STATUSES.filter((s) => s !== 'confirmed');
+const isConfirmed = computed(() => form.value.copy_status === 'confirmed');
 
 const itemsUrl = `/projects/${props.projectId}/columns/${props.columnId}/topics/${props.topicId}/items`;
 
@@ -80,9 +87,11 @@ async function submit(): Promise<void> {
   submitting.value = true;
   errors.value = {};
   // On create we deliberately do NOT send copy_status: the server defaults it to
-  // 'not_started'. On edit all four formal values are allowed.
+  // 'not_started'. On edit we send copy_status only for the three mutable states; a
+  // confirmed item is never downgraded by a plain title save (confirmation is owned by
+  // the copy editor's formal confirm flow).
   const payload: ContentItemInput = { title: form.value.title.trim() };
-  if (mode === 'edit') payload.copy_status = form.value.copy_status;
+  if (mode === 'edit' && !isConfirmed.value) payload.copy_status = form.value.copy_status;
   try {
     if (mode === 'edit' && props.id) {
       await contentItemsApi.update(
@@ -178,21 +187,32 @@ onMounted(load);
       </div>
 
       <div v-if="mode === 'edit'">
-        <label class="block text-sm font-medium text-slate-700">文案状态</label>
-        <select
-          v-model="form.copy_status"
-          class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
-        >
-          <option v-for="value in COPY_STATUSES" :key="value" :value="value">
-            {{ COPY_STATUS_LABELS[value] }}
-          </option>
-        </select>
-        <p class="mt-1 text-xs text-slate-400">
-          仅使用正式状态：未开始 / 编辑中 / 待确认 / 已确认。
-        </p>
-        <p v-if="errors.copy_status" class="mt-1 text-xs text-rose-600">
-          {{ errors.copy_status }}
-        </p>
+        <template v-if="isConfirmed">
+          <label class="block text-sm font-medium text-slate-700">文案状态</label>
+          <div class="mt-1 flex items-center gap-2">
+            <Badge variant="active" :label="COPY_STATUS_LABELS.confirmed" />
+            <span class="text-xs text-slate-500">
+              正式确认由文案编辑页生成完整 Revision，此处仅可修改篇目基础信息。
+            </span>
+          </div>
+        </template>
+        <template v-else>
+          <label class="block text-sm font-medium text-slate-700">文案状态</label>
+          <select
+            v-model="form.copy_status"
+            class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-slate-400 focus:outline-none"
+          >
+            <option v-for="value in editableStatuses" :key="value" :value="value">
+              {{ COPY_STATUS_LABELS[value] }}
+            </option>
+          </select>
+          <p class="mt-1 text-xs text-slate-400">
+            仅使用正式状态：未开始 / 编辑中 / 待确认。
+          </p>
+          <p v-if="errors.copy_status" class="mt-1 text-xs text-rose-600">
+            {{ errors.copy_status }}
+          </p>
+        </template>
       </div>
       <p v-else class="text-xs text-slate-400">
         文案状态由服务端默认设为「未开始」，创建后可在编辑中修改。
