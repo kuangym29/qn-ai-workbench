@@ -171,6 +171,26 @@ class ContentCopyCoreTest extends TestCase
         $this->assertSame($revision->id, $formal->fresh()->copy_revision_id);
     }
 
+    public function test_confirmed_revision_cannot_be_updated_or_deleted(): void
+    {
+        $item = ContentItem::factory()->create();
+        $page = $this->page($item, 1);
+        $service = app(ContentCopyService::class);
+        $service->appendDraft($page, ['page_title' => '正式文字']);
+        $revision = $service->confirmContentItem($item);
+        $this->assertSame(1, $revision->revision_no);
+        $originalConfirmedAt = $revision->getRawOriginal('confirmed_at');
+
+        $this->rejects(fn () => $revision->update(['revision_no' => 99]), LogicException::class);
+        $this->assertSame(1, $revision->fresh()->revision_no);
+
+        $this->rejects(fn () => $revision->fresh()->update(['confirmed_at' => now()->addDay()]), LogicException::class);
+        $this->assertSame($originalConfirmedAt, $revision->fresh()->getRawOriginal('confirmed_at'));
+
+        $this->rejects(fn () => $revision->fresh()->delete(), LogicException::class);
+        $this->assertDatabaseHas('content_copy_revisions', ['id' => $revision->id]);
+    }
+
     public function test_reorder_is_complete_safe_and_preserves_historical_snapshot(): void
     {
         $item = ContentItem::factory()->create();

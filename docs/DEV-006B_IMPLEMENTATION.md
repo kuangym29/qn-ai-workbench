@@ -21,6 +21,8 @@
 
 所有已持久化 PageVersion 只能追加，Model 层拒绝 UPDATE；正式版本还拒绝 DELETE。判定正式删除时使用数据库原始的 `copy_revision_id`，不能靠先改成 null 绕过。原生 SQL 可绕过 Eloquent 事件，因此数据库账号权限和后续写路径仍需约束。
 
+ContentCopyRevision 与正式 ContentPageVersion 都属于不可变历史；Revision 一旦创建成功，不允许应用层 UPDATE 或 DELETE。
+
 ## 验收与后续边界
 
 独立测试覆盖三表复合外键、唯一约束、可空草稿修订、模型关系、Factory 归属、版本递增、两次完整确认、未修改页复制、旧正式稿不变、失败回滚、正式版不可变、重排与 10/9/10/8 页结构。历史真实文案未写入测试或数据库。
