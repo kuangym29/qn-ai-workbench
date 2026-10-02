@@ -43,4 +43,9 @@ class ContentPage extends Model
     {
         return $this->hasMany(ContentPageVersion::class);
     }
+
+    public function assets(): HasMany
+    {
+        return $this->hasMany(Asset::class);
+    }
 }

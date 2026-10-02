@@ -41,4 +41,14 @@ class Project extends Model
     {
         return $this->hasMany(ChannelTask::class);
     }
+
+    public function files(): HasMany
+    {
+        return $this->hasMany(File::class);
+    }
+
+    public function assets(): HasMany
+    {
+        return $this->hasMany(Asset::class);
+    }
 }
