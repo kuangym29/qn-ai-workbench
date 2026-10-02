@@ -61,15 +61,18 @@ Topic / ContentItem 工作台接入 DEV-005 真实接口，实现列表、创建
 
 V1.1 校正：authority 语义正式收敛为四类（authoritative / evidence / index / reference）；确认当前不需要 `content_column_id`；修正 Working Copy 定义。审计文档见 `DEV-D07_SOURCE_PROVENANCE_AUDIT.md`。本轮为纯文档任务，不创建 Migration / Model / SourceReference 表 / Importer。
 
-## DEV-008A：SourceReference Lite 核心数据层（当前任务）
+## DEV-008A：SourceReference Lite 核心数据层（已完成并合入 main）
 
 新增 `source_references` Migration、SourceRole / SourceAuthority Enum、Model 关系、Factory 和数据库测试。Project 级引用允许空 `content_item_id`；Item 级引用由复合外键禁止跨 Project。来源路径可被多个 Item 共用，同一 Item 可引用多个脚本版本。实现说明见 `DEV-008A_SOURCE_REFERENCE_IMPLEMENTATION.md`。本轮不实现 API、UI、Importer 或 Markdown Parser。
+
+## DEV-008B：青柠育见 4 篇 / 37 页正式历史 Importer（本任务）
+
+实现必填 `--source-root` 的 Artisan 命令；默认只预检，`--apply` 才在整批事务内写入。直接读取四个 `最终上图文案.md`，以 DEV-D06 作为独立验收对照，导入 1 Project、6 Column、4 Topic、4 Item、37 Page、4 历史 Revision、37 正式 PageVersion 和 11 SourceReference。重复执行核对历史基线后 no-op；冲突即停止。不创建生产任务或渠道任务。详见 `DEV-008B_YUJIAN_HISTORY_IMPORTER.md`。
 
 ## 后续待拆分
 
 以下能力尚未实现，需分别规划独立任务：
 
-- **历史内容 Importer**：将 37 页历史正式文案导入正式数据库。权威源为各栏目 `最终上图文案.md`，DEV-D06 mapping 仅用于校验。
 - **共享视觉资产**：Asset / AssetVersion / File 表与 ProductionTask 关联
 - **查重**：跨栏目收尾句 / 文案查重能力
 - **渠道生产 API**：视频状态推进、发布排期等
