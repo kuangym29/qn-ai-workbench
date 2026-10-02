@@ -1,7 +1,7 @@
 // Shared domain types for QN AI 内容工作台 Lite V1.0.
 // Project, ContentColumn, Topic, ContentItem (DEV-W01..DEV-W03) and ContentPage /
-// ContentCopyRevision (DEV-007A, wired in DEV-W04) are modeled here. Production Task /
-// Channel Task belong to later tasks and are NOT modeled in this layer.
+// ContentCopyRevision (DEV-007A, wired in DEV-W04) and ProductionTask / ChannelTask
+// (DEV-009A / DEV-W05, wired in DEV-W06) are modeled here.
 
 // DEV-003 / DEV-005 wrap every response as {"data": ...}. Mirror that envelope here so the
 // API adapter can unpack it in one place and never leak the wrapper into the UI.
@@ -176,4 +176,118 @@ export interface ContentItemInput {
   // Only the three mutable states are acceptable here — `confirmed` is excluded (see
   // EditableCopyStatus); it can only be set by the copy editor's formal confirm flow.
   copy_status?: EditableCopyStatus;
+}
+
+// ---------------------------------------------------------------------------
+// Production / Channel (DEV-009A ProductionTask + DEV-W05 ChannelTask, wired in DEV-W06)
+// ---------------------------------------------------------------------------
+//
+// The backend stores these as plain strings cast to PHP string-backed enums; the four
+// status dimensions stay strictly separate and are NEVER inferred from one another.
+// These unions mirror the enums exactly — do not widen them to arbitrary strings.
+
+export type ArtworkStatus =
+  | 'not_applicable'
+  | 'not_started'
+  | 'in_progress'
+  | 'pending_review'
+  | 'approved';
+
+export type VideoStatus =
+  | 'not_applicable'
+  | 'not_started'
+  | 'in_progress'
+  | 'pending_review'
+  | 'approved';
+
+export type PublishStatus = 'unpublished' | 'scheduled' | 'published';
+
+export type Channel = 'wechat_official' | 'wechat_channels';
+
+export const ARTWORK_STATUSES: ArtworkStatus[] = [
+  'not_applicable',
+  'not_started',
+  'in_progress',
+  'pending_review',
+  'approved',
+];
+
+// WeChat Channels video stages. 'not_applicable' is intentionally excluded: the video
+// account must never be parked in a no-video state (the server rejects it with 422).
+export const VIDEO_STATUSES: VideoStatus[] = [
+  'not_started',
+  'in_progress',
+  'pending_review',
+  'approved',
+];
+
+export const PUBLISH_STATUSES: PublishStatus[] = ['unpublished', 'scheduled', 'published'];
+
+export const CHANNELS: Channel[] = ['wechat_official', 'wechat_channels'];
+
+export const ARTWORK_STATUS_LABELS: Record<ArtworkStatus, string> = {
+  not_applicable: '不适用',
+  not_started: '未开始',
+  in_progress: '制作中',
+  pending_review: '待审核',
+  approved: '已通过',
+};
+
+export const VIDEO_STATUS_LABELS: Record<VideoStatus, string> = {
+  not_applicable: '不适用',
+  not_started: '未开始',
+  in_progress: '制作中',
+  pending_review: '待审核',
+  approved: '已通过',
+};
+
+export const PUBLISH_STATUS_LABELS: Record<PublishStatus, string> = {
+  unpublished: '未发布',
+  scheduled: '已排期',
+  published: '已发布',
+};
+
+export const CHANNEL_LABELS: Record<Channel, string> = {
+  wechat_official: '微信公众号',
+  wechat_channels: '微信视频号',
+};
+
+// DEV-009A ProductionTaskResource.  is nullable in the database for
+// legacy rows, and  is computed by the SERVER by comparing the
+// bound revision id against the item's current max-revision id — never re-derive it here.
+export interface ProductionTask {
+  id: number;
+  project_id: number;
+  content_item_id: number;
+  copy_revision_id: number | null;
+  copy_revision_no: number | null;
+  artwork_status: ArtworkStatus;
+  is_copy_revision_current: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+// DEV-W05 ChannelTaskResource.  /  are UTC ISO-8601 strings
+// (or null);  again comes from the server.
+export interface ChannelTask {
+  id: number;
+  project_id: number;
+  production_task_id: number;
+  channel: Channel;
+  video_status: VideoStatus;
+  publish_status: PublishStatus;
+  scheduled_at: string | null;
+  published_at: string | null;
+  production_copy_revision_id: number | null;
+  production_copy_revision_no: number | null;
+  artwork_status: ArtworkStatus;
+  is_production_copy_current: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+// DEV-W05 restart-with-current-copy returns both halves of the reset in one payload.
+export interface ProductionRestartResult {
+  production: ProductionTask;
+  channels: ChannelTask[];
 }

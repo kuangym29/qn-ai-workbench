@@ -82,11 +82,21 @@ async function onSwitch(event: Event): Promise<void> {
         <Link href="/projects" :class="navClass(isProjectsActive)">项目</Link>
         <button type="button" :class="navClass(isColumnsActive)" @click="goToColumns">小栏目</button>
 
-        <p class="px-3 pb-1 pt-4 text-xs uppercase tracking-wider text-slate-600">规划中</p>
-        <span :class="navClass(false, false)">选题 <Badge variant="planning" label="规划中" /></span>
-        <span :class="navClass(false, false)">篇目 <Badge variant="planning" label="规划中" /></span>
-        <span :class="navClass(false, false)">制作任务 <Badge variant="planning" label="规划中" /></span>
-        <span :class="navClass(false, false)">渠道任务 <Badge variant="planning" label="规划中" /></span>
+        <!--
+          内容流程：选题 / 篇目 / 制作与渠道都已实现（DEV-W05 起 ProductionTask 与
+          ChannelTask 也有正式 API）。它们没有各自独立的全局列表路由，必须从上级层级
+          进入，因此这里只做说明性展示，不提供会误导的 Sidebar 链接。
+        -->
+        <p class="px-3 pb-1 pt-4 text-xs uppercase tracking-wider text-slate-600">内容流程</p>
+        <span :class="navClass(false, false)"
+          >选题 <Badge variant="muted" label="按栏目进入" /></span
+        >
+        <span :class="navClass(false, false)"
+          >篇目 <Badge variant="muted" label="按选题进入" /></span
+        >
+        <span :class="navClass(false, false)"
+          >制作与渠道 <Badge variant="muted" label="按篇目进入" /></span
+        >
       </nav>
     </aside>
 

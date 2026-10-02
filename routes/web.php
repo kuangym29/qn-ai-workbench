@@ -47,6 +47,16 @@ Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/cop
     'itemId' => $item,
 ]))->name('items.copy');
 
+// Production + Channel workspace (DEV-W06) — scoped to Project → Column → Topic → ContentItem.
+// Inertia entry only; it passes ids and never queries business data. Everything else is
+// fetched client-side from the frozen DEV-009A / DEV-W05 APIs under /api.
+Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production', fn (int $project, int $column, int $topic, int $item) => Inertia::render('Production/Workspace', [
+    'projectId' => $project,
+    'columnId' => $column,
+    'topicId' => $topic,
+    'itemId' => $item,
+]))->name('items.production');
+
 // Real DEV-003 REST API. Same-origin browser session + CSRF. All responses are wrapped
 // as {"data": ...}. The current project lives in the server session (ProjectContext),
 // so there is deliberately NO GET /api/projects/{project} show endpoint.
