@@ -79,13 +79,13 @@ V1.1 校正：authority 语义正式收敛为四类（authoritative / evidence /
 
 DEV-W05.1 为终审收口：修正「父 ProductionTask 不存在时创建渠道任务应返回 404」、「`published` 为普通 Publish API 终态（含 `published → scheduled` 拒绝）」与「发布请求禁止携带 `scheduled_at`」，并订正文档中的 MySQL 8.4 验证状态与文件名引用。DEV-W05 / W05.1 已通过终审并合入 main；MySQL 8.4 实机验证仍按 DATABASE_BASELINE 中的 BLOCKED 说明待后续安全测试库补验。
 
-## DEV-W06：Production + Channel 统一生产工作台 UI（已完成开发，等待终审 / 合并）
+## DEV-W06 / W06.1：Production + Channel 统一生产工作台 UI（已完成并合入 main）
 
 把已冻结的 DEV-009A（ProductionTask）与 DEV-W05（ChannelTask）服务端 API 接入真实后台 UI。新增 Inertia 页面 `Production/Workspace`（`/projects/{p}/columns/{c}/topics/{t}/items/{i}/production`，route name `items.production`，不与 `/api` 前缀冲突），在单页面内完成篇目/正式文案概览、创建 ProductionTask、图稿状态推进、stale 识别、`use-current-copy` 与 `restart-with-current-copy` 分流、公众号/视频号渠道创建、视频状态推进、发布排期与正式发布。新增 `productionTasks.ts` / `channelTasks.ts` adapter、严格联合状态类型与中文标签、`ConfirmDialog.vue`，并给 `Badge` 增加 `danger` 变体；`ContentItems/Index` 增加「制作与渠道」入口；`AdminLayout` 的「规划中」分组订正为「内容流程」。
 
 前端一律采用服务端返回的 `is_copy_revision_current` / `is_production_copy_current` 判断版本新旧，不用 `copy_status` 推断；`published` 作为发布终态不提供任何回退入口；标记已发布不回传 `scheduled_at`（DEV-W05.1 契约）；`datetime-local` 提交前统一转 UTC ISO，UTC 返回值按浏览器本地时区显示。本轮不修改后端状态机、不新增 Migration、不开发 Asset、不调用真实微信 API。详见 `DEV-W06_PRODUCTION_CHANNEL_UI.md`。
 
-DEV-W06.1 为终审收口：拆分 `handleLoadError` / `handleActionError`，使业务门禁 422 只弹 Toast 而不再把工作台替换成 ErrorState；补齐图稿审核通过与 `use-current-copy` 的前端门禁镜像（均要求文案已确认且 Production current）；实际发布时间非法输入明确阻止发布。同样等待终审 / 合并。
+DEV-W06.1 为终审收口：拆分 `handleLoadError` / `handleActionError`，使业务门禁 422 只弹 Toast 而不再把工作台替换成 ErrorState；补齐图稿审核通过与 `use-current-copy` 的前端门禁镜像（均要求文案已确认且 Production current）；实际发布时间非法输入明确阻止发布。DEV-W06 / W06.1 已通过终审并合入 main；浏览器级 Smoke 仍按 `DEV-W06_PRODUCTION_CHANNEL_UI.md` 中的 `BROWSER_SMOKE_BLOCKED` 说明待后续安全测试环境补验。
 
 ## 后续待拆分
 
