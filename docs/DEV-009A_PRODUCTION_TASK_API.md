@@ -17,6 +17,16 @@ PATCH 只接受一个 `artwork_status`，合法值：`not_applicable`、`not_sta
 
 文案确认 Revision 2 后，任务仍固定绑定旧 Revision，图稿状态不自动重置，`is_copy_revision_current=false`。`use-current-copy` 要求已有任务、篇目为 `confirmed`、当前正式 Revision 存在，且无任何 ChannelTask；有渠道任务时返回 422 `errors.production`。若已绑定最新 Revision，返回 200 且不改动；否则只更新 `copy_revision_id` 为最新正式 Revision，并显式将 `artwork_status` 重置为 `not_started`。不接受客户端提交的 Revision ID，不修改正式 Revision 或 PageVersion，不创建新任务。
 
+### 与 DEV-W05 的显式整链 restart 分工
+
+`use-current-copy` 只覆盖「还没有任何 ChannelTask」的情形。一旦渠道任务已经建立，后来又确认了新的正式 Revision，ProductionTask 会变成 stale，此时换版必须走 DEV-W05 的显式动作：
+
+- 无 ChannelTask → 继续使用本文件的 `use-current-copy`。
+- 已有 ChannelTask → 使用 `POST .../production/restart-with-current-copy`（DEV-W05），在单个事务内把 ProductionTask 重新绑定到当前正式 Revision，并把图稿与所有渠道状态一并重置。
+- 存在任一 `published` 的 ChannelTask → 禁止 restart，返回 422 `errors.production`；已发布是历史事实，不能通过 reset 抹掉。
+
+两条路径都不会自动触发，必须由用户显式调用。具体门禁与字段见 `DEV-W05_CHANNEL_TASK_API.md`。
+
 请求中的未知字段和伪造归属字段返回 422；非法 artwork_status 返回 422；未确认、无正式 Revision、重复任务、审批门禁失败或渠道任务阻止切换均返回 422，采用 `{"message":"...","errors":{"field":["..."]}}`。缺失任务的 PATCH 或切换返回 404。当前 Session Project 或任一 URL 祖先错配返回 404。Session Project 是业务作用域，不等于成员授权。
 
 `copy_revision_id` 在数据库可空以兼容旧行，正式 API 创建时必须非空。复合外键 `(project_id, content_item_id, copy_revision_id)` 指向 `content_copy_revisions(project_id, content_item_id, id)` 的复合唯一键，阻止跨 Project 和同 Project 错篇 Revision。该外键限制直接删除被引用的正式 Revision；既有文案历史本身也限制删除 Project / ContentItem。Lite V1.0 暂无删除 API。ChannelTask API、UI、Asset、图像生成与发布流程不在本任务范围。
