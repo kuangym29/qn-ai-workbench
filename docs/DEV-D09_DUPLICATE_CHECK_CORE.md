@@ -57,16 +57,28 @@ tests/Unit/DuplicateCheck/
 
 **顺序**：
 1. Source Representation Canonicalization
-2. Unicode NFKC 标准化
+2. **Unicode NFKC（仅非标点 run）**
 3. 首尾 trim
 4. 连续非换行空白折叠为单空格
 
+**NFKC 标点保真设计**：
+
+NFKC 只应用于**非标点字符 run**。Unicode 标点字符（`\p{P}`）原样保留，不做兼容映射。
+
+**原因**：完整执行 NFKC 会把全角标点兼容映射成 ASCII 标点，破坏 Exact 的标点差异判定：
+- `，`（U+FF0C 全角逗号）→ NFKC 会变成 `,`（U+002C）→ 错误
+- `／`（U+FF0F 全角斜杠）→ NFKC 会变成 `/`（U+002F）→ marker off 时错误
+
 **保留不变**：
 - 语义换行
-- 所有中文标点
-- 所有英文标点
+- 所有中文标点（保留原始 Unicode 码位）
+- 所有英文标点（保留原始 Unicode 码位）
 - 中文引号 / 英文引号差异
 - 大小写差异
+
+**Runtime Fail-Closed**：
+- 如果 `Normalizer` 类不可用，直接抛出 `RuntimeException`
+- 不允许静默降级——同一套算法在不同服务器必须产生相同结果
 
 ### Layer 3: Overlap Normalization
 
@@ -81,16 +93,7 @@ tests/Unit/DuplicateCheck/
 
 ---
 
-## 4. Unicode NFKC Runtime
-
-- 使用 `Normalizer::normalize($text, Normalizer::NFKC)`
-- 运行时先检查 `class_exists(\Normalizer::class)`
-- 如果环境不支持：标记 `NFKC_RUNTIME_BLOCKED`，不自行实现残缺 Unicode normalization
-- 不使用 NFKC 偷偷实现中英文标点互换
-
----
-
-## 5. Unicode 3-gram
+## 4. Unicode 3-gram
 
 - 按 Unicode 字符拆分（`preg_split('//u', ...)`），不按 bytes
 - 默认 n = 3
@@ -104,7 +107,7 @@ tests/Unit/DuplicateCheck/
 
 ---
 
-## 6. Jaccard Similarity
+## 5. Jaccard Similarity
 
 - 基于 Set（不是 Bag，不按出现次数加权）
 - 公式：`|A ∩ B| / |A ∪ B|`
@@ -112,7 +115,7 @@ tests/Unit/DuplicateCheck/
 
 ---
 
-## 7. 字段级阈值（初始参考）
+## 6. 字段级阈值（初始参考）
 
 | 字段 | 初始阈值 | 说明 |
 | --- | --- | --- |
@@ -127,7 +130,7 @@ tests/Unit/DuplicateCheck/
 
 ---
 
-## 8. Result 结构
+## 7. Result 结构
 
 ```php
 DuplicateCheckResult {
@@ -143,7 +146,7 @@ DuplicateCheckResult {
 
 ---
 
-## 9. 核心 API
+## 8. 核心 API
 
 ```php
 $service = new DuplicateCheckService();
@@ -158,7 +161,7 @@ $result = $service->compare(
 
 ---
 
-## 10. Golden Regression
+## 9. Golden Regression
 
 ### 数据源
 - `tests/Fixtures/duplicate_check/yujian_history_baseline.json`
@@ -168,24 +171,25 @@ $result = $service->compare(
 - 4 items / 37 pages
 - PageType 分布：cover 4 / content 25 / column_closing 4 / fixed_back_cover 4
 - 4 条 formal closing 两两比较：均非 Exact
+- **6 对 pairwise overlap observation**：DEV-D08 基线预期无 overlap candidate；任何 candidate=true 会明确失败并报告 `GOLDEN_THRESHOLD_OBSERVATION`，不偷偷调阈值
 - Channel-specific closing 不混入 Formal Copy
 - 4 个 column_slug 正确
 
 ---
 
-## 11. SYN 测试案例
+## 10. SYN 测试案例
 
 | 编号 | 场景 | 预期 |
 | --- | --- | --- |
 | SYN-001 | 完全相同文本 | original_exact=true, normalized_exact=true |
-| SYN-002 | 中文逗号 vs 英文逗号 | 非 Exact，进入 Overlap |
+| SYN-002 | 中文逗号 vs 英文逗号 | 非 Exact（NFKC 不转换标点），进入 Overlap |
 | SYN-003 (marker on) | 正式版换行 vs 台账 ／ 且 marker=true | normalized_exact=true |
-| SYN-003 (marker off) | 正式版换行 vs 台账 ／ 且 marker=false | normalized_exact=false |
+| SYN-003 (marker off) | 正式版换行 vs 台账 ／ 且 marker=false | normalized_exact=false（／ 保留为标点，不被 NFKC 偷换成 /） |
 | SYN-004 | 差一个字的收尾句 | 非 Exact，Overlap Candidate |
 
 ---
 
-## 12. 明确不做的事
+## 11. 明确不做的事
 
 - ❌ 不使用 Vector DB / Embedding
 - ❌ 不查询数据库（纯函数）
@@ -197,7 +201,7 @@ $result = $service->compare(
 
 ---
 
-## 13. 后续待办
+## 12. 后续待办
 
 1. **阈值校准**：用更多真实历史数据校准各字段阈值
 2. **数据库集成**：在 API 层调用本 Service，查询 ContentPageVersion
