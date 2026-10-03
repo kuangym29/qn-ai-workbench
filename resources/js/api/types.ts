@@ -567,3 +567,134 @@ export interface ChannelAssetBindingInput {
 export function expectedRoleForChannel(channel: Channel): AssetRole {
   return channel === 'wechat_official' ? 'copy_master' : 'clean_master';
 }
+
+// ---------------------------------------------------------------------------
+// Duplicate Review (DEV-D11 backend, DEV-W10 UI)
+//
+// The backend owns every judgement here: which working-copy fields become
+// queries, what the formal-history corpus contains, and each candidate's
+// match_kind / overlap_score / threshold. The client renders those values
+// verbatim and never recomputes, re-ranks or re-thresholds anything.
+// ---------------------------------------------------------------------------
+
+/** The five comparable copy fields. Mirrors the server-side DuplicateField enum. */
+export type DuplicateFieldKey =
+  | 'cover_title'
+  | 'cover_subtitle'
+  | 'page_title'
+  | 'page_small_text'
+  | 'closing_line';
+
+export const DUPLICATE_FIELD_LABELS: Record<DuplicateFieldKey, string> = {
+  cover_title: '封面标题',
+  cover_subtitle: '封面副标题',
+  page_title: '页面标题',
+  page_small_text: '页面小字',
+  closing_line: '收尾文案',
+};
+
+/** Match tiers, decided server-side in this order. Used for labels only. */
+export type DuplicateMatchKind = 'original_exact' | 'normalized_exact' | 'overlap';
+
+export const DUPLICATE_MATCH_KIND_LABELS: Record<DuplicateMatchKind, string> = {
+  original_exact: '完全相同',
+  normalized_exact: '规范化相同',
+  overlap: '高相似',
+};
+
+/** The three review outcomes of Lite V1.0. The server accepts no other value. */
+export type DuplicateDecision = 'confirmed_duplicate' | 'ignored' | 'false_positive';
+
+export const DUPLICATE_DECISION_ORDER: DuplicateDecision[] = [
+  'confirmed_duplicate',
+  'ignored',
+  'false_positive',
+];
+
+export const DUPLICATE_DECISION_LABELS: Record<DuplicateDecision, string> = {
+  confirmed_duplicate: '确认重复',
+  ignored: '忽略',
+  false_positive: '标记误报',
+};
+
+/** Where the queries came from. Fixed by the contract, surfaced for transparency. */
+export type DuplicateQuerySource = 'working';
+
+/** Where the corpus came from. Fixed by the contract, surfaced for transparency. */
+export type DuplicateCorpusSource = 'formal_history';
+
+export const DUPLICATE_SOURCE_LABELS: {
+  query: string;
+  corpus: string;
+} = {
+  query: '当前工作稿',
+  corpus: '同项目正式历史版本',
+};
+
+/** The historical formal-copy entry a candidate matched against. */
+export interface DuplicateReviewMatch {
+  content_item_id: number;
+  content_page_id: number;
+  /** The formal ContentPageVersion row that carries the matched text. */
+  page_version_id: number;
+  copy_revision_id: number;
+  revision_no: number;
+  page_no: number;
+  page_type: PageType;
+  field: DuplicateFieldKey;
+  text: string;
+}
+
+/** The newest decision on one candidate. Older decisions stay server-side, append-only. */
+export interface DuplicateReviewDecision {
+  id: number;
+  decision_no: number;
+  decision: DuplicateDecision;
+  note: string | null;
+  created_at: string;
+}
+
+export interface DuplicateReviewCandidate {
+  match: DuplicateReviewMatch;
+  match_kind: DuplicateMatchKind;
+  original_exact: boolean;
+  normalized_exact: boolean;
+  /** 0..1, produced by the server's Jaccard stage. Rendered as a percentage. */
+  overlap_score: number;
+  threshold: number;
+  latest_decision: DuplicateReviewDecision | null;
+}
+
+/** One comparable field of the current working copy. */
+export interface DuplicateReviewQuery {
+  content_page_id: number;
+  /** The working ContentPageVersion row; null copy_revision_id by definition. */
+  page_version_id: number;
+  page_no: number;
+  page_type: PageType;
+  field: DuplicateFieldKey;
+  text: string;
+  candidates: DuplicateReviewCandidate[];
+}
+
+export interface DuplicateReviewResult {
+  content_item_id: number;
+  query_source: DuplicateQuerySource;
+  corpus_source: DuplicateCorpusSource;
+  query_count: number;
+  candidate_count: number;
+  queries: DuplicateReviewQuery[];
+}
+
+/**
+ * POST body. Ids only: the client never sends the compared text, a score, a
+ * threshold or a match_kind, so the server can re-verify the pairing itself.
+ */
+export interface DuplicateReviewDecisionInput {
+  query_page_version_id: number;
+  query_field: DuplicateFieldKey;
+  match_page_version_id: number;
+  match_field: DuplicateFieldKey;
+  decision: DuplicateDecision;
+  note: string | null;
+}

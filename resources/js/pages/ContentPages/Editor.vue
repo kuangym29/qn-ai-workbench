@@ -26,6 +26,7 @@ import Breadcrumb from '../../components/Breadcrumb.vue';
 import LoadingState from '../../components/LoadingState.vue';
 import ErrorState from '../../components/ErrorState.vue';
 import Badge from '../../components/Badge.vue';
+import DuplicateReviewPanel from '../../components/DuplicateReviewPanel.vue';
 
 const props = defineProps<{
   projectId: string;
@@ -108,6 +109,10 @@ const confirmOpen = ref(false);
 
 const revisionDetail = ref<ContentCopyRevision | null>(null);
 const loadingRevision = ref(false);
+// The panel owns its own fetch. The editor only asks it to re-read after the working
+// copy changes, because a new working version changes both the query set and which
+// older decisions are still valid.
+const duplicateReviewRef = ref<InstanceType<typeof DuplicateReviewPanel> | null>(null);
 
 // ---- derived view state -------------------------------------------------
 const selectedPage = computed<ContentPage | null>(
@@ -200,6 +205,10 @@ async function reloadData(): Promise<void> {
   }
 }
 
+function refreshDuplicateReview(): void {
+  duplicateReviewRef.value?.reload();
+}
+
 function nextDefaultPageNo(): number {
   let max = 0;
   for (const p of pages.value) if (p.page_no > max) max = p.page_no;
@@ -263,6 +272,7 @@ async function saveDraft(): Promise<void> {
     await contentPagesApi.appendDraft(scope.value, page.id, buildDraftPayload(page.page_type));
     toast.success('已保存草稿（新增一个工作版本）');
     await reloadData();
+    refreshDuplicateReview();
     if (selectedPageId.value !== null) selectPage(selectedPageId.value);
   } catch (e) {
     handleWriteError(e, 'draft');
@@ -277,6 +287,7 @@ async function changePageType(pageId: number, newType: PageType): Promise<void> 
     await contentPagesApi.updatePageType(scope.value, pageId, newType);
     toast.success('页面类型已更新');
     await reloadData();
+    refreshDuplicateReview();
     if (selectedPageId.value !== null) selectPage(selectedPageId.value);
   } catch (e) {
     handleWriteError(e, 'page');
@@ -297,6 +308,7 @@ async function createPage(): Promise<void> {
     toast.success('页面已创建');
     await reloadData();
     selectPage(created.id);
+    refreshDuplicateReview();
     pageForm.value = { page_no: nextDefaultPageNo(), page_type: 'cover' };
   } catch (e) {
     handleWriteError(e, 'page');
@@ -355,6 +367,7 @@ async function confirmFormal(): Promise<void> {
     toast.success(`已生成正式文案版本（Revision ${rev.revision_no}）`);
     confirmOpen.value = false;
     await reloadData();
+    refreshDuplicateReview();
   } catch (e) {
     if (is404(e)) {
       toast.error('当前项目、栏目、选题、篇目或页面不在当前会话作用域内，已返回项目列表');
@@ -488,6 +501,9 @@ onMounted(load);
           </div>
         </div>
       </div>
+
+      <!-- 查重审核：Working Copy 阶段即可看到与同项目正式历史版本的重复候选 -->
+      <DuplicateReviewPanel ref="duplicateReviewRef" :scope="scope" />
 
       <div class="grid gap-6 lg:grid-cols-3">
         <!-- 左栏：页面列表 / 新增 / 历史 -->
