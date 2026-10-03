@@ -30,19 +30,26 @@ final class Normalizer
      *
      * Conservative transformations only. Preserves semantic newlines,
      * all punctuation, and quote-style differences.
+     *
+     * NFKC is applied ONLY to non-punctuation runs. Unicode punctuation
+     * characters (including full-width commas, CJK quotes, ／) are preserved
+     * as-is, because NFKC compatibility mapping would otherwise collapse
+     * full-width punctuation into ASCII and break Exact punctuation fidelity.
+     *
+     * @throws \RuntimeException when intl Normalizer extension is unavailable.
      */
     public function exact(string $text, bool $slashLineBreakMarker = false): string
     {
         // Layer 1 first
         $text = $this->canonicalize($text, $slashLineBreakMarker);
 
-        // Unicode NFKC compatibility normalization
-        if (class_exists(\Normalizer::class)) {
-            $normalized = \Normalizer::normalize($text, \Normalizer::NFKC);
-            if ($normalized !== false) {
-                $text = $normalized;
-            }
+        // NFKC fail-closed: must be available, no silent degradation
+        if (!class_exists(\Normalizer::class)) {
+            throw new \RuntimeException('NFKC normalizer runtime is unavailable.');
         }
+
+        // Apply NFKC only to non-punctuation runs, preserve punctuation as-is
+        $text = $this->nfkcPreservingPunctuation($text);
 
         // Trim leading/trailing whitespace
         $text = trim($text);
@@ -74,5 +81,42 @@ final class Normalizer
         $text = preg_replace('/\s+/u', ' ', $text);
 
         return trim($text);
+    }
+
+    /**
+     * Apply NFKC only to non-punctuation character runs.
+     * Punctuation runs (\p{P}) are preserved byte-for-byte.
+     *
+     * This prevents NFKC compatibility mappings from converting:
+     *   ， (U+FF0C fullwidth comma) -> , (U+002C)
+     *   Ａ (U+FF21 fullwidth A)    -> A (U+0041)  [non-punctuation: normalized]
+     *   “ ” (CJK quotes)            -> straight quotes [punctuation: preserved]
+     *   ／ (U+FF0F fullwidth slash) -> / (U+002F)  [punctuation: preserved]
+     */
+    private function nfkcPreservingPunctuation(string $text): string
+    {
+        // Split by punctuation runs, keeping delimiters
+        $parts = preg_split('/(\p{P}+)/u', $text, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+        if ($parts === false) {
+            return $text;
+        }
+
+        $result = '';
+        foreach ($parts as $i => $part) {
+            if ($part === '') {
+                continue;
+            }
+            // Even indices = non-punctuation runs -> apply NFKC
+            // Odd indices = punctuation runs -> preserve as-is
+            if ($i % 2 === 0) {
+                $normalized = \Normalizer::normalize($part, \Normalizer::NFKC);
+                $result .= $normalized !== false ? $normalized : $part;
+            } else {
+                $result .= $part;
+            }
+        }
+
+        return $result;
     }
 }
