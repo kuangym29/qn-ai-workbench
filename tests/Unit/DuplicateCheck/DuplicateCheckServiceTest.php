@@ -30,14 +30,15 @@ class DuplicateCheckServiceTest extends TestCase
 
     public function testSyn002CommaDifferenceNotExact(): void
     {
-        // Chinese comma vs English comma -> not normalized exact
+        // Chinese comma ， vs English comma , -> NOT normalized exact
+        // NFKC must NOT convert Chinese comma to ASCII comma
         $a = "你在身边，“我自己来”更有底气。";
         $b = "你在身边, “我自己来”更有底气。";
 
         $result = $this->service->compare($a, $b, DuplicateField::ClosingLine);
 
         $this->assertFalse($result->originalExact);
-        $this->assertFalse($result->normalizedExact);
+        $this->assertFalse($result->normalizedExact, 'Chinese comma vs ASCII comma must NOT be normalized exact after NFKC punctuation preservation');
         // Should enter overlap calculation
         $this->assertGreaterThan(0, $result->overlapScore);
     }
@@ -47,7 +48,8 @@ class DuplicateCheckServiceTest extends TestCase
         $a = "你肯听，\n情绪就有了出口。";
         $b = "你肯听，／情绪就有了出口。";
 
-        // B has slash marker -> should become normalized exact
+        // B has slash marker -> ／ -> 
+ -> should become normalized exact
         $result = $this->service->compare($a, $b, DuplicateField::ClosingLine, rightSlashLineBreakMarker: true);
 
         $this->assertFalse($result->originalExact);
@@ -60,7 +62,8 @@ class DuplicateCheckServiceTest extends TestCase
         $a = "你肯听，\n情绪就有了出口。";
         $b = "你肯听，／情绪就有了出口。";
 
-        // B does NOT have slash marker -> NOT normalized exact
+        // B does NOT have slash marker -> ／ preserved as punctuation -> NOT normalized exact
+        // Also: ／ must NOT be NFKC-converted to / (U+002F)
         $result = $this->service->compare($a, $b, DuplicateField::ClosingLine);
 
         $this->assertFalse($result->originalExact);

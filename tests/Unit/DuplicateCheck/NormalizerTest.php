@@ -15,6 +15,11 @@ class NormalizerTest extends TestCase
         $this->normalizer = new Normalizer();
     }
 
+    public function testNfkcRuntimeAvailable(): void
+    {
+        $this->assertTrue(class_exists(\Normalizer::class), 'intl Normalizer must be available in test environment');
+    }
+
     public function testCrlfConvertedToLf(): void
     {
         $result = $this->normalizer->canonicalize("line1\r\nline2");
@@ -34,14 +39,47 @@ class NormalizerTest extends TestCase
         $this->assertSame("你肯听，\n情绪就有了出口。", $result);
     }
 
-    public function testNfkcNormalizationExecuted(): void
+    public function testNfkcConvertsFullwidthLetters(): void
     {
-        // Full-width Ａ (U+FF21) should normalize to ASCII A (U+0041) under NFKC
-        if (!class_exists(\Normalizer::class)) {
-            $this->markTestSkipped('Normalizer class not available');
-        }
+        // Fullwidth ＡＢＣ (U+FF21/U+FF22/U+FF23) are non-punctuation -> NFKC -> ASCII
         $result = $this->normalizer->exact("ＡＢＣ");
         $this->assertSame("ABC", $result);
+    }
+
+    public function testNfkcPreservesChineseComma(): void
+    {
+        // Fullwidth comma ， (U+FF0C) is punctuation -> must NOT be converted to ASCII ,
+        $result = $this->normalizer->exact("，");
+        $this->assertSame("，", $result);
+        $this->assertNotSame(",", $result);
+    }
+
+    public function testNfkcPreservesAsciiComma(): void
+    {
+        $result = $this->normalizer->exact(",");
+        $this->assertSame(",", $result);
+    }
+
+    public function testNfkcPreservesFullwidthSlashWhenMarkerOff(): void
+    {
+        // ／ (U+FF0F) is punctuation -> NFKC must NOT convert it to / (U+002F)
+        $result = $this->normalizer->exact("／", slashLineBreakMarker: false);
+        $this->assertSame("／", $result);
+        $this->assertNotSame("/", $result);
+    }
+
+    public function testSlashMarkerOnConvertsSlashToNewline(): void
+    {
+        $result = $this->normalizer->exact("／", slashLineBreakMarker: true);
+        $this->assertSame("\n", $result);
+    }
+
+    public function testNfkcPreservesChineseQuotes(): void
+    {
+        $result = $this->normalizer->exact("“测试”");
+        $this->assertSame("“测试”", $result);
+        $this->assertStringContainsString("“", $result);
+        $this->assertStringContainsString("”", $result);
     }
 
     public function testExactTrimsWhitespace(): void
@@ -64,17 +102,9 @@ class NormalizerTest extends TestCase
 
     public function testExactPreservesChinesePunctuation(): void
     {
-        // Chinese comma should NOT be converted to English comma
         $result = $this->normalizer->exact("你在身边，我自己来更有底气。");
         $this->assertStringContainsString("，", $result);
         $this->assertStringNotContainsString(",", $result);
-    }
-
-    public function testExactPreservesChineseQuotes(): void
-    {
-        $result = $this->normalizer->exact("你在身边，“我自己来”更有底气。");
-        $this->assertStringContainsString("“", $result);
-        $this->assertStringContainsString("”", $result);
     }
 
     public function testExactPreservesCaseDifference(): void

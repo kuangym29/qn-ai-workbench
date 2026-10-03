@@ -90,13 +90,72 @@ class GoldenDatasetRegressionTest extends TestCase
             }
         }
 
-        // All pairs must NOT be exact (original or normalized)
+        // All 6 pairs must NOT be exact (original or normalized)
         for ($i = 0; $i < count($closingLines); $i++) {
             for ($j = $i + 1; $j < count($closingLines); $j++) {
                 $result = $this->service->compare($closingLines[$i], $closingLines[$j], DuplicateField::ClosingLine);
                 $this->assertFalse($result->originalExact, "Pair ($i, $j) should not be original exact");
                 $this->assertFalse($result->normalizedExact, "Pair ($i, $j) should not be normalized exact");
             }
+        }
+    }
+
+    /**
+     * Golden pairwise overlap observation.
+     *
+     * DEV-D08 baseline: no natural cross-item overlap candidates among the 4
+     * formal closing lines. If any pair crosses the closing_line threshold
+     * (0.4), this test fails and reports GOLDEN_THRESHOLD_OBSERVATION.
+     *
+     * We do NOT silently raise the threshold to make tests pass.
+     */
+    public function testGoldenFormalClosingPairwiseOverlapObservation(): void
+    {
+        $json = json_decode(file_get_contents($this->fixturePath), true);
+        $closingLines = [];
+        $itemTitles = [];
+
+        foreach ($json['items'] as $item) {
+            foreach ($item['pages'] as $page) {
+                if ($page['page_type'] === 'column_closing' && isset($page['closing_line'])) {
+                    $closingLines[] = $page['closing_line'];
+                    $itemTitles[] = $item['title'];
+                }
+            }
+        }
+
+        $observations = [];
+        for ($i = 0; $i < count($closingLines); $i++) {
+            for ($j = $i + 1; $j < count($closingLines); $j++) {
+                $result = $this->service->compare($closingLines[$i], $closingLines[$j], DuplicateField::ClosingLine);
+                $observations[] = [
+                    'pair' => $itemTitles[$i] . ' vs ' . $itemTitles[$j],
+                    'score' => $result->overlapScore,
+                    'threshold' => $result->threshold,
+                    'candidate' => $result->overlapCandidate,
+                ];
+
+                // Per DEV-D08 baseline: no golden overlap candidates expected.
+                // If any is true, this test fails loudly.
+                $this->assertFalse(
+                    $result->overlapCandidate,
+                    "Unexpected golden overlap candidate: {$itemTitles[$i]} vs {$itemTitles[$j]} "
+                    . "score={$result->overlapScore} threshold={$result->threshold}. "
+                    . "This is a GOLDEN_THRESHOLD_OBSERVATION — do not silently adjust threshold."
+                );
+            }
+        }
+
+        // Output observations for visibility (via test output)
+        fwrite(STDERR, "\nGolden pairwise overlap observations:\n");
+        foreach ($observations as $obs) {
+            fwrite(STDERR, sprintf(
+                "  %s: score=%.4f threshold=%.1f candidate=%s\n",
+                $obs['pair'],
+                $obs['score'],
+                $obs['threshold'],
+                $obs['candidate'] ? 'YES' : 'no'
+            ));
         }
     }
 
