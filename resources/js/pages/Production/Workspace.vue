@@ -41,10 +41,14 @@ import Badge from '../../components/Badge.vue';
 import ConfirmDialog from '../../components/ConfirmDialog.vue';
 import ProductionAssets from '../../components/ProductionAssets.vue';
 import { assetsApi } from '../../api/assets';
+import { channelAssetsApi } from '../../api/channelAssets';
+import ChannelAssetBindings from '../../components/ChannelAssetBindings.vue';
 import type {
   AssetDetail,
   AssetVersionAppendInput,
   AssetWorkspace,
+  ChannelAssetBindingInput,
+  ChannelAssetWorkspace,
 } from '../../api/types';
 
 const props = defineProps<{
@@ -81,6 +85,26 @@ const assetError = ref('');
 const assetSaving = ref(false);
 const assetDetail = ref<AssetDetail | null>(null);
 const assetDetailLoading = ref(false);
+
+// Per-channel binding workspaces. Keyed by channel so each card renders its own matrix.
+const channelAssetWorkspaces = ref<Record<string, ChannelAssetWorkspace | null>>({
+  wechat_official: null,
+  wechat_channels: null,
+});
+const channelAssetLoading = ref<Record<string, boolean>>({
+  wechat_official: false,
+  wechat_channels: false,
+});
+const channelAssetError = ref<Record<string, string>>({
+  wechat_official: '',
+  wechat_channels: '',
+});
+const channelAssetSaving = ref(false);
+// Plain refs, NOT a dotted `ref="obj.key"` template ref: Vue's string-ref handling
+// does not resolve dotted paths into setup state, so that form would silently never
+// populate and the dialog could not be closed after a successful bind.
+const officialAssetsRef = ref<InstanceType<typeof ChannelAssetBindings> | null>(null);
+const videoAssetsRef = ref<InstanceType<typeof ChannelAssetBindings> | null>(null);
 // Imperative handle used to close the append dialog once a registration succeeds.
 const productionAssetsRef = ref<InstanceType<typeof ProductionAssets> | null>(null);
 
@@ -196,13 +220,33 @@ const canRestart = computed(
   () => productionStale.value && hasChannelTasks.value && staleRepairBlockedReason.value === '',
 );
 
-/** Shared publish gate: artwork approved + production current. */
+/**
+ * Is every page of this channel bound to a shared AssetVersion on the pinned revision?
+ * Mirrors the DEV-011A server gate; a missing workspace (not loaded / failed) is treated
+ * as incomplete so we never enable a terminal action on unknown state.
+ */
+function channelAssetsComplete(channel: Channel): boolean {
+  return channelAssetWorkspaces.value[channel]?.is_complete === true;
+}
+
+/** Channel-specific wording for the completeness requirement. */
+function assetsIncompleteMessage(channel: Channel): string {
+  return channel === 'wechat_official'
+    ? '请先完成全部页面的公众号素材绑定。'
+    : '请先完成全部页面的视频号素材绑定。';
+}
+
+/** Shared publish gate: artwork approved + production current + channel assets complete. */
 function publishBlockedReason(channel: ChannelTask): string {
   if (channel.publish_status === 'published') return '';
   if (channel.artwork_status !== 'approved') return '共享图稿需先审核通过。';
   if (!channel.is_production_copy_current) return '正式文案已有新版本，请先处理图稿版本。';
   if (channel.channel === 'wechat_channels' && channel.video_status !== 'approved') {
     return '请先完成视频审核。';
+  }
+  // Scheduling and publishing additionally require every page to reference a shared asset.
+  if (!channelAssetsComplete(channel.channel)) {
+    return assetsIncompleteMessage(channel.channel);
   }
   return '';
 }
@@ -213,10 +257,19 @@ function canPublishNow(channel: ChannelTask): boolean {
   return canSchedule(channel);
 }
 
-/** Video approval is blocked on stale production; intermediate stages stay allowed. */
+/**
+ * Video approval is the terminal video stage, so it requires the stale check AND complete
+ * channel asset bindings. Intermediate stages (not_started / in_progress / pending_review)
+ * deliberately do NOT require completeness.
+ */
 function videoApproveBlockedReason(channel: ChannelTask): string {
-  if (channel.is_production_copy_current) return '';
-  return '共享图稿基于旧版正式文案，不能完成视频终审。';
+  if (!channel.is_production_copy_current) {
+    return '共享图稿基于旧版正式文案，不能完成视频终审。';
+  }
+  if (!channelAssetsComplete(channel.channel)) {
+    return assetsIncompleteMessage(channel.channel);
+  }
+  return '';
 }
 function canApproveVideo(channel: ChannelTask): boolean {
   return channel.video_status === 'pending_review' && videoApproveBlockedReason(channel) === '';
@@ -329,6 +382,71 @@ function handleActionError(e: unknown): void {
  * shared scope handling. A 422 (or any other failure) is confined to this section and
  * must never tear down the whole production workspace.
  */
+/**
+ * Load the binding matrix for ONE channel.
+ *
+ * Only called when that channel task exists — the endpoint is scoped to a channel task.
+ * A 404 means the scope drifted, so it reuses the shared handling. Any other failure is
+ * confined to that channel's block; it must never tear down the whole workspace.
+ */
+async function loadChannelAssets(channel: Channel): Promise<void> {
+  if (!channels.value.some((c) => c.channel === channel)) {
+    channelAssetWorkspaces.value[channel] = null;
+    channelAssetError.value[channel] = '';
+    return;
+  }
+
+  channelAssetLoading.value[channel] = true;
+  channelAssetError.value[channel] = '';
+  try {
+    channelAssetWorkspaces.value[channel] = await channelAssetsApi.workspace(scope.value, channel);
+  } catch (e) {
+    channelAssetWorkspaces.value[channel] = null;
+    if (is404(e)) {
+      handleActionError(e);
+    } else {
+      channelAssetError.value[channel] = firstErrorMessage(e) ?? '加载渠道素材绑定失败';
+    }
+  } finally {
+    channelAssetLoading.value[channel] = false;
+  }
+}
+
+async function loadAllChannelAssets(): Promise<void> {
+  for (const channel of ['wechat_official', 'wechat_channels'] as Channel[]) {
+    await loadChannelAssets(channel);
+  }
+}
+
+/** Close a channel's bind dialog; the child exposes this so we can close on success only. */
+function closeChannelBindDialog(channel: Channel): void {
+  if (channel === 'wechat_official') {
+    officialAssetsRef.value?.closeBindDialog();
+    return;
+  }
+  videoAssetsRef.value?.closeBindDialog();
+}
+
+/**
+ * Bind one page to a shared AssetVersion.
+ *
+ * On success we re-read the workspace from the server: binding_no and current_binding are
+ * never computed locally. On 422 we keep the dialog open with the user's choice intact.
+ */
+async function bindChannelAsset(channel: Channel, payload: ChannelAssetBindingInput): Promise<void> {
+  channelAssetSaving.value = true;
+  try {
+    await channelAssetsApi.bind(scope.value, channel, payload);
+    toast.success('已绑定渠道素材');
+    closeChannelBindDialog(channel);
+    await loadChannelAssets(channel);
+  } catch (e) {
+    handleActionError(e);
+  } finally {
+    channelAssetSaving.value = false;
+  }
+}
+
 async function loadAssets(): Promise<void> {
   if (production.value === null) {
     assetWorkspace.value = null;
@@ -367,6 +485,10 @@ async function reload(): Promise<void> {
 
   // Same for assets: they hang off the production task.
   await loadAssets();
+
+  // Channel bindings hang off both the production task and each channel task, and their
+  // "current" binding follows the pinned copy revision — so a restart must refresh them.
+  await loadAllChannelAssets();
 }
 
 /**
@@ -1062,6 +1184,17 @@ onMounted(load);
                 </template>
               </div>
             </div>
+
+            <!-- 渠道素材绑定：公众号固定使用 copy_master -->
+            <ChannelAssetBindings
+              ref="officialAssetsRef"
+              channel="wechat_official"
+              :workspace="channelAssetWorkspaces.wechat_official"
+              :loading="channelAssetLoading.wechat_official"
+              :error-message="channelAssetError.wechat_official"
+              :saving="channelAssetSaving"
+              @bind="bindChannelAsset('wechat_official', $event)"
+            />
           </div>
 
           <!-- 微信视频号 -->
@@ -1232,6 +1365,17 @@ onMounted(load);
                 </template>
               </div>
             </div>
+
+            <!-- 渠道素材绑定：视频号固定使用 clean_master -->
+            <ChannelAssetBindings
+              ref="videoAssetsRef"
+              channel="wechat_channels"
+              :workspace="channelAssetWorkspaces.wechat_channels"
+              :loading="channelAssetLoading.wechat_channels"
+              :error-message="channelAssetError.wechat_channels"
+              :saving="channelAssetSaving"
+              @bind="bindChannelAsset('wechat_channels', $event)"
+            />
           </div>
         </div>
         <p class="mt-3 text-xs text-slate-400">{{ timezoneNote }}</p>

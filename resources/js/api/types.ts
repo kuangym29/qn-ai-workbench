@@ -489,3 +489,81 @@ export interface AssetVersionAppendInput {
   height?: number | null;
   note?: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Channel asset binding (DEV-011A API, DEV-W09 UI)
+// ---------------------------------------------------------------------------
+//
+// A Channel does NOT own artwork. Every channel page simply points at ONE shared
+// AssetVersion, so the channel never copies or re-renders the image. Which role a
+// channel may bind is decided SERVER-SIDE from the channel:
+//
+//   wechat_official  -> copy_master   (公众号 uses the image with copy burned in)
+//   wechat_channels  -> clean_master  (视频号 uses the copy-free master)
+//
+// The client never chooses a role, an asset, a revision or a binding number -- the POST
+// body is only { content_page_id, asset_version_id }.
+
+/** A page's binding record, pointing at the shared AssetVersion actually used. */
+export interface ChannelAssetBinding {
+  id: number;
+  project_id: number;
+  content_item_id: number;
+  production_task_id: number;
+  channel_task_id: number;
+  content_page_id: number;
+  asset_id: number;
+  asset_version_id: number;
+  copy_revision_id: number | null;
+  copy_revision_no: number | null;
+  binding_no: number;
+  /** Same shape as the DEV-010B AssetVersion resource. */
+  asset_version: AssetVersion;
+  created_at: string | null;
+}
+
+export interface ChannelAssetPageBinding {
+  content_page_id: number;
+  page_no: number;
+  page_type: PageType;
+  asset_id: number | null;
+  /**
+   * Versions bindable for this page: already narrowed by the backend to the production
+   * task's pinned copy revision AND this channel's expected role. The UI renders the list
+   * as returned and applies no extra filtering of its own.
+   */
+  available_versions: AssetVersion[];
+  /** Binding on the production task's CURRENT pinned revision -- the one in use. */
+  current_binding: ChannelAssetBinding | null;
+  /** Newest binding across all history for this channel + page; may be an older revision. */
+  latest_binding: ChannelAssetBinding | null;
+}
+
+export interface ChannelAssetWorkspace {
+  channel_task_id: number;
+  channel: Channel;
+  expected_asset_role: AssetRole;
+  production_task_id: number;
+  copy_revision_id: number | null;
+  copy_revision_no: number | null;
+  is_production_copy_current: boolean;
+  /** True when every page has a current binding. Mirrors the server-side publish gate. */
+  is_complete: boolean;
+  bound_page_count: number;
+  total_page_count: number;
+  pages: ChannelAssetPageBinding[];
+}
+
+/** POST body: the server derives role, asset, revision, binding_no and all ownership. */
+export interface ChannelAssetBindingInput {
+  content_page_id: number;
+  asset_version_id: number;
+}
+
+/**
+ * Client-side mirror of the server's channel -> role mapping, used for labels only.
+ * The server remains the authority; the user cannot pick a different role.
+ */
+export function expectedRoleForChannel(channel: Channel): AssetRole {
+  return channel === 'wechat_official' ? 'copy_master' : 'clean_master';
+}
