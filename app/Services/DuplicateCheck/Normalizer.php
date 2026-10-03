@@ -44,15 +44,20 @@ final class Normalizer
         $text = $this->canonicalize($text, $slashLineBreakMarker);
 
         // NFKC fail-closed: must be available, no silent degradation
-        if (!class_exists(\Normalizer::class)) {
+        if (! class_exists(\Normalizer::class)) {
             throw new \RuntimeException('NFKC normalizer runtime is unavailable.');
         }
 
         // Apply NFKC only to non-punctuation runs, preserve punctuation as-is
         $text = $this->nfkcPreservingPunctuation($text);
 
-        // Trim leading/trailing whitespace
-        $text = trim($text);
+        // Trim leading/trailing NON-linebreak whitespace only.
+        //
+        // PHP's trim() also strips "\n", which silently destroyed semantic newlines:
+        // exact("／", true) canonicalizes to "\n" and trim() then reduced it to "".
+        // Semantic newlines are part of the exact representation and must survive.
+        $text = preg_replace('/^[^\S\n]+/u', '', $text);
+        $text = preg_replace('/[^\S\n]+$/u', '', $text);
 
         // Collapse consecutive non-newline whitespace into single space
         $text = preg_replace('/[^\S\n]+/u', ' ', $text);
