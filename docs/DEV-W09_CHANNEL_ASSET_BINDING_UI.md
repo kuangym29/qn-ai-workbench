@@ -91,3 +91,40 @@ POST body **只有** `content_page_id` 与 `asset_version_id`。`role`、`asset_
 - 不提供 Binding 的删除、编辑或回滚——绑定只是引用；
 - 不调用真实微信 API；
 - 不新增 Migration，不修改后端。
+
+---
+
+## 运行验收（DEV-W09-INTEGRATION，2026-10-03）
+
+基线：`origin/main` = `e2d3d8d`（DEV-011A.1 已合入）。本分支由 `c73bcf3` rebase 到该 main，零冲突，rebase 前后本任务六个文件内容字节一致。
+
+### 自动验收
+
+| 项目 | 结果 |
+| --- | --- |
+| `npm run typecheck` | 零错误 |
+| `npm run build` | 成功，830 modules |
+| ChannelAssetBinding 专项 | 7 passed / 152 assertions |
+| ChannelTask 专项 | 38 passed / 477 assertions |
+| W09 集成验收 | 9 passed / 125 assertions / 45 条编号项全 PASS |
+| 全量 PHP | 210 passed / 2195 assertions |
+| `vendor/bin/pint --test` | 166 files PASS |
+| `git status` | 干净 |
+
+集成验收脚本见 `tests/Feature/W09IntegrationVerificationTest.php`，全部走真实 HTTP 内核、真实冻结路由、真实 Controller 与真实数据库，并把解码后的响应与本目录文档承诺的 TS 字段逐项比对（Workspace 11 / Page 7 / Binding 13）。
+
+### 服务端已确认的边界语义
+
+写验收脚本时逐条实测确认，UI 逻辑必须与之一致：
+
+1. `is_production_copy_current` 为「pinned revision 是否等于当前最新正式 revision」。出现新正式 Revision 即 stale，此时旧 Revision 的版本**仍可绑定**，且绑定归属旧 Revision（响应带旧 `copy_revision_no`）。
+2. **404 与 422 的分界**：`findOrFail` 类（不存在的 `asset_version_id`、跨篇目页面、跨项目 scope、未创建渠道、未定义的路由成员）返回 404，不泄露存在性；业务校验类（Revision 不匹配、角色不匹配、页面不属于 pinned Revision、伪造字段、缺字段）返回 422。
+3. `total_page_count === 0` 时 `is_complete` 为 false——空 Production 不得通过发布门禁。
+4. 绑定为 append-only：同一页重复绑定生成新的 `binding_no`，`current_binding` 前移，历史行不被就地修改。
+5. 页面矩阵只由 pinned Revision 的页面快照构成；`asset_id` 表示该页已登记的共享 Asset，与是否已绑定无关（已登记未绑定时 `asset_id` 有值而 `current_binding` 为 null）。
+6. Revision restart 后完整度重置，旧绑定降级为 `latest_binding` 历史，**永不自动提升为当前**。
+7. `restart-with-current-copy` 不接受任何 payload。
+
+### 刷新恢复
+
+`Production/Workspace.vue` 不使用 localStorage / sessionStorage，界面完全由 `onMounted → load → reload → loadAllChannelAssets` 从服务端重建。因此「刷新后状态恢复」等价于「GET 是绑定表的完整无状态投影」：连续两次 GET 响应完全相同，且 GET 自带渲染所需全部数据（含 `asset_version.file` 定位信息），无需二次请求。
