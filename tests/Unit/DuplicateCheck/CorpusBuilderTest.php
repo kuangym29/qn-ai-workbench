@@ -112,20 +112,31 @@ class CorpusBuilderTest extends TestCase
             'cover_title' => null,
             'cover_subtitle' => null,
             'page_title' => null,
-            'page_small_text' => '   ',  // whitespace only
+            'page_small_text' => '   ',
             'closing_line' => null,
         ]];
 
         $entries = $this->builder->build($pages);
 
-        // page_small_text is whitespace-only -> skipped
         $this->assertCount(0, $entries);
     }
 
+    /**
+     * Golden regression: read the actual fixture and verify the builder
+     * produces the expected number of comparable entries from 4 items / 37 pages.
+     */
     public function testGoldenDatasetBuild(): void
     {
         $fixturePath = base_path('tests/Fixtures/duplicate_check/yujian_history_baseline.json');
         $json = json_decode(file_get_contents($fixturePath), true);
+
+        // 4 items / 37 pages
+        $this->assertCount(4, $json['items']);
+        $totalPages = 0;
+        foreach ($json['items'] as $item) {
+            $totalPages += count($item['pages']);
+        }
+        $this->assertSame(37, $totalPages);
 
         $pages = [];
         foreach ($json['items'] as $item) {
@@ -147,19 +158,36 @@ class CorpusBuilderTest extends TestCase
 
         $entries = $this->builder->build($pages);
 
-        // 4 cover pages * 2 fields = 8
-        // 25 content pages * 2 fields = 50 (but some may have null fields)
-        // 4 column_closing * 1 field = 4
-        // 4 fixed_back_cover * 0 = 0
-        $this->assertGreaterThan(0, count($entries));
+        // Expected: 4 cover * 2 fields = 8, 25 content * 2 fields = 50,
+        //           4 column_closing * 1 field = 4, 4 fixed_back_cover * 0 = 0
+        //           Total = 62
+        $this->assertCount(62, $entries, 'GOLDEN_CORPUS_COUNT mismatch');
 
-        // Verify no column_label field leaks in
+        // Allowed fields only
+        $allowedFields = [
+            DuplicateField::CoverTitle,
+            DuplicateField::CoverSubtitle,
+            DuplicateField::PageTitle,
+            DuplicateField::PageSmallText,
+            DuplicateField::ClosingLine,
+        ];
+
         foreach ($entries as $entry) {
-            $this->assertNotSame(DuplicateField::ClosingLine, $entry->field === null ? null : $entry->field);
+            $this->assertContains(
+                $entry->field,
+                $allowedFields,
+                'Unexpected field type in golden corpus: ' . $entry->field->name
+            );
         }
 
-        // Verify channel-specific examples are NOT in formal corpus
-        // (they are not in pages[], so they naturally don't appear)
+        // Explicitly verify closing_line count = 4 (one per item)
+        $closingEntries = array_filter(
+            $entries,
+            fn($e) => $e->field === DuplicateField::ClosingLine
+        );
+        $this->assertCount(4, $closingEntries, 'Expected exactly 4 closing_line entries from 4 column_closing pages');
+
+        // Channel-specific closing must NOT appear in formal corpus
         $hasChannelClosing = false;
         foreach ($entries as $entry) {
             if ($entry->field === DuplicateField::ClosingLine && str_contains($entry->text, '是她自己来的底气')) {

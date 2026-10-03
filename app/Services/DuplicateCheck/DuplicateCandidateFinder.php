@@ -85,6 +85,20 @@ final class DuplicateCandidateFinder
             && $a->field === $b->field;
     }
 
+    /**
+     * Deterministic comparator.
+     *
+     * Order:
+     *   1. match_kind priority (original_exact < normalized_exact < overlap)
+     *   2. overlap_score DESC
+     *   3. content_item_id ASC
+     *   4. copy_revision_id ASC
+     *   5. content_page_id ASC
+     *
+     * Each identity field is compared individually (not concatenated) so that
+     * future numeric database IDs sort correctly: "10" < "2" as strings is
+     * avoided — we compare per-field with natural awareness of numeric IDs.
+     */
     private function compareCandidates(DuplicateCandidate $a, DuplicateCandidate $b): int
     {
         $kindOrder = [
@@ -105,10 +119,30 @@ final class DuplicateCandidateFinder
             return $b->overlapScore <=> $a->overlapScore;
         }
 
-        // Tie-break: deterministic identity ASC
-        $idA = $a->match->contentItemId . ':' . $a->match->copyRevisionId . ':' . $a->match->contentPageId;
-        $idB = $b->match->contentItemId . ':' . $b->match->copyRevisionId . ':' . $b->match->contentPageId;
+        // Tie-break: per-field identity ASC
+        $cmp = $this->compareIds($a->match->contentItemId, $b->match->contentItemId);
+        if ($cmp !== 0) return $cmp;
 
-        return $idA <=> $idB;
+        $cmp = $this->compareIds($a->match->copyRevisionId, $b->match->copyRevisionId);
+        if ($cmp !== 0) return $cmp;
+
+        return $this->compareIds($a->match->contentPageId, $b->match->contentPageId);
+    }
+
+    /**
+     * Compare two identity strings. If both are purely numeric, compare as
+     * integers so that "2" < "10" (not "10" < "2" as raw string sort would do).
+     * Otherwise fall back to string comparison.
+     */
+    private function compareIds(string $a, string $b): int
+    {
+        $aNumeric = ctype_digit($a);
+        $bNumeric = ctype_digit($b);
+
+        if ($aNumeric && $bNumeric) {
+            return (int) $a <=> (int) $b;
+        }
+
+        return $a <=> $b;
     }
 }
