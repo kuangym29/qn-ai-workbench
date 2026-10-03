@@ -153,9 +153,12 @@ final class DuplicateCandidate
 
 1. **match_kind 优先级**：original_exact → normalized_exact → overlap
 2. **overlap_score DESC**（同类内按相似度从高到低）
-3. **稳定 tie-break**：`content_item_id ASC` → `copy_revision_id ASC` → `content_page_id ASC`
+3. **稳定 tie-break**：逐字段比较
+   - `content_item_id` ASC（数字感知：纯数字 ID 按整数比较，避免 "10" < "2"）
+   - `copy_revision_id` ASC
+   - `content_page_id` ASC
 
-保证测试可重复。
+保证测试可重复，且适配未来数据库 numeric bigint 主键。
 
 ---
 
@@ -168,14 +171,34 @@ final class DuplicateCandidate
 
 ## 10. Golden Regression
 
-- 从 `yujian_history_baseline.json` 构建 Formal Copy Corpus
-- 4 条正式 closing 逐条作为 Query，对其它 3 条 Corpus 查询
-- DEV-D09 Golden 基线预期：不产生 Exact Candidate
-- 如产生 Overlap Candidate：不调阈值，报告 `GOLDEN_THRESHOLD_OBSERVATION`
+### 10.1 Golden Corpus
+- 数据源：`tests/Fixtures/duplicate_check/yujian_history_baseline.json`
+- 4 items / 37 pages
+- **GOLDEN_CORPUS_COUNT = 62**（4 cover × 2 = 8，25 content × 2 = 50，4 closing × 1 = 4）
+- allowed fields：CoverTitle / CoverSubtitle / PageTitle / PageSmallText / ClosingLine
+- closing_line entry count = 4
+- channel-specific closing 不进入 formal corpus
+
+### 10.2 Golden Closing Observation
+- 4 条正式 closing 两两查询，预期 **results = []**（无任何 candidate）
+- 如果意外产生 candidate：测试明确失败，错误消息标注 `GOLDEN_THRESHOLD_OBSERVATION`
+- **不调阈值，不过滤，不修改算法**——报告给人工审核
 
 ---
 
-## 11. 明确不做的事
+## 11. SYN Finder 兼容性
+
+| 案例 | 预期 match_kind |
+| --- | --- |
+| SYN-001（完全相同） | original_exact |
+| SYN-002（中文逗号 vs 英文逗号） | 非 normalized_exact（按通用算法实际结果） |
+| SYN-003 marker on（／→\n） | normalized_exact |
+| SYN-003 marker off（／保留） | 非 normalized_exact |
+| SYN-004（差一个字） | overlap |
+
+---
+
+## 12. 明确不做的事
 
 - ❌ 不访问数据库（纯函数）
 - ❌ 不新增 Migration
@@ -188,7 +211,7 @@ final class DuplicateCandidate
 
 ---
 
-## 12. 后续待办
+## 13. 后续待办
 
 1. **API 层集成**：DB → array → CorpusBuilder → Finder
 2. **Working Copy Query**：当前 Working Copy 也可以构造成 Entry
