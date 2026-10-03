@@ -22,18 +22,18 @@ final class DuplicateCorpusBuilder
     ];
 
     /**
-     * @param array<int, array<string, mixed>> $pages
-     *   Each page array must contain keys:
-     *   - content_item_id: string
-     *   - content_page_id: string
-     *   - copy_revision_id: string
-     *   - page_no_snapshot: int
-     *   - page_type_snapshot: string
-     *   - cover_title: ?string
-     *   - cover_subtitle: ?string
-     *   - page_title: ?string
-     *   - page_small_text: ?string
-     *   - closing_line: ?string
+     * @param  array<int, array<string, mixed>>  $pages
+     *                                                   Each page array must contain keys:
+     *                                                   - content_item_id: string
+     *                                                   - content_page_id: string
+     *                                                   - copy_revision_id: string
+     *                                                   - page_no_snapshot: int
+     *                                                   - page_type_snapshot: string
+     *                                                   - cover_title: ?string
+     *                                                   - cover_subtitle: ?string
+     *                                                   - page_title: ?string
+     *                                                   - page_small_text: ?string
+     *                                                   - closing_line: ?string
      * @return DuplicateComparableEntry[]
      */
     public function build(array $pages): array
@@ -43,7 +43,7 @@ final class DuplicateCorpusBuilder
         foreach ($pages as $page) {
             $pageType = $page['page_type_snapshot'] ?? '';
 
-            if (!isset(self::PAGE_TYPE_FIELD_MAP[$pageType])) {
+            if (! isset(self::PAGE_TYPE_FIELD_MAP[$pageType])) {
                 continue;
             }
 

@@ -10,11 +10,11 @@ namespace App\Services\DuplicateCheck;
 final class DuplicateCandidateFinder
 {
     public function __construct(
-        private readonly DuplicateCheckService $service = new DuplicateCheckService(),
+        private readonly DuplicateCheckService $service = new DuplicateCheckService,
     ) {}
 
     /**
-     * @param iterable<DuplicateComparableEntry> $corpus
+     * @param  iterable<DuplicateComparableEntry>  $corpus
      * @return DuplicateCandidate[]
      */
     public function find(
@@ -48,7 +48,7 @@ final class DuplicateCandidateFinder
             );
 
             // Inclusion: only exact or overlap candidates
-            if (!$result->originalExact && !$result->normalizedExact && !$result->overlapCandidate) {
+            if (! $result->originalExact && ! $result->normalizedExact && ! $result->overlapCandidate) {
                 continue;
             }
 

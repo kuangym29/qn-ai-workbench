@@ -13,10 +13,10 @@ class CorpusBuilderTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->builder = new DuplicateCorpusBuilder();
+        $this->builder = new DuplicateCorpusBuilder;
     }
 
-    public function testCoverPageProducesCoverTitleAndSubtitle(): void
+    public function test_cover_page_produces_cover_title_and_subtitle(): void
     {
         $pages = [[
             'content_item_id' => 'CI-001',
@@ -38,7 +38,7 @@ class CorpusBuilderTest extends TestCase
         $this->assertSame(DuplicateField::CoverSubtitle, $entries[1]->field);
     }
 
-    public function testContentPageProducesPageTitleAndSmallText(): void
+    public function test_content_page_produces_page_title_and_small_text(): void
     {
         $pages = [[
             'content_item_id' => 'CI-001',
@@ -60,7 +60,7 @@ class CorpusBuilderTest extends TestCase
         $this->assertSame(DuplicateField::PageSmallText, $entries[1]->field);
     }
 
-    public function testColumnClosingProducesClosingLine(): void
+    public function test_column_closing_produces_closing_line(): void
     {
         $pages = [[
             'content_item_id' => 'CI-001',
@@ -81,7 +81,7 @@ class CorpusBuilderTest extends TestCase
         $this->assertSame(DuplicateField::ClosingLine, $entries[0]->field);
     }
 
-    public function testFixedBackCoverProducesNoEntries(): void
+    public function test_fixed_back_cover_produces_no_entries(): void
     {
         $pages = [[
             'content_item_id' => 'CI-001',
@@ -101,7 +101,7 @@ class CorpusBuilderTest extends TestCase
         $this->assertCount(0, $entries);
     }
 
-    public function testNullAndEmptyTextSkipped(): void
+    public function test_null_and_empty_text_skipped(): void
     {
         $pages = [[
             'content_item_id' => 'CI-001',
@@ -125,9 +125,13 @@ class CorpusBuilderTest extends TestCase
      * Golden regression: read the actual fixture and verify the builder
      * produces the expected number of comparable entries from 4 items / 37 pages.
      */
-    public function testGoldenDatasetBuild(): void
+    public function test_golden_dataset_build(): void
     {
-        $fixturePath = base_path('tests/Fixtures/duplicate_check/yujian_history_baseline.json');
+        // Pure PHPUnit: resolve the fixture from the repository root without the Laravel
+        // container. __DIR__ is <root>/tests/Unit/DuplicateCheck, so three levels up is
+        // the repository root.
+        $fixturePath = dirname(__DIR__, 3)
+            .'/tests/Fixtures/duplicate_check/yujian_history_baseline.json';
         $json = json_decode(file_get_contents($fixturePath), true);
 
         // 4 items / 37 pages
@@ -143,7 +147,7 @@ class CorpusBuilderTest extends TestCase
             foreach ($item['pages'] as $page) {
                 $pages[] = [
                     'content_item_id' => $item['legacy_id'],
-                    'content_page_id' => $item['legacy_id'] . '-P' . $page['page_no'],
+                    'content_page_id' => $item['legacy_id'].'-P'.$page['page_no'],
                     'copy_revision_id' => 'CR-FORMAL-001',
                     'page_no_snapshot' => $page['page_no'],
                     'page_type_snapshot' => $page['page_type'],
@@ -176,14 +180,14 @@ class CorpusBuilderTest extends TestCase
             $this->assertContains(
                 $entry->field,
                 $allowedFields,
-                'Unexpected field type in golden corpus: ' . $entry->field->name
+                'Unexpected field type in golden corpus: '.$entry->field->name
             );
         }
 
         // Explicitly verify closing_line count = 4 (one per item)
         $closingEntries = array_filter(
             $entries,
-            fn($e) => $e->field === DuplicateField::ClosingLine
+            fn ($e) => $e->field === DuplicateField::ClosingLine
         );
         $this->assertCount(4, $closingEntries, 'Expected exactly 4 closing_line entries from 4 column_closing pages');
 

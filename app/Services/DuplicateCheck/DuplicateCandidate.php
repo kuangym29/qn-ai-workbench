@@ -8,7 +8,9 @@ namespace App\Services\DuplicateCheck;
 final class DuplicateCandidate
 {
     public const KIND_ORIGINAL_EXACT = 'original_exact';
+
     public const KIND_NORMALIZED_EXACT = 'normalized_exact';
+
     public const KIND_OVERLAP = 'overlap';
 
     public function __construct(
