@@ -94,10 +94,6 @@ final class DuplicateCandidateFinder
      *   3. content_item_id ASC
      *   4. copy_revision_id ASC
      *   5. content_page_id ASC
-     *
-     * Each identity field is compared individually (not concatenated) so that
-     * future numeric database IDs sort correctly: "10" < "2" as strings is
-     * avoided — we compare per-field with natural awareness of numeric IDs.
      */
     private function compareCandidates(DuplicateCandidate $a, DuplicateCandidate $b): int
     {
@@ -121,10 +117,14 @@ final class DuplicateCandidateFinder
 
         // Tie-break: per-field identity ASC
         $cmp = $this->compareIds($a->match->contentItemId, $b->match->contentItemId);
-        if ($cmp !== 0) return $cmp;
+        if ($cmp !== 0) {
+            return $cmp;
+        }
 
         $cmp = $this->compareIds($a->match->copyRevisionId, $b->match->copyRevisionId);
-        if ($cmp !== 0) return $cmp;
+        if ($cmp !== 0) {
+            return $cmp;
+        }
 
         return $this->compareIds($a->match->contentPageId, $b->match->contentPageId);
     }
