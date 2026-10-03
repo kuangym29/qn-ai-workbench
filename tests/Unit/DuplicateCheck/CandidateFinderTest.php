@@ -254,7 +254,8 @@ class CandidateFinderTest extends TestCase
         $this->assertSame('10', $results[1]->match->contentItemId);
     }
 
-    public function testTieBreakCopyRevisionIdNumeric(): voidn    {
+    public function testTieBreakCopyRevisionIdNumeric(): void
+    {
         $text = '完全相同的正文标题文本。';
 
         $query = new DuplicateComparableEntry(
@@ -295,7 +296,8 @@ class CandidateFinderTest extends TestCase
         $this->assertSame('10', $results[1]->match->copyRevisionId);
     }
 
-    public function testTieBreakContentPageIdNumeric(): voidn    {
+    public function testTieBreakContentPageIdNumeric(): void
+    {
         $text = '完全相同的正文标题文本。';
 
         $query = new DuplicateComparableEntry(
@@ -336,7 +338,8 @@ class CandidateFinderTest extends TestCase
         $this->assertSame('10', $results[1]->match->contentPageId);
     }
 
-    public function testTieBreakNonNumericString(): voidn    {
+    public function testTieBreakNonNumericString(): void
+    {
         $text = '完全相同的正文标题文本。';
 
         $query = new DuplicateComparableEntry(
@@ -377,7 +380,8 @@ class CandidateFinderTest extends TestCase
         $this->assertSame('CI-B', $results[1]->match->contentItemId);
     }
 
-    public function testSlashMarkerOnProducesNormalizedExact(): voidn    {
+    public function testSlashMarkerOnProducesNormalizedExact(): void
+    {
         $query = new DuplicateComparableEntry(
             contentItemId: 'CI-Q',
             contentPageId: 'CP-Q',
@@ -405,7 +409,8 @@ class CandidateFinderTest extends TestCase
         $this->assertSame(DuplicateCandidate::KIND_NORMALIZED_EXACT, $results[0]->matchKind);
     }
 
-    public function testSlashMarkerOffNotNormalizedExact(): voidn    {
+    public function testSlashMarkerOffNotNormalizedExact(): void
+    {
         $query = new DuplicateComparableEntry(
             contentItemId: 'CI-Q',
             contentPageId: 'CP-Q',
@@ -438,7 +443,8 @@ class CandidateFinderTest extends TestCase
         }
     }
 
-    public function testSyn001FinderOriginalExact(): voidn    {
+    public function testSyn001FinderOriginalExact(): void
+    {
         $text = '你在身边，“我自己来”更有底气。';
 
         $query = new DuplicateComparableEntry(
@@ -466,7 +472,8 @@ class CandidateFinderTest extends TestCase
         $this->assertSame(DuplicateCandidate::KIND_ORIGINAL_EXACT, $results[0]->matchKind);
     }
 
-    public function testSyn002FinderNotNormalizedExact(): voidn    {
+    public function testSyn002FinderNotNormalizedExact(): void
+    {
         $textA = '你在身边，“我自己来”更有底气。';
         $textB = '你在身边, “我自己来”更有底气。';
 
@@ -504,7 +511,8 @@ class CandidateFinderTest extends TestCase
         }
     }
 
-    public function testSyn004FinderOverlap(): voidn    {
+    public function testSyn004FinderOverlap(): void
+    {
         $query = new DuplicateComparableEntry(
             contentItemId: 'CI-Q',
             contentPageId: 'CP-Q',
@@ -531,7 +539,8 @@ class CandidateFinderTest extends TestCase
         $this->assertSame(DuplicateCandidate::KIND_OVERLAP, $results[0]->matchKind);
     }
 
-    public function testGoldenClosingNoCandidates(): voidn    {
+    public function testGoldenClosingNoCandidates(): void
+    {
         $fixturePath = base_path('tests/Fixtures/duplicate_check/yujian_history_baseline.json');
         $json = json_decode(file_get_contents($fixturePath), true);
 
