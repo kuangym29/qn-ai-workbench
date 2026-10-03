@@ -13,13 +13,13 @@ class DuplicateCheckServiceTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->service = new DuplicateCheckService();
+        $this->service = new DuplicateCheckService;
     }
 
-    public function testSyn001IdenticalText(): void
+    public function test_syn001_identical_text(): void
     {
-        $a = "你在身边，“我自己来”更有底气。";
-        $b = "你在身边，“我自己来”更有底气。";
+        $a = '你在身边，“我自己来”更有底气。';
+        $b = '你在身边，“我自己来”更有底气。';
 
         $result = $this->service->compare($a, $b, DuplicateField::ClosingLine);
 
@@ -28,12 +28,12 @@ class DuplicateCheckServiceTest extends TestCase
         $this->assertFalse($result->overlapCandidate);
     }
 
-    public function testSyn002CommaDifferenceNotExact(): void
+    public function test_syn002_comma_difference_not_exact(): void
     {
         // Chinese comma ， vs English comma , -> NOT normalized exact
         // NFKC must NOT convert Chinese comma to ASCII comma
-        $a = "你在身边，“我自己来”更有底气。";
-        $b = "你在身边, “我自己来”更有底气。";
+        $a = '你在身边，“我自己来”更有底气。';
+        $b = '你在身边, “我自己来”更有底气。';
 
         $result = $this->service->compare($a, $b, DuplicateField::ClosingLine);
 
@@ -43,13 +43,13 @@ class DuplicateCheckServiceTest extends TestCase
         $this->assertGreaterThan(0, $result->overlapScore);
     }
 
-    public function testSyn003SlashMarkerOn(): void
+    public function test_syn003_slash_marker_on(): void
     {
         $a = "你肯听，\n情绪就有了出口。";
-        $b = "你肯听，／情绪就有了出口。";
+        $b = '你肯听，／情绪就有了出口。';
 
-        // B has slash marker -> ／ -> 
- -> should become normalized exact
+        // B has slash marker: ／ is converted to a semantic newline.
+        // It should therefore become normalized exact.
         $result = $this->service->compare($a, $b, DuplicateField::ClosingLine, rightSlashLineBreakMarker: true);
 
         $this->assertFalse($result->originalExact);
@@ -57,10 +57,10 @@ class DuplicateCheckServiceTest extends TestCase
         $this->assertFalse($result->overlapCandidate);
     }
 
-    public function testSyn003SlashMarkerOff(): void
+    public function test_syn003_slash_marker_off(): void
     {
         $a = "你肯听，\n情绪就有了出口。";
-        $b = "你肯听，／情绪就有了出口。";
+        $b = '你肯听，／情绪就有了出口。';
 
         // B does NOT have slash marker -> ／ preserved as punctuation -> NOT normalized exact
         // Also: ／ must NOT be NFKC-converted to / (U+002F)
@@ -70,42 +70,42 @@ class DuplicateCheckServiceTest extends TestCase
         $this->assertFalse($result->normalizedExact);
     }
 
-    public function testSyn004OneCharacterDifferenceOverlapCandidate(): void
+    public function test_syn004_one_character_difference_overlap_candidate(): void
     {
-        $a = "轮流不是催姐姐让，而是让两个孩子都被听见。";
-        $b = "轮流不是催姐姐让，而是让两个孩子都被听见了。";
+        $a = '轮流不是催姐姐让，而是让两个孩子都被听见。';
+        $b = '轮流不是催姐姐让，而是让两个孩子都被听见了。';
 
         $result = $this->service->compare($a, $b, DuplicateField::ClosingLine);
 
         $this->assertFalse($result->originalExact);
         $this->assertFalse($result->normalizedExact);
         // Highly similar -> should be overlap candidate (closing_line threshold 0.4)
-        $this->assertTrue($result->overlapCandidate, 'Expected overlap candidate, got score=' . $result->overlapScore);
+        $this->assertTrue($result->overlapCandidate, 'Expected overlap candidate, got score='.$result->overlapScore);
     }
 
-    public function testSemanticNewlinePreservedInExact(): void
+    public function test_semantic_newline_preserved_in_exact(): void
     {
         $a = "第一行\n第二行";
-        $b = "第一行 第二行";
+        $b = '第一行 第二行';
 
         $result = $this->service->compare($a, $b, DuplicateField::PageTitle);
 
         $this->assertFalse($result->normalizedExact, 'Newline must be preserved in exact comparison');
     }
 
-    public function testCaseDifferencePreservedInExact(): void
+    public function test_case_difference_preserved_in_exact(): void
     {
-        $a = "QN Culture";
-        $b = "qn culture";
+        $a = 'QN Culture';
+        $b = 'qn culture';
 
         $result = $this->service->compare($a, $b, DuplicateField::PageTitle);
 
         $this->assertFalse($result->normalizedExact);
     }
 
-    public function testEmptyTexts(): void
+    public function test_empty_texts(): void
     {
-        $result = $this->service->compare("", "", DuplicateField::ClosingLine);
+        $result = $this->service->compare('', '', DuplicateField::ClosingLine);
 
         // Both empty strings: original_exact can be true (string fact)
         $this->assertTrue($result->originalExact);
@@ -114,18 +114,18 @@ class DuplicateCheckServiceTest extends TestCase
         $this->assertSame(0.0, $result->overlapScore);
     }
 
-    public function testOneEmptyTextScoreZero(): void
+    public function test_one_empty_text_score_zero(): void
     {
-        $result = $this->service->compare("你好", "", DuplicateField::ClosingLine);
+        $result = $this->service->compare('你好', '', DuplicateField::ClosingLine);
 
         $this->assertSame(0.0, $result->overlapScore);
         $this->assertFalse($result->overlapCandidate);
     }
 
-    public function testDifferentFieldThresholds(): void
+    public function test_different_field_thresholds(): void
     {
-        $textA = "测试文本相似度比较";
-        $textB = "测试文本相似度对照";
+        $textA = '测试文本相似度比较';
+        $textB = '测试文本相似度对照';
 
         $closingResult = $this->service->compare($textA, $textB, DuplicateField::ClosingLine);
         $pageTitleResult = $this->service->compare($textA, $textB, DuplicateField::PageTitle);

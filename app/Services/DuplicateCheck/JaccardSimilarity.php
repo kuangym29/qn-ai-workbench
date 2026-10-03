@@ -9,8 +9,8 @@ final class JaccardSimilarity
      *
      * Returns value in [0.0, 1.0]. Empty input yields 0.0 (no NaN).
      *
-     * @param string[] $ngramsA
-     * @param string[] $ngramsB
+     * @param  string[]  $ngramsA
+     * @param  string[]  $ngramsB
      */
     public static function compute(array $ngramsA, array $ngramsB): float
     {
