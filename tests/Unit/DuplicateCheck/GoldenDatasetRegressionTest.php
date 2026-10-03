@@ -9,29 +9,34 @@ use PHPUnit\Framework\TestCase;
 class GoldenDatasetRegressionTest extends TestCase
 {
     private string $fixturePath;
+
     private DuplicateCheckService $service;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->fixturePath = base_path('tests/Fixtures/duplicate_check/yujian_history_baseline.json');
-        $this->service = new DuplicateCheckService();
+        // Pure PHPUnit: resolve the fixture from the repository root without the Laravel
+        // container. __DIR__ is <root>/tests/Unit/DuplicateCheck, so three levels up is
+        // the repository root.
+        $this->fixturePath = dirname(__DIR__, 3)
+            .'/tests/Fixtures/duplicate_check/yujian_history_baseline.json';
+        $this->service = new DuplicateCheckService;
     }
 
-    public function testGoldenJsonParsable(): void
+    public function test_golden_json_parsable(): void
     {
         $this->assertFileExists($this->fixturePath);
         $json = json_decode(file_get_contents($this->fixturePath), true);
         $this->assertIsArray($json, 'Golden dataset JSON must be valid');
     }
 
-    public function testGoldenItemCount(): void
+    public function test_golden_item_count(): void
     {
         $json = json_decode(file_get_contents($this->fixturePath), true);
         $this->assertCount(4, $json['items'], 'Must have exactly 4 items');
     }
 
-    public function testGoldenPageCount(): void
+    public function test_golden_page_count(): void
     {
         $json = json_decode(file_get_contents($this->fixturePath), true);
         $totalPages = 0;
@@ -41,7 +46,7 @@ class GoldenDatasetRegressionTest extends TestCase
         $this->assertSame(37, $totalPages, 'Must have exactly 37 pages');
     }
 
-    public function testGoldenPageTypeDistribution(): void
+    public function test_golden_page_type_distribution(): void
     {
         $json = json_decode(file_get_contents($this->fixturePath), true);
         $counts = ['cover' => 0, 'content' => 0, 'column_closing' => 0, 'fixed_back_cover' => 0];
@@ -58,7 +63,7 @@ class GoldenDatasetRegressionTest extends TestCase
         $this->assertSame(4, $counts['fixed_back_cover']);
     }
 
-    public function testGoldenFormalClosingLines(): void
+    public function test_golden_formal_closing_lines(): void
     {
         $json = json_decode(file_get_contents($this->fixturePath), true);
         $closingLines = [];
@@ -77,7 +82,7 @@ class GoldenDatasetRegressionTest extends TestCase
         $this->assertCount(4, $closingLines, 'Must have exactly 4 formal closing lines');
     }
 
-    public function testGoldenFormalClosingPairwiseNotExact(): void
+    public function test_golden_formal_closing_pairwise_not_exact(): void
     {
         $json = json_decode(file_get_contents($this->fixturePath), true);
         $closingLines = [];
@@ -109,7 +114,7 @@ class GoldenDatasetRegressionTest extends TestCase
      *
      * We do NOT silently raise the threshold to make tests pass.
      */
-    public function testGoldenFormalClosingPairwiseOverlapObservation(): void
+    public function test_golden_formal_closing_pairwise_overlap_observation(): void
     {
         $json = json_decode(file_get_contents($this->fixturePath), true);
         $closingLines = [];
@@ -129,7 +134,7 @@ class GoldenDatasetRegressionTest extends TestCase
             for ($j = $i + 1; $j < count($closingLines); $j++) {
                 $result = $this->service->compare($closingLines[$i], $closingLines[$j], DuplicateField::ClosingLine);
                 $observations[] = [
-                    'pair' => $itemTitles[$i] . ' vs ' . $itemTitles[$j],
+                    'pair' => $itemTitles[$i].' vs '.$itemTitles[$j],
                     'score' => $result->overlapScore,
                     'threshold' => $result->threshold,
                     'candidate' => $result->overlapCandidate,
@@ -140,8 +145,8 @@ class GoldenDatasetRegressionTest extends TestCase
                 $this->assertFalse(
                     $result->overlapCandidate,
                     "Unexpected golden overlap candidate: {$itemTitles[$i]} vs {$itemTitles[$j]} "
-                    . "score={$result->overlapScore} threshold={$result->threshold}. "
-                    . "This is a GOLDEN_THRESHOLD_OBSERVATION — do not silently adjust threshold."
+                    ."score={$result->overlapScore} threshold={$result->threshold}. "
+                    .'This is a GOLDEN_THRESHOLD_OBSERVATION — do not silently adjust threshold.'
                 );
             }
         }
@@ -159,7 +164,7 @@ class GoldenDatasetRegressionTest extends TestCase
         }
     }
 
-    public function testGoldenChannelSpecificClosingNotInFormal(): void
+    public function test_golden_channel_specific_closing_not_in_formal(): void
     {
         $json = json_decode(file_get_contents($this->fixturePath), true);
 
@@ -183,7 +188,7 @@ class GoldenDatasetRegressionTest extends TestCase
         $this->assertNotSame($channelClosing, $formalClosing, 'Channel-specific closing must differ from formal closing');
     }
 
-    public function testGoldenColumnSlugs(): void
+    public function test_golden_column_slugs(): void
     {
         $json = json_decode(file_get_contents($this->fixturePath), true);
         $slugs = array_column($json['items'], 'column_slug');
