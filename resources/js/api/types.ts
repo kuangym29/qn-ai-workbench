@@ -369,3 +369,123 @@ export interface SourceReferenceInput {
   source_path: string;
   note?: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Shared visual asset (DEV-010A core model, DEV-010B API, DEV-W08 UI)
+// ---------------------------------------------------------------------------
+//
+// An Asset is the per-page visual master inside a single Production task. Each page owns
+// up to two slots: `clean_master` (no copy burned in, used by 微信视频号) and
+// `copy_master` (final image with copy, used by 公众号).
+//
+// Versions are appended per pinned copy revision, so history is never overwritten: a
+// Production task that moved to a newer formal revision simply shows `current_version`
+// = null until new artwork is registered for that revision.
+
+export type AssetRole = 'clean_master' | 'copy_master';
+
+export const ASSET_ROLES: AssetRole[] = ['clean_master', 'copy_master'];
+
+export const ASSET_ROLE_LABELS: Record<AssetRole, string> = {
+  clean_master: '无文案底图',
+  copy_master: '有文案定稿图',
+};
+
+/** Roles in the fixed display order used by the page matrix. */
+export const ASSET_ROLE_ORDER: AssetRole[] = ['clean_master', 'copy_master'];
+
+/** Physical file metadata, registered by hand. The UI never uploads or reads bytes. */
+export interface AssetFile {
+  id: number;
+  project_id: number;
+  storage_disk: string;
+  storage_path: string;
+  original_name: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  width: number | null;
+  height: number | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface AssetVersion {
+  id: number;
+  project_id: number;
+  content_item_id: number;
+  asset_id: number;
+  copy_revision_id: number | null;
+  copy_revision_no: number | null;
+  version_no: number;
+  note: string | null;
+  file: AssetFile;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+/** One slot on a page: the asset plus its version pointers. */
+export interface AssetSlot {
+  id: number;
+  project_id: number;
+  content_item_id: number;
+  production_task_id: number;
+  content_page_id: number;
+  role: AssetRole;
+  version_count: number;
+  /** Version pinned to the production task's current copy revision, if any. */
+  current_version: AssetVersion | null;
+  /** Most recent version across all revisions — may belong to an older revision. */
+  latest_version: AssetVersion | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface AssetPageEntry {
+  content_page_id: number;
+  page_no: number;
+  page_type: PageType;
+  assets: {
+    clean_master: AssetSlot | null;
+    copy_master: AssetSlot | null;
+  };
+}
+
+/**
+ * The whole production asset matrix for one production task.
+ *
+ * `pages` mirrors the PINNED copy revision snapshot, so page order and page types must be
+ * rendered exactly as returned — never re-derived from the live ContentPage records,
+ * which may have moved on since the revision was confirmed.
+ */
+export interface AssetWorkspace {
+  production_task_id: number;
+  copy_revision_id: number | null;
+  copy_revision_no: number | null;
+  is_copy_revision_current: boolean;
+  pages: AssetPageEntry[];
+}
+
+/** Asset detail = slot fields + full version history. */
+export interface AssetDetail extends AssetSlot {
+  versions: AssetVersion[];
+}
+
+/**
+ * Append-a-version payload.
+ *
+ * Ownership (project / item / production task / asset), the pinned copy revision and the
+ * resulting `version_no` are all server-derived — the client only describes WHICH slot
+ * (page + role) and WHAT file metadata to register.
+ */
+export interface AssetVersionAppendInput {
+  content_page_id: number;
+  role: AssetRole;
+  storage_disk: string;
+  storage_path: string;
+  original_name: string;
+  mime_type?: string | null;
+  size_bytes?: number | null;
+  width?: number | null;
+  height?: number | null;
+  note?: string | null;
+}
