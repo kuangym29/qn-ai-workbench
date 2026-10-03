@@ -21,10 +21,6 @@ class CandidateFinderTest extends TestCase
         $this->service = new DuplicateCheckService();
     }
 
-    // ============================================================
-    // Same-field only
-    // ============================================================
-
     public function testSameFieldOnly(): void
     {
         $query = new DuplicateComparableEntry(
@@ -37,7 +33,6 @@ class CandidateFinderTest extends TestCase
             text: '你在身边，“我自己来”更有底气。',
         );
 
-        // Same text but different field -> should NOT match
         $corpus = [
             new DuplicateComparableEntry(
                 contentItemId: 'CI-002',
@@ -53,10 +48,6 @@ class CandidateFinderTest extends TestCase
         $results = $this->finder->find($query, $corpus);
         $this->assertCount(0, $results);
     }
-
-    // ============================================================
-    // Self exclusion
-    // ============================================================
 
     public function testSelfExclusion(): void
     {
@@ -101,11 +92,8 @@ class CandidateFinderTest extends TestCase
         $this->assertSame(DuplicateCandidate::KIND_ORIGINAL_EXACT, $results[0]->matchKind);
     }
 
-    // ============================================================
-    // Limit validation
-    // ============================================================
-
-    public function testLimitValidation(): voidn    {
+    public function testLimitValidation(): void
+    {
         $this->expectException(\InvalidArgumentException::class);
 
         $query = new DuplicateComparableEntry(
@@ -120,10 +108,6 @@ class CandidateFinderTest extends TestCase
 
         $this->finder->find($query, [], limit: 0);
     }
-
-    // ============================================================
-    // Three-tier sorting: original_exact > normalized_exact > overlap
-    // ============================================================
 
     public function testThreeTierSorting(): void
     {
@@ -140,7 +124,6 @@ class CandidateFinderTest extends TestCase
         );
 
         $corpus = [
-            // Overlap candidate (similar but not exact)
             new DuplicateComparableEntry(
                 contentItemId: 'CI-OVERLAP',
                 contentPageId: 'CP-O1',
@@ -150,7 +133,6 @@ class CandidateFinderTest extends TestCase
                 field: DuplicateField::ClosingLine,
                 text: '轮流不是催姐姐让，而是让两个孩子都被听见了。',
             ),
-            // Normalized exact: extra whitespace that Exact Normalization collapses
             new DuplicateComparableEntry(
                 contentItemId: 'CI-NORM',
                 contentPageId: 'CP-N1',
@@ -160,7 +142,6 @@ class CandidateFinderTest extends TestCase
                 field: DuplicateField::ClosingLine,
                 text: '轮流不是催姐姐让，  而是让两个孩子都被听见。',
             ),
-            // Original exact
             new DuplicateComparableEntry(
                 contentItemId: 'CI-EXACT',
                 contentPageId: 'CP-E1',
@@ -180,16 +161,12 @@ class CandidateFinderTest extends TestCase
         $this->assertSame(DuplicateCandidate::KIND_OVERLAP, $results[2]->matchKind);
     }
 
-    // ============================================================
-    // Same-kind score DESC (ClosingLine threshold = 0.4)
-    // ============================================================
-
-    public function testOverlapScoreDescWithinSameKind(): voidn    {
+    public function testOverlapScoreDescWithinSameKind(): void
+    {
         $queryText = '轮流不是催姐姐让，而是让两个孩子都被听见。';
         $highText = '轮流不是催姐姐让，而是让两个孩子都被听见了。';
         $lowText = '轮流不是催姐姐让，而是让两个孩子也能被听见了。';
 
-        // First verify both are overlap candidates with different scores
         $highResult = $this->service->compare($queryText, $highText, DuplicateField::ClosingLine);
         $lowResult = $this->service->compare($queryText, $lowText, DuplicateField::ClosingLine);
 
@@ -197,7 +174,6 @@ class CandidateFinderTest extends TestCase
         $this->assertTrue($lowResult->overlapCandidate, 'Low text must be overlap candidate');
         $this->assertGreaterThan($lowResult->overlapScore, $highResult->overlapScore, 'High score must exceed low score');
 
-        // Now run through Finder
         $query = new DuplicateComparableEntry(
             contentItemId: 'CI-Q',
             contentPageId: 'CP-Q',
@@ -236,12 +212,8 @@ class CandidateFinderTest extends TestCase
         $this->assertSame('CI-LOW', $results[1]->match->contentItemId, 'Lower score must come second');
     }
 
-    // ============================================================
-    // Tie-break: content_item_id numeric-aware ASC
-    // ============================================================
-
-    public function testTieBreakContentItemIdNumeric(): voidn    {
-        // Same text -> both original_exact -> same score -> tie-break by item id
+    public function testTieBreakContentItemIdNumeric(): void
+    {
         $text = '完全相同的正文标题文本。';
 
         $query = new DuplicateComparableEntry(
@@ -283,7 +255,6 @@ class CandidateFinderTest extends TestCase
     }
 
     public function testTieBreakCopyRevisionIdNumeric(): voidn    {
-        // Same item + page, same text -> tie-break by copy_revision_id
         $text = '完全相同的正文标题文本。';
 
         $query = new DuplicateComparableEntry(
@@ -325,7 +296,6 @@ class CandidateFinderTest extends TestCase
     }
 
     public function testTieBreakContentPageIdNumeric(): voidn    {
-        // Same item + revision, same text -> tie-break by content_page_id
         $text = '完全相同的正文标题文本。';
 
         $query = new DuplicateComparableEntry(
@@ -367,7 +337,6 @@ class CandidateFinderTest extends TestCase
     }
 
     public function testTieBreakNonNumericString(): voidn    {
-        // Non-numeric IDs: string comparison path
         $text = '完全相同的正文标题文本。';
 
         $query = new DuplicateComparableEntry(
@@ -407,10 +376,6 @@ class CandidateFinderTest extends TestCase
         $this->assertSame('CI-A', $results[0]->match->contentItemId, 'String ID CI-A must sort before CI-B');
         $this->assertSame('CI-B', $results[1]->match->contentItemId);
     }
-
-    // ============================================================
-    // Slash marker passthrough
-    // ============================================================
 
     public function testSlashMarkerOnProducesNormalizedExact(): voidn    {
         $query = new DuplicateComparableEntry(
@@ -464,7 +429,6 @@ class CandidateFinderTest extends TestCase
 
         $results = $this->finder->find($query, [$match]);
 
-        // Must NOT be normalized_exact when marker is off
         foreach ($results as $r) {
             $this->assertNotSame(
                 DuplicateCandidate::KIND_NORMALIZED_EXACT,
@@ -473,10 +437,6 @@ class CandidateFinderTest extends TestCase
             );
         }
     }
-
-    // ============================================================
-    // SYN compatibility at Finder level
-    // ============================================================
 
     public function testSyn001FinderOriginalExact(): voidn    {
         $text = '你在身边，“我自己来”更有底气。';
@@ -507,11 +467,9 @@ class CandidateFinderTest extends TestCase
     }
 
     public function testSyn002FinderNotNormalizedExact(): voidn    {
-        // Chinese comma vs English comma
         $textA = '你在身边，“我自己来”更有底气。';
         $textB = '你在身边, “我自己来”更有底气。';
 
-        // First verify via service: NOT normalized exact
         $svcResult = $this->service->compare($textA, $textB, DuplicateField::ClosingLine);
         $this->assertFalse($svcResult->normalizedExact, 'Chinese vs English comma must not be normalized exact');
 
@@ -537,7 +495,6 @@ class CandidateFinderTest extends TestCase
 
         $results = $this->finder->find($query, [$match]);
 
-        // If overlap candidate exists, it must NOT be normalized_exact
         if (count($results) > 0) {
             $this->assertNotSame(
                 DuplicateCandidate::KIND_NORMALIZED_EXACT,
@@ -545,8 +502,6 @@ class CandidateFinderTest extends TestCase
                 'Chinese vs English comma must not be normalized exact at Finder level'
             );
         }
-        // If no candidate (below threshold), that is also acceptable —
-        // the key assertion is: NOT normalized_exact (verified above via service).
     }
 
     public function testSyn004FinderOverlap(): voidn    {
@@ -576,15 +531,10 @@ class CandidateFinderTest extends TestCase
         $this->assertSame(DuplicateCandidate::KIND_OVERLAP, $results[0]->matchKind);
     }
 
-    // ============================================================
-    // Golden closing observation: expect ZERO candidates
-    // ============================================================
-
     public function testGoldenClosingNoCandidates(): voidn    {
         $fixturePath = base_path('tests/Fixtures/duplicate_check/yujian_history_baseline.json');
         $json = json_decode(file_get_contents($fixturePath), true);
 
-        // Build closing-line corpus from 4 items
         $corpus = [];
         foreach ($json['items'] as $item) {
             foreach ($item['pages'] as $page) {
@@ -604,7 +554,6 @@ class CandidateFinderTest extends TestCase
 
         $this->assertCount(4, $corpus, 'Golden fixture must have 4 closing lines');
 
-        // Each closing as query, search against other 3
         foreach ($corpus as $i => $query) {
             $otherCorpus = array_values(array_filter(
                 $corpus,
