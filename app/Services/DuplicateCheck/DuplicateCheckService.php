@@ -11,7 +11,7 @@ namespace App\Services\DuplicateCheck;
 final class DuplicateCheckService
 {
     public function __construct(
-        private readonly Normalizer $normalizer = new Normalizer(),
+        private readonly Normalizer $normalizer = new Normalizer,
     ) {}
 
     public function compare(
@@ -47,7 +47,7 @@ final class DuplicateCheckService
 
         // Overlap candidate: NOT normalized exact AND score >= threshold
         // Exact duplicates are never marked as mere candidates.
-        $overlapCandidate = (!$normalizedExact) && ($score >= $threshold);
+        $overlapCandidate = (! $normalizedExact) && ($score >= $threshold);
 
         return new DuplicateCheckResult(
             originalExact: $originalExact,
