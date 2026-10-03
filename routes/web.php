@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AssetController;
 use App\Http\Controllers\ChannelTaskController;
 use App\Http\Controllers\ContentColumnController;
 use App\Http\Controllers\ContentItemController;
@@ -110,6 +111,10 @@ Route::prefix('api')->group(function (): void {
     Route::post('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production', [ProductionTaskController::class, 'store']);
     Route::patch('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production', [ProductionTaskController::class, 'update']);
     Route::post('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/use-current-copy', [ProductionTaskController::class, 'useCurrentCopy']);
+
+    Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/assets', [AssetController::class, 'index']);
+    Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/assets/{asset}', [AssetController::class, 'show']);
+    Route::post('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/assets/versions', [AssetController::class, 'store']);
 
     // DEV-W05 ChannelTask — 微信公众号 / 微信视频号渠道流程。渠道只引用共享 Production，
     // 不复制篇目与文案。不开放 DELETE：Lite V1.0 没有任何删除 API。
