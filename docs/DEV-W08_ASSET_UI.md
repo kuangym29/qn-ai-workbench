@@ -78,7 +78,20 @@ Dialog 顶部明确提示「当前只登记文件定位和版本信息，不会�
 
 ### 成功后
 
-POST 成功即 Toast「已登记资产版本」，关闭 Dialog，并重新 GET 资产工作区。前端不手工 `version_no + 1`，也不局部猜测服务端状态。
+POST 成功即 Toast「已登记资产版本」，**关闭登记 Dialog**，再重新 GET 资产工作区。前端不手工 `version_no + 1`，也不局部猜测服务端状态。
+
+Dialog **绝不在 POST 之前关闭**。只有成功才通过 `productionAssetsRef.closeAppendDialog()` 收起弹窗，因此：
+
+- **成功** → Toast → 关闭 Dialog → 重新 GET 资产工作区，展示服务器最新状态；
+- **422 等失败** → 只 Toast，Dialog 保持打开，用户已填写的存储盘、路径、文件名、尺寸与备注全部保留，可就地修改后重试。
+
+弹窗的表单重置只发生在「Dialog 由关闭变为打开」时（`watch` 监听 `open`），所以一次失败的提交不会清空输入。
+
+### 历史详情的加载
+
+打开某个槽位的历史前先清空 `assetDetail`，再请求新资产。若请求失败（422 / 500 等非作用域错误），只提示错误并**保持详情为空**——绝不继续展示上一个资产的版本历史，否则会让人误以为是刚点击的那个槽位的记录。
+
+`copy_revision_id = null` 等 legacy 情形下页面保持稳定，登记入口禁用但不报错。
 
 ## 历史只读
 
@@ -97,7 +110,7 @@ POST 成功即 Toast「已登记资产版本」，关闭 Dialog，并重新 GET 
 沿用 DEV-W06.1 的分工：
 
 - **加载失败**（资产区块自身）→ 只在该区块显示错误文案，不影响制作与渠道区域；
-- **写操作 422** → 只 Toast，不切 ErrorState，Dialog 保持打开；
+- **写操作 422** → 只 Toast，不切 ErrorState，登记 Dialog 保持打开且输入保留；
 - **作用域 404** → Toast 后 `router.visit('/projects')`，绝不根据 URL 自动 `selectProject`。
 
 ## ProjectContext

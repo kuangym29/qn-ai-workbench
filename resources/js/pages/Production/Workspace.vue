@@ -81,6 +81,8 @@ const assetError = ref('');
 const assetSaving = ref(false);
 const assetDetail = ref<AssetDetail | null>(null);
 const assetDetailLoading = ref(false);
+// Imperative handle used to close the append dialog once a registration succeeds.
+const productionAssetsRef = ref<InstanceType<typeof ProductionAssets> | null>(null);
 
 // Independent busy flags so one in-flight action never blocks or double-fires another.
 const creatingProduction = ref(false);
@@ -376,6 +378,9 @@ async function appendAssetVersion(payload: AssetVersionAppendInput): Promise<voi
   try {
     await assetsApi.appendVersion(scope.value, payload);
     toast.success('已登记资产版本');
+    // Success: close then re-read. The dialog is never closed before the POST, so a 422
+    // keeps both the overlay and everything the user typed.
+    productionAssetsRef.value?.closeAppendDialog();
     await loadAssets();
   } catch (e) {
     // 422 keeps the dialog open with the user's input intact (the child resets only on open).
@@ -387,6 +392,9 @@ async function appendAssetVersion(payload: AssetVersionAppendInput): Promise<voi
 
 /** Load the read-only version history for one slot. */
 async function openAssetHistory(assetId: number): Promise<void> {
+  // Clear first: if this request fails we must NOT keep rendering the previously opened
+  // asset's history, which would look like it belonged to the slot the user just clicked.
+  assetDetail.value = null;
   assetDetailLoading.value = true;
   try {
     assetDetail.value = await assetsApi.detail(scope.value, assetId);
@@ -914,7 +922,7 @@ onMounted(load);
           </div>
 
           <p class="border-t border-slate-100 pt-3 text-xs text-slate-400">
-            视觉资产管理将在后续 Asset 模块接入。
+            共享视觉资产在下方按页面和角色登记版本。
           </p>
         </div>
       </section>
@@ -922,6 +930,7 @@ onMounted(load);
       <!-- 共享视觉资产：per production task, not a standalone global page -->
       <ProductionAssets
         v-if="production"
+        ref="productionAssetsRef"
         :workspace="assetWorkspace"
         :loading="assetLoading"
         :error-message="assetError"

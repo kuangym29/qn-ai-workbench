@@ -64,6 +64,12 @@ function closeOnCancel(): void {
   closeDialog();
 }
 
+/**
+ * Parent calls this ONLY after a successful append. Closing on failure would discard
+ * the user's input, so the parent deliberately keeps the dialog open on 422.
+ */
+defineExpose({ closeAppendDialog: closeDialog });
+
 // ---- presentation helpers ----------------------------------------------
 
 function pageLabel(pageNo: number, pageType: string): string {
