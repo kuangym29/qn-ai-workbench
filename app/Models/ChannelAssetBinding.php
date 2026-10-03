@@ -2,33 +2,26 @@
 
 namespace App\Models;
 
-use App\Enums\AssetRole;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use LogicException;
 
-class Asset extends Model
+class ChannelAssetBinding extends Model
 {
     use HasFactory;
 
-    protected $fillable = [];
+    protected $guarded = [];
 
     protected static function booted(): void
     {
-        static::updating(function (self $asset): void {
-            foreach (['project_id', 'content_item_id', 'production_task_id', 'content_page_id', 'role'] as $field) {
-                if ($asset->isDirty($field)) {
-                    throw new LogicException('Asset identity and role are immutable.');
-                }
-            }
-        });
+        static::updating(fn () => throw new LogicException('Channel asset bindings are immutable.'));
+        static::deleting(fn () => throw new LogicException('Channel asset bindings are immutable.'));
     }
 
     protected function casts(): array
     {
-        return ['role' => AssetRole::class];
+        return ['binding_no' => 'integer'];
     }
 
     public function project(): BelongsTo
@@ -46,18 +39,28 @@ class Asset extends Model
         return $this->belongsTo(ProductionTask::class);
     }
 
+    public function channelTask(): BelongsTo
+    {
+        return $this->belongsTo(ChannelTask::class);
+    }
+
     public function contentPage(): BelongsTo
     {
         return $this->belongsTo(ContentPage::class);
     }
 
-    public function versions(): HasMany
+    public function asset(): BelongsTo
     {
-        return $this->hasMany(AssetVersion::class);
+        return $this->belongsTo(Asset::class);
     }
 
-    public function channelAssetBindings(): HasMany
+    public function assetVersion(): BelongsTo
     {
-        return $this->hasMany(ChannelAssetBinding::class);
+        return $this->belongsTo(AssetVersion::class);
+    }
+
+    public function copyRevision(): BelongsTo
+    {
+        return $this->belongsTo(ContentCopyRevision::class, 'copy_revision_id');
     }
 }

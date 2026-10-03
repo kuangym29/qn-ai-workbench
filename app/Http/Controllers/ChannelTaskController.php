@@ -18,6 +18,7 @@ use App\Models\ContentCopyRevision;
 use App\Models\ContentItem;
 use App\Models\ProductionTask;
 use App\Models\Project;
+use App\Services\ChannelAssetBindingService;
 use App\Support\ProjectContext;
 use Carbon\Carbon;
 use Illuminate\Database\QueryException;
@@ -201,13 +202,13 @@ class ChannelTaskController extends Controller
 
     // ---------------------------------------------------------------- 视频
 
-    public function updateVideo(UpdateChannelVideoRequest $request, Project $project, int $column, int $topic, int $item): ChannelTaskResource
+    public function updateVideo(UpdateChannelVideoRequest $request, Project $project, int $column, int $topic, int $item, ChannelAssetBindingService $bindingService): ChannelTaskResource
     {
         $content = $this->item($request, $project, $column, $topic, $item);
         $channel = $this->channelFromRoute($request);
         $status = VideoStatus::from($request->validated('video_status'));
 
-        $updated = DB::transaction(function () use ($content, $channel, $status) {
+        $updated = DB::transaction(function () use ($content, $channel, $status, $bindingService) {
             // 锁顺序：ContentItem → ProductionTask → ChannelTask
             $lockedItem = ContentItem::query()->whereKey($content->id)->lockForUpdate()->firstOrFail();
             $production = $lockedItem->productionTask()->lockForUpdate()->first();
@@ -237,6 +238,9 @@ class ChannelTaskController extends Controller
             if ($status === VideoStatus::Approved && ! $this->productionIsReady($lockedItem, $production)) {
                 $this->fail('video_status', 'Approve the video only for the current formal copy revision with approved artwork.');
             }
+            if ($status === VideoStatus::Approved && ! $bindingService->isComplete($channelTask)) {
+                $this->fail('video_status', 'Complete all channel asset bindings before approving the video.');
+            }
 
             // 只改 video_status，绝不联动 publish_status / scheduled_at / published_at。
             $channelTask->update(['video_status' => $status]);
@@ -249,7 +253,7 @@ class ChannelTaskController extends Controller
 
     // ---------------------------------------------------------------- 发布
 
-    public function updatePublish(UpdateChannelPublishRequest $request, Project $project, int $column, int $topic, int $item): ChannelTaskResource
+    public function updatePublish(UpdateChannelPublishRequest $request, Project $project, int $column, int $topic, int $item, ChannelAssetBindingService $bindingService): ChannelTaskResource
     {
         $content = $this->item($request, $project, $column, $topic, $item);
         $channel = $this->channelFromRoute($request);
@@ -257,7 +261,7 @@ class ChannelTaskController extends Controller
         $scheduledAt = $request->validated('scheduled_at');
         $publishedAt = $request->validated('published_at');
 
-        $updated = DB::transaction(function () use ($content, $channel, $target, $scheduledAt, $publishedAt) {
+        $updated = DB::transaction(function () use ($content, $channel, $target, $scheduledAt, $publishedAt, $bindingService) {
             // 锁顺序：ContentItem → ProductionTask → ChannelTask
             $lockedItem = ContentItem::query()->whereKey($content->id)->lockForUpdate()->firstOrFail();
             $production = $lockedItem->productionTask()->lockForUpdate()->first();
@@ -299,6 +303,9 @@ class ChannelTaskController extends Controller
                 // 视频号额外要求视频验收；公众号无需视频审核。
                 if ($channel === Channel::WechatChannels && $channelTask->video_status !== VideoStatus::Approved) {
                     $this->fail('publish_status', 'Approve the video before scheduling or publishing WeChat Channels.');
+                }
+                if (! $bindingService->isComplete($channelTask)) {
+                    $this->fail('publish_status', 'Complete all channel asset bindings before publishing.');
                 }
             }
 

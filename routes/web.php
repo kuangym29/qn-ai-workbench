@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AssetController;
+use App\Http\Controllers\ChannelAssetBindingController;
 use App\Http\Controllers\ChannelTaskController;
 use App\Http\Controllers\ContentColumnController;
 use App\Http\Controllers\ContentItemController;
@@ -124,6 +125,8 @@ Route::prefix('api')->group(function (): void {
     Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/channels/{channel}', [ChannelTaskController::class, 'show']);
     Route::patch('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/channels/{channel}/video', [ChannelTaskController::class, 'updateVideo']);
     Route::patch('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/channels/{channel}/publish', [ChannelTaskController::class, 'updatePublish']);
+    Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/channels/{channel}/assets', [ChannelAssetBindingController::class, 'index']);
+    Route::post('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production/channels/{channel}/assets/bindings', [ChannelAssetBindingController::class, 'store']);
     // DEV-W07 SourceReference Lite API. Project-scoped and item-scoped roles are managed
     // through separate paths; a record reached through the wrong scope is 404. There is
     // intentionally NO DELETE route: provenance records are not deletable here.

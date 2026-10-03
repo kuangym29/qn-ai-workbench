@@ -8,6 +8,7 @@ use App\Enums\VideoStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ChannelTask extends Model
 {
@@ -35,5 +36,10 @@ class ChannelTask extends Model
     public function productionTask(): BelongsTo
     {
         return $this->belongsTo(ProductionTask::class);
+    }
+
+    public function channelAssetBindings(): HasMany
+    {
+        return $this->hasMany(ChannelAssetBinding::class);
     }
 }

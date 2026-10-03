@@ -4,10 +4,14 @@ namespace Tests\Feature;
 
 use App\Enums\Channel;
 use App\Enums\CopyStatus;
+use App\Models\Asset;
+use App\Models\AssetVersion;
 use App\Models\ChannelTask;
 use App\Models\ContentColumn;
 use App\Models\ContentCopyRevision;
 use App\Models\ContentItem;
+use App\Models\ContentPage;
+use App\Models\ContentPageVersion;
 use App\Models\ProductionTask;
 use App\Models\Project;
 use App\Models\Topic;
@@ -69,6 +73,31 @@ class ChannelTaskApiTest extends TestCase
     private function channelUrl(string $url, string $channel, string $suffix = ''): string
     {
         return $url."/channels/{$channel}{$suffix}";
+    }
+
+    private function completeChannelBindings(string $url, string $channel): void
+    {
+        $production = ProductionTask::firstOrFail();
+        $item = $production->contentItem;
+        $revision = $production->copyRevision;
+        $page = $item->contentPages()->first();
+        if ($page === null) {
+            $page = ContentPage::factory()->create([
+                'project_id' => $item->project_id, 'content_item_id' => $item->id, 'page_no' => 1,
+            ]);
+            ContentPageVersion::factory()->create([
+                'project_id' => $item->project_id, 'content_item_id' => $item->id,
+                'content_page_id' => $page->id, 'copy_revision_id' => $revision->id,
+                'page_no_snapshot' => 1, 'page_type_snapshot' => 'content',
+            ]);
+        }
+        $asset = Asset::factory()->forProductionPage($production, $page)->create([
+            'role' => Channel::from($channel)->expectedAssetRole(),
+        ]);
+        $version = AssetVersion::factory()->forAssetAndCopyRevision($asset, $revision)->create();
+        $this->postJson($this->channelUrl($url, $channel, '/assets/bindings'), [
+            'content_page_id' => $page->id, 'asset_version_id' => $version->id,
+        ])->assertCreated();
     }
 
     // ======================================================= 迁移兼容
@@ -267,6 +296,7 @@ class ChannelTaskApiTest extends TestCase
     {
         [, , , $item, $url] = $this->readyProduction();
         $this->postJson($url.'/channels', ['channel' => 'wechat_channels'])->assertCreated();
+        $this->completeChannelBindings($url, 'wechat_channels');
 
         foreach (['in_progress', 'pending_review', 'not_started'] as $status) {
             $this->patchJson($this->channelUrl($url, 'wechat_channels', '/video'), ['video_status' => $status])
@@ -293,6 +323,7 @@ class ChannelTaskApiTest extends TestCase
     {
         [, , , , $url] = $this->readyProduction();
         $this->postJson($url.'/channels', ['channel' => 'wechat_channels'])->assertCreated();
+        $this->completeChannelBindings($url, 'wechat_channels');
         $video = $this->channelUrl($url, 'wechat_channels', '/video');
 
         $this->patchJson($video, ['video_status' => 'approved'])->assertOk()
@@ -324,6 +355,7 @@ class ChannelTaskApiTest extends TestCase
     {
         [, , , , $url] = $this->readyProduction();
         $this->postJson($url.'/channels', ['channel' => 'wechat_official'])->assertCreated();
+        $this->completeChannelBindings($url, 'wechat_official');
         $publish = $this->channelUrl($url, 'wechat_official', '/publish');
 
         // scheduled 必须带 scheduled_at
@@ -358,6 +390,7 @@ class ChannelTaskApiTest extends TestCase
     {
         [, , , , $url] = $this->readyProduction();
         $this->postJson($url.'/channels', ['channel' => 'wechat_official'])->assertCreated();
+        $this->completeChannelBindings($url, 'wechat_official');
         $publish = $this->channelUrl($url, 'wechat_official', '/publish');
 
         $this->patchJson($publish, [
@@ -376,6 +409,7 @@ class ChannelTaskApiTest extends TestCase
     {
         [, , , , $url] = $this->readyProduction();
         $this->postJson($url.'/channels', ['channel' => 'wechat_official'])->assertCreated();
+        $this->completeChannelBindings($url, 'wechat_official');
 
         $result = $this->patchJson($this->channelUrl($url, 'wechat_official', '/publish'), [
             'publish_status' => 'published', 'published_at' => '2026-10-11T08:00:00+08:00',
@@ -387,6 +421,7 @@ class ChannelTaskApiTest extends TestCase
     {
         [, , , , $url] = $this->readyProduction();
         $this->postJson($url.'/channels', ['channel' => 'wechat_official'])->assertCreated();
+        $this->completeChannelBindings($url, 'wechat_official');
         $publish = $this->channelUrl($url, 'wechat_official', '/publish');
 
         $first = $this->patchJson($publish, [
@@ -417,6 +452,7 @@ class ChannelTaskApiTest extends TestCase
     {
         [, , , , $url] = $this->readyProduction();
         $this->postJson($url.'/channels', ['channel' => 'wechat_official'])->assertCreated();
+        $this->completeChannelBindings($url, 'wechat_official');
         $publish = $this->channelUrl($url, 'wechat_official', '/publish');
 
         // 先排期再发布，保留排期历史
@@ -449,6 +485,7 @@ class ChannelTaskApiTest extends TestCase
     {
         [, , , , $url] = $this->readyProduction();
         $this->postJson($url.'/channels', ['channel' => 'wechat_official'])->assertCreated();
+        $this->completeChannelBindings($url, 'wechat_official');
         $publish = $this->channelUrl($url, 'wechat_official', '/publish');
 
         // 发布请求不得携带 scheduled_at
@@ -512,6 +549,7 @@ class ChannelTaskApiTest extends TestCase
     {
         [, , , , $url] = $this->readyProduction();
         $this->postJson($url.'/channels', ['channel' => 'wechat_channels'])->assertCreated();
+        $this->completeChannelBindings($url, 'wechat_channels');
         $publish = $this->channelUrl($url, 'wechat_channels', '/publish');
 
         // 视频未验收 → 两种终态都 422
@@ -548,6 +586,8 @@ class ChannelTaskApiTest extends TestCase
         [, , , $item, $url] = $this->readyProduction();
         $official = $this->postJson($url.'/channels', ['channel' => 'wechat_official'])->assertCreated()->json('data');
         $channels = $this->postJson($url.'/channels', ['channel' => 'wechat_channels'])->assertCreated()->json('data');
+        $this->completeChannelBindings($url, 'wechat_official');
+        $this->completeChannelBindings($url, 'wechat_channels');
         $this->patchJson($this->channelUrl($url, 'wechat_channels', '/video'), ['video_status' => 'approved'])->assertOk();
         $this->patchJson($this->channelUrl($url, 'wechat_official', '/publish'), [
             'publish_status' => 'scheduled', 'scheduled_at' => '2026-10-10T10:00:00+08:00',
@@ -623,6 +663,8 @@ class ChannelTaskApiTest extends TestCase
         [, , , $item, $url] = $this->readyProduction();
         $official = $this->postJson($url.'/channels', ['channel' => 'wechat_official'])->assertCreated()->json('data');
         $channels = $this->postJson($url.'/channels', ['channel' => 'wechat_channels'])->assertCreated()->json('data');
+        $this->completeChannelBindings($url, 'wechat_official');
+        $this->completeChannelBindings($url, 'wechat_channels');
         $this->patchJson($this->channelUrl($url, 'wechat_channels', '/video'), ['video_status' => 'approved'])->assertOk();
         $this->patchJson($this->channelUrl($url, 'wechat_official', '/publish'), [
             'publish_status' => 'scheduled', 'scheduled_at' => '2026-10-10T10:00:00+08:00',
@@ -653,6 +695,7 @@ class ChannelTaskApiTest extends TestCase
     {
         [, , , $item, $url] = $this->readyProduction();
         $this->postJson($url.'/channels', ['channel' => 'wechat_official'])->assertCreated();
+        $this->completeChannelBindings($url, 'wechat_official');
         $this->patchJson($this->channelUrl($url, 'wechat_official', '/publish'), [
             'publish_status' => 'scheduled', 'scheduled_at' => '2026-10-10T10:00:00+08:00',
         ])->assertOk();
@@ -674,6 +717,8 @@ class ChannelTaskApiTest extends TestCase
         [, , , $item, $url] = $this->readyProduction();
         $official = $this->postJson($url.'/channels', ['channel' => 'wechat_official'])->assertCreated()->json('data');
         $channels = $this->postJson($url.'/channels', ['channel' => 'wechat_channels'])->assertCreated()->json('data');
+        $this->completeChannelBindings($url, 'wechat_official');
+        $this->completeChannelBindings($url, 'wechat_channels');
         $this->patchJson($this->channelUrl($url, 'wechat_official', '/publish'), [
             'publish_status' => 'published', 'published_at' => '2026-10-11T08:00:00+08:00',
         ])->assertOk();
