@@ -2,23 +2,8 @@
 import { computed, ref } from 'vue';
 import type { AuthUser } from '../api/auth';
 
-// Lightweight signed-in user area, prepared in DEV-W11-AUTH-LITE-UI-PREP.
-//
-// This component is intentionally dumb: it renders whatever AuthUser it is handed and
-// emits `logout`. It does NOT fetch the user, does not own auth state, and is not yet
-// mounted in AdminLayout.
-//
-// Why it is not wired in yet: the backend task owns the global auth state and the
-// guard that decides who may see which project. Mounting a user menu now would mean
-// inventing a "current user" the app has no verified source for, which is exactly the
-// fake-signed-in state this task forbids. The intended integration is:
-//
-//   AdminLayout: const user = ref<AuthUser | null>(null)
-//                onMounted: authApi.getCurrentUser().then(u => user.value = u).catch(() => {})
-//                <AuthUserMenu v-if="user" :user="user" @logout="onLogout" />
-//
-// Note the `.catch(() => {})`: a 401 is the normal unauthenticated answer, not an
-// error worth surfacing — the guard redirects, the header simply stays empty.
+// Displays the server-verified user provided by AdminLayout and emits logout.
+// It never fetches, persists, or invents an identity of its own.
 const props = defineProps<{
   user: AuthUser;
 }>();

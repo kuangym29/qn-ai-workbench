@@ -1,6 +1,8 @@
 import { reactive, readonly } from 'vue';
+import { router } from '@inertiajs/vue3';
 import type { AuthUser } from '../api/auth';
 import { authApi, isCsrfOrSessionExpired, isUnauthenticated } from '../api/auth';
+import { setCurrentProject } from './projectContext';
 
 // The signed-in user, held in memory only.
 //
@@ -24,6 +26,7 @@ const state = reactive<AuthState>({
   loaded: false,
   loading: false,
 });
+let redirectingToLogin = false;
 
 export const authState = readonly(state) as AuthState;
 
@@ -43,6 +46,7 @@ export async function loadCurrentUser(): Promise<AuthUser | null> {
   try {
     const user = await authApi.getCurrentUser();
     setAuthUser(user);
+    redirectingToLogin = false;
     return user;
   } catch (e) {
     if (isUnauthenticated(e) || isCsrfOrSessionExpired(e)) {
@@ -66,6 +70,16 @@ export async function logout(): Promise<void> {
   }
 }
 
+/** Clear both session mirrors and navigate at most once for concurrent failures. */
+export async function returnToLogin(): Promise<void> {
+  clearAuthUser();
+  setCurrentProject(null);
+  if (redirectingToLogin) return;
+
+  redirectingToLogin = true;
+  router.visit('/auth/login');
+}
+
 /**
  * Interceptor hook for axios: called when any business request fails.
  *
@@ -78,8 +92,6 @@ export async function handleAuthFailure(e: unknown): Promise<boolean> {
   if (!isUnauthenticated(e) && !isCsrfOrSessionExpired(e)) {
     return false;
   }
-  clearAuthUser();
-  const { router } = await import('@inertiajs/vue3');
-  router.visit('/auth/login');
+  await returnToLogin();
   return true;
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import type { Project } from '../api/types';
 import { USE_MOCK } from '../api/config';
@@ -11,8 +11,9 @@ import {
   setCurrentProject,
 } from '../stores/projectContext';
 import { toast } from '../ui/toast';
-import { handleAuthFailure, loadCurrentUser, logout } from '../stores/auth';
-import type { AuthUser } from '../api/auth';
+import { authState, handleAuthFailure, loadCurrentUser, logout, returnToLogin } from '../stores/auth';
+import { isCsrfOrSessionExpired, isUnauthenticated } from '../api/auth';
+import { http } from '../api/http';
 import Badge from '../components/Badge.vue';
 import ToastHost from '../components/ToastHost.vue';
 import AuthUserMenu from '../components/AuthUserMenu.vue';
@@ -26,38 +27,53 @@ const projects = ref<Project[]>([]);
 
 // The real signed-in user, or null while unknown / signed out. Sourced from
 // GET /api/auth/me only -- never hardcoded, never read from storage.
-const authUser = ref<AuthUser | null>(null);
+const authUser = computed(() => authState.user);
+const logoutFailed = ref(false);
 
 async function onLogout(): Promise<void> {
-  await logout();
-  // The project context lives in the same session, so it must not outlive it.
-  setCurrentProject(null);
-  projects.value = [];
-  router.visit('/auth/login');
+  try {
+    await logout();
+    projects.value = [];
+    await returnToLogin();
+  } catch (error) {
+    projects.value = [];
+    setCurrentProject(null);
+    if (isUnauthenticated(error) || isCsrfOrSessionExpired(error)) {
+      await returnToLogin();
+    } else {
+      // The server may still hold the session. Block the workspace until logout
+      // succeeds or the server confirms that the session has expired.
+      logoutFailed.value = true;
+    }
+  }
 }
 
 // Any child request that comes back 401 (session gone) or 419 (CSRF stale) sends
 // the user to the login page instead of leaving them on a page whose every write
 // would now fail. Registering here covers every API call the page tree makes.
-if (typeof window !== 'undefined') {
-  const { http } = await import('../api/http');
-  http.interceptors.response.use(
+let authInterceptor: number | null = null;
+
+onMounted(async () => {
+  authInterceptor = http.interceptors.response.use(
     (response) => response,
     async (error: unknown) => {
-      await handleAuthFailure(error);
+      if (await handleAuthFailure(error)) projects.value = [];
       return Promise.reject(error);
     },
   );
-}
 
-onMounted(async () => {
   // Who am I? Ask the server. A 401 simply means "nobody is signed in" and leaves
   // the menu hidden rather than breaking the page.
-  authUser.value = await loadCurrentUser();
+  const user = await loadCurrentUser();
+  if (!user) return;
   // Any project can be the target of the switcher, so load the full list once.
   projects.value = await projectsApi.list();
   // Server is the source of truth: hydrate from the shared prop on first render.
   hydrateFromServer((page.props.currentProject as Project | null) ?? null);
+});
+
+onUnmounted(() => {
+  if (authInterceptor !== null) http.interceptors.response.eject(authInterceptor);
 });
 
 // Keep the local mirror in sync with the server session on every navigation.
@@ -117,7 +133,15 @@ async function onSwitch(event: Event): Promise<void> {
 </script>
 
 <template>
-  <div class="flex h-screen bg-slate-100">
+  <div v-if="logoutFailed" class="flex h-screen items-center justify-center bg-slate-100">
+    <div class="rounded-md border border-slate-200 bg-white p-6 text-center">
+      <p class="text-sm text-slate-700">退出请求未完成，请重试。</p>
+      <button type="button" class="mt-4 rounded-md bg-slate-900 px-4 py-2 text-sm text-white" @click="onLogout">
+        重试退出
+      </button>
+    </div>
+  </div>
+  <div v-else class="flex h-screen bg-slate-100">
     <!-- Sidebar -->
     <aside class="flex w-60 flex-col bg-slate-900 text-slate-300">
       <div class="border-b border-slate-800 px-5 py-4">
