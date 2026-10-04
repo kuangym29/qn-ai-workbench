@@ -43,6 +43,12 @@ D11 的决策链依赖三处 MySQL 与 SQLite 行为差异，SQLite 全绿无法
 | `phpunit.mysql84.xml` | **真跑 MySQL 的 PHPUnit 变体**（不复用主线 sqlite 配置） |
 | `tests/bootstrap-mysql84-gate.php` | PHPUnit 启动前的双重闸门：配置逐项校验 + 真实 PDO 自证 |
 | `tests/Gate/Mysql84DriverTest.php` | 测试进程内的连接自证（仅在变体下注册） |
+| `tests/Gate/Mysql84ConcurrencyTest.php` | 真实并发 Gate：两个独立进程争夺同一 ContentItem 的行锁（见 §4.5） |
+| `tests/Gate/Support/ConcurrencyRuntimeDirectory.php` | 两 worker 之间的编排信号（原子写入 + 轮询等待） |
+| `tests/Gate/Support/ConcurrencyWorkerProcess.php` | 独立 worker 进程的启动、输出采集与超时回收 |
+| `tests/Gate/Support/LockWaitObserver.php` | 从 `performance_schema` 观测「谁在等谁」的证据采集 |
+| `tests/Gate/Support/GateInfrastructureUnavailable.php` | 观测能力缺失时抛出的异常（必须 FAIL，不得降级） |
+| `tests/Gate/Support/concurrency_worker.php` | worker 入口脚本：独立 bootstrap + 真实调用 `appendDecision()` |
 | `scripts/test-mysql.sh` | 启停 + 校验 + 验证一体的执行脚本 |
 | `docs/MYSQL84_TESTING.md` | 本文件 |
 
@@ -57,15 +63,17 @@ D11 的决策链依赖三处 MySQL 与 SQLite 行为差异，SQLite 全绿无法
 cp .env.mysql-testing.example .env.mysql-testing
 php artisan key:generate --env=mysql-testing
 
-# 一键：启动 → 校验 → migration → 定向测试 → 全量 suite → 销毁
+# 一键：启动 → 授权 → 校验 → migration → 定向测试 → 全量 suite → 销毁
 scripts/test-mysql.sh all
 
 # 或分步
-scripts/test-mysql.sh up        # 启动并等待 healthy
-scripts/test-mysql.sh verify    # 安全校验 + migration + 结构断言 + 定向测试
-scripts/test-mysql.sh suite     # 完整 PHP suite（MySQL）
-scripts/test-mysql.sh logs      # 查看容器日志
-scripts/test-mysql.sh down      # 销毁容器与数据卷
+scripts/test-mysql.sh up          # 启动并等待 healthy
+scripts/test-mysql.sh grant       # 给 qn_test 补 performance_schema 只读权限（§4.5 并发 Gate 必需）
+scripts/test-mysql.sh verify      # 安全校验 + migration + 结构断言 + 定向测试
+scripts/test-mysql.sh concurrency # 只跑并发 Gate
+scripts/test-mysql.sh suite       # 完整 PHP suite（MySQL）
+scripts/test-mysql.sh logs        # 查看容器日志
+scripts/test-mysql.sh down        # 销毁容器与数据卷
 ```
 
 脚本会先定位自身目录并切到 repo root，因此从任何工作目录调用都可用。
@@ -155,7 +163,56 @@ D11 已有的 `test_insert_time_unique_race_returns_controlled_422_and_preserves
 - 事务整体回滚，不产生半事务
 - 已有 Decision 不被覆盖
 
-`lockForUpdate()` 的实际生效可附带观察：同一 ContentItem 上并发两个请求，`decision_no` 应串行为 1、2 而非重复。
+`lockForUpdate()` 的实际生效不再只是"附带观察"：§4.5 用一个独立的 Gate 测试专门验证它。
+
+### 4.5 并发 Gate：真实行锁串行化（`tests/Gate/Mysql84ConcurrencyTest.php`）
+
+#### 为什么需要单独一条测试
+
+上面的 race 测试是**注入式**的：它在 `eloquent.creating` 里手动插一条同号记录来制造冲突，因此只能证明「唯一索引拦得住」，证明不了「正常路径下两个会话不会同时走到 INSERT」。后者才是 Release Gate 关心的——它依赖 InnoDB 行锁真的把第二个会话挂起。
+
+SQLite 层面那套「先 sleep 再让第二个调用执行」在这里毫无意义：同一进程里开两次调用只有一个会话，根本不会形成锁等待。所以这条测试必须用**两个独立 PHP 进程**。
+
+#### 并发协调机制
+
+| 环节 | 做法 |
+| --- | --- |
+| 进程隔离 | `ConcurrencyWorkerProcess` 用 `PHP_BINARY` 拉起子进程；每个 worker 各自 `bootstrap/app.php` → Console Kernel → 自己的 PDO 连接，MySQL 侧是独立的 `CONNECTION_ID()` |
+| 编排信号 | `ConcurrencyRuntimeDirectory` 在系统临时目录建随机运行目录，用**原子写入（临时文件 + rename）**的信号文件协调；信号只管编排（谁启动、何时释放），不参与任何"并发是否成立"的判定 |
+| 暂停窗口 | worker A 注册 `eloquent.creating: App\Models\DuplicateReviewDecision` 监听，在回调里写 `paused.json` 并阻塞等待 `release-A`；此刻 A 已拿到 `content_items` 行锁、编号算完，但 INSERT 未发生、事务未提交 |
+| B 的启动时机 | orchestrator 只在读到 `paused.json` 之后才启动 worker B；worker B 自己也会再确认一次，看不到信号就拒绝执行（避免退化成顺序执行） |
+| 释放 | orchestrator 观测到锁等待后写 `release-A`；A 提交 #1，B 随即获锁并读到 #1，算出 #2 |
+| 兜底 | A 的暂停上限 8s < `--innodb-lock-wait-timeout=10`，任何观测失败都不会让 B 先撞上 MySQL 自己的超时而掩盖真因；worker 最终一律被 `kill()` 回收，不会留下占锁的活事务 |
+
+#### 如何证明真实 lock wait
+
+三条证据按强弱排列。**任何一条观测不到即 FAIL，绝不降级或跳过。**
+
+1. **决定性证据**：`performance_schema.data_lock_waits` 出现 `requesting = worker B 的 PROCESSLIST_ID`、`blocking = worker A 的 PROCESSLIST_ID` 的记录。这条记录是 InnoDB 真的把 B 挂起时才写入的，且这里是**精确匹配双向**，不是"存在任何等待就行"。
+   连接身份来自各 worker 自己上报的 `SELECT CONNECTION_ID()`，经 `performance_schema.threads` 与 `THREAD_ID` 关联。
+2. **行锁确实存在**：A 暂停期间，orchestrator 用第三条连接执行 `SELECT id FROM content_items WHERE id = ? FOR UPDATE NOWAIT`，撞出 MySQL 3572 才算通过；同时检查 `data_locks` 里 A 已 `GRANTED` 的锁。若 NOWAIT 竟然抢到了，说明排他锁不存在，直接失败。
+3. **时间旁证**：B 的 `call_started_at` 早于 A 的 `resumed_at`，而 B 的 `lock_returned_at` 晚于 A 的 `resumed_at`——说明 B 确实被堵了一段时间。**单靠时间推断无效**，它只在 1、2 成立时作为旁证记录。
+
+#### 需要的额外 MySQL 权限
+
+需要 `qn_test` 对 `performance_schema.*` 的 `SELECT` 权限。官方镜像默认不给（只给业务库权限）。
+
+- 自动：`scripts/test-mysql.sh grant` 会用 root 授权，并**立即以 `qn_test` 身份回读一次自检**；`all` 流程已内置这一步。
+- 手工：`docker compose -p qn-workbench-mysql84-gate -f docker-compose.mysql-test.yml exec -T mysql-test mysql -uroot -pqn_test_root_pw -e "GRANT SELECT ON performance_schema.* TO 'qn_test'@'%';"`
+- 权限不足时的行为：`LockWaitObserver::assertObservable()` 抛 `GateInfrastructureUnavailable`，测试以**失败**结束并在报告里打印上面的授权命令。**不会**跳过、不会退化成顺序执行、不会给出"通过"。
+
+#### 最终断言
+
+- 两个 worker 都正常退出（exit code 0），没有 500 / 未捕获异常；
+- worker B 没有走到 `UniqueConstraintViolationException → 422` 那条受控分支（走到就说明编号没被串行化）；
+- 同一 pair 恰好 2 条 Decision，`decision_no` 严格为 `[1, 2]`，两条 ID 不同；
+- 两次 `decision` / `note` 均保留，`#1` 未被覆盖，latest 为 `#2`；
+- A、B 是两个不同的 MySQL 会话（`CONNECTION_ID` 不同）；
+- 三条证据全部成立。
+
+#### 与 SQLite suite 的隔离
+
+本测试只在 `phpunit.mysql84.xml` 的 `Gate` testsuite 下注册。主线 `phpunit.xml` 不含 `tests/Gate` 目录，普通 SQLite suite 的测试数与断言数**零变化**，也不会因为缺 `performance_schema` 而失败。
 
 ## 5. 失败传播
 
@@ -358,3 +415,28 @@ $this->assertTrue(
 **顺带修正**：`run_phpunit()` 的注释指向了并不存在的 `tests/Concerns/AssertsMysqlGate.php`，实际自证类是 `tests/Gate/Mysql84DriverTest.php`，已改正，避免后人按错误路径去找。
 
 本轮同样未实跑 runtime（无 Docker/Podman），结论仅限静态与语义层面。
+
+### 14. 并发 Gate 实现记录（2026-10-05，DEV-MYSQL84-CONCURRENCY-GATE-TEST）
+
+分支 `workbuddy/DEV-MYSQL84-concurrency-gate`，只补"真实并发"这一项缺失的 Gate 证据。
+
+**新增（6 个文件，全部在 Gate 范围内）**
+
+| 文件 | 作用 |
+| --- | --- |
+| `tests/Gate/Mysql84ConcurrencyTest.php` | 唯一的测试用例：两个 worker 争同一 ContentItem 的行锁 |
+| `tests/Gate/Support/ConcurrencyRuntimeDirectory.php` | 编排信号（原子写入） |
+| `tests/Gate/Support/ConcurrencyWorkerProcess.php` | worker 进程的启动 / 输出采集 / 超时回收 |
+| `tests/Gate/Support/LockWaitObserver.php` | `performance_schema` 证据采集 |
+| `tests/Gate/Support/GateInfrastructureUnavailable.php` | 观测缺失异常（必须 FAIL） |
+| `tests/Gate/Support/concurrency_worker.php` | worker 入口脚本 |
+
+**最小改动（1 个文件）**：`scripts/test-mysql.sh` 新增幂等的 `ensure_grants()` 与 `grant` / `concurrency` 两个子命令，`all` 流程在 `verify` 之前插入授权步骤。root 凭据与 `docker-compose.mysql-test.yml` 的 `MYSQL_ROOT_PASSWORD` 一致，且授权后立即以 `qn_test` 身份回读自检。
+
+**口径**：本实现**没有**宣称 Runtime Gate 已通过。本机无 Docker / Podman，本轮**未实跑**任何 runtime 测试，只完成了静态检查（PHP syntax ×6、`bash -n`、XML parse、主线 Gate=0、mysql84 配置的测试发现）。`MYSQL_8_4_RELEASE_GATE_PENDING` 保持。
+
+**已知的运行时前置条件**（首次实跑前请确认）：
+
+1. `qn_test` 需要 `SELECT ON performance_schema.*`（`scripts/test-mysql.sh grant` 已负责）；
+2. `--innodb-lock-wait-timeout=10` 是现有的 compose 配置，测试内的观测窗口（6s）与 A 的暂停上限（8s）都严格小于它；
+3. worker 用 `proc_open` 拉起，需要本机 `PHP_BINARY` 可用、且 `.env.mysql-testing` 已存在（orchestrator 会把实际生效的 DB 配置与 `APP_KEY` 显式传给子进程，并在 worker 侧再做一次目标自证）。
