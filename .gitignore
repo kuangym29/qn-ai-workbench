@@ -3,6 +3,8 @@
 .env
 .env.backup
 .env.production
+# MySQL 8.4 Release Gate 实际测试配置（含本地测试密码，绝不提交）
+.env.mysql-testing
 .phpactor.json
 .phpunit.result.cache
 /.fleet
