@@ -19,6 +19,7 @@ use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Tests\Concerns\AuthenticatesUser;
 use Tests\TestCase;
 
 /**
@@ -29,6 +30,7 @@ use Tests\TestCase;
  */
 class ChannelTaskApiTest extends TestCase
 {
+    use AuthenticatesUser;
     use RefreshDatabase;
 
     /** @return array{0: Project, 1: ContentColumn, 2: Topic, 3: ContentItem, 4: string} */

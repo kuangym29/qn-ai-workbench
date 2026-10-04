@@ -22,10 +22,12 @@ use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use LogicException;
+use Tests\Concerns\AuthenticatesUser;
 use Tests\TestCase;
 
 class ChannelAssetBindingTest extends TestCase
 {
+    use AuthenticatesUser;
     use RefreshDatabase;
 
     private function context(bool $production = true): array

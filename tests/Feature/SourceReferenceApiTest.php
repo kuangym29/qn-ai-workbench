@@ -9,6 +9,7 @@ use App\Models\Project;
 use App\Models\SourceReference;
 use App\Models\Topic;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AuthenticatesUser;
 use Tests\TestCase;
 
 /**
@@ -18,6 +19,7 @@ use Tests\TestCase;
  */
 class SourceReferenceApiTest extends TestCase
 {
+    use AuthenticatesUser;
     use RefreshDatabase;
 
     /** @return array{0: Project, 1: ContentColumn, 2: Topic, 3: ContentItem, 4: string, 5: string} */

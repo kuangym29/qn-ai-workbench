@@ -12,6 +12,7 @@ use App\Models\DuplicateReviewDecision;
 use App\Models\Project;
 use App\Models\Topic;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AuthenticatesUser;
 use Tests\TestCase;
 
 /**
@@ -31,6 +32,7 @@ use Tests\TestCase;
  */
 class W10RealApiIntegrationTest extends TestCase
 {
+    use AuthenticatesUser;
     use RefreshDatabase;
 
     /** resources/js/api/types.ts -> DuplicateReviewResult */

@@ -14,10 +14,12 @@ use App\Models\Topic;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Tests\Concerns\AuthenticatesUser;
 use Tests\TestCase;
 
 class ProductionTaskApiTest extends TestCase
 {
+    use AuthenticatesUser;
     use RefreshDatabase;
 
     private function context(): array

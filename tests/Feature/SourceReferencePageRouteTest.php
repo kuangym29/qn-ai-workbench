@@ -8,6 +8,7 @@ use App\Models\Project;
 use App\Models\Topic;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia;
+use Tests\Concerns\AuthenticatesUser;
 use Tests\TestCase;
 
 /**
@@ -17,6 +18,7 @@ use Tests\TestCase;
  */
 class SourceReferencePageRouteTest extends TestCase
 {
+    use AuthenticatesUser;
     use RefreshDatabase;
 
     public function test_project_sources_page_renders_with_project_prop(): void

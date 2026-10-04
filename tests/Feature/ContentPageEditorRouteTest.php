@@ -8,10 +8,12 @@ use App\Models\Project;
 use App\Models\Topic;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
+use Tests\Concerns\AuthenticatesUser;
 use Tests\TestCase;
 
 class ContentPageEditorRouteTest extends TestCase
 {
+    use AuthenticatesUser;
     use RefreshDatabase;
 
     // The DEV-W04 copy editor is an Inertia entry only — it must render the right component

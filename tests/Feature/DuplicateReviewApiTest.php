@@ -16,10 +16,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use LogicException;
+use Tests\Concerns\AuthenticatesUser;
 use Tests\TestCase;
 
 class DuplicateReviewApiTest extends TestCase
 {
+    use AuthenticatesUser;
     use RefreshDatabase;
 
     private function context(?Project $project = null): array

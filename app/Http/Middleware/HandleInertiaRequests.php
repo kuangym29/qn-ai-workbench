@@ -19,7 +19,7 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         return array_merge(parent::share($request), [
-            'currentProject' => fn (): ?array => ($project = app(ProjectContext::class)->current($request))
+            'currentProject' => fn (): ?array => $request->user() && ($project = app(ProjectContext::class)->current($request))
                 ? (new ProjectResource($project))->resolve()
                 : null,
         ]);

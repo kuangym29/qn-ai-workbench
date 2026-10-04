@@ -5,10 +5,12 @@ namespace Tests\Feature;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
+use Tests\Concerns\AuthenticatesUser;
 use Tests\TestCase;
 
 class BootstrapTest extends TestCase
 {
+    use AuthenticatesUser;
     use RefreshDatabase;
 
     public function test_homepage_redirects_to_the_project_workspace(): void

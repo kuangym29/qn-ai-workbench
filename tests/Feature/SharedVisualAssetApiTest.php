@@ -14,10 +14,12 @@ use App\Models\Project;
 use App\Models\Topic;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Tests\Concerns\AuthenticatesUser;
 use Tests\TestCase;
 
 class SharedVisualAssetApiTest extends TestCase
 {
+    use AuthenticatesUser;
     use RefreshDatabase;
 
     private function context(bool $withTask = true): array

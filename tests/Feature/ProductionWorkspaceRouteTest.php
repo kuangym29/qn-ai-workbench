@@ -8,6 +8,7 @@ use App\Models\Project;
 use App\Models\Topic;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia;
+use Tests\Concerns\AuthenticatesUser;
 use Tests\TestCase;
 
 /**
@@ -18,6 +19,7 @@ use Tests\TestCase;
  */
 class ProductionWorkspaceRouteTest extends TestCase
 {
+    use AuthenticatesUser;
     use RefreshDatabase;
 
     public function test_production_workspace_renders_with_scope_props(): void

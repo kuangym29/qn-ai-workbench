@@ -6,10 +6,12 @@ use App\Models\ContentColumn;
 use App\Models\Project;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
+use Tests\Concerns\AuthenticatesUser;
 use Tests\TestCase;
 
 class ProjectWorkspaceApiTest extends TestCase
 {
+    use AuthenticatesUser;
     use RefreshDatabase;
 
     public function test_projects_can_be_listed_created_and_edited_in_the_selected_context(): void

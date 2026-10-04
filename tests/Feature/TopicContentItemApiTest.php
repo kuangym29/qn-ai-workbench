@@ -8,10 +8,12 @@ use App\Models\ContentItem;
 use App\Models\Project;
 use App\Models\Topic;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AuthenticatesUser;
 use Tests\TestCase;
 
 class TopicContentItemApiTest extends TestCase
 {
+    use AuthenticatesUser;
     use RefreshDatabase;
 
     private function context(): array
