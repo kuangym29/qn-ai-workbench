@@ -11,8 +11,11 @@ import {
   setCurrentProject,
 } from '../stores/projectContext';
 import { toast } from '../ui/toast';
+import { handleAuthFailure, loadCurrentUser, logout } from '../stores/auth';
+import type { AuthUser } from '../api/auth';
 import Badge from '../components/Badge.vue';
 import ToastHost from '../components/ToastHost.vue';
+import AuthUserMenu from '../components/AuthUserMenu.vue';
 
 const page = usePage();
 const isProjectsActive = computed(() => String(page.component).startsWith('Projects'));
@@ -21,7 +24,36 @@ const isSourcesActive = computed(() => String(page.component).startsWith('Source
 
 const projects = ref<Project[]>([]);
 
+// The real signed-in user, or null while unknown / signed out. Sourced from
+// GET /api/auth/me only -- never hardcoded, never read from storage.
+const authUser = ref<AuthUser | null>(null);
+
+async function onLogout(): Promise<void> {
+  await logout();
+  // The project context lives in the same session, so it must not outlive it.
+  setCurrentProject(null);
+  projects.value = [];
+  router.visit('/auth/login');
+}
+
+// Any child request that comes back 401 (session gone) or 419 (CSRF stale) sends
+// the user to the login page instead of leaving them on a page whose every write
+// would now fail. Registering here covers every API call the page tree makes.
+if (typeof window !== 'undefined') {
+  const { http } = await import('../api/http');
+  http.interceptors.response.use(
+    (response) => response,
+    async (error: unknown) => {
+      await handleAuthFailure(error);
+      return Promise.reject(error);
+    },
+  );
+}
+
 onMounted(async () => {
+  // Who am I? Ask the server. A 401 simply means "nobody is signed in" and leaves
+  // the menu hidden rather than breaking the page.
+  authUser.value = await loadCurrentUser();
   // Any project can be the target of the switcher, so load the full list once.
   projects.value = await projectsApi.list();
   // Server is the source of truth: hydrate from the shared prop on first render.
@@ -136,12 +168,15 @@ async function onSwitch(event: Event): Promise<void> {
             已选：{{ projectContext.current.name }}
           </span>
         </div>
-        <span
-          class="rounded-full px-2.5 py-0.5 text-xs font-medium"
-          :class="USE_MOCK ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'"
-        >
-          {{ USE_MOCK ? 'Mock 数据模式' : '真实接口模式' }}
-        </span>
+        <div class="flex items-center gap-3">
+          <span
+            class="rounded-full px-2.5 py-0.5 text-xs font-medium"
+            :class="USE_MOCK ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'"
+          >
+            {{ USE_MOCK ? 'Mock 数据模式' : '真实接口模式' }}
+          </span>
+          <AuthUserMenu v-if="authUser" :user="authUser" @logout="onLogout" />
+        </div>
       </header>
 
       <!-- Page content -->
