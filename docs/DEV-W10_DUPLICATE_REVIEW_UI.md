@@ -2,7 +2,7 @@
 
 基线：`origin/main` = `3148a1149cb6f8a5eeae71951d758c2f64a342bf`（含 DEV-D09 / DEV-D10.CLEAN）
 分支：`workbuddy/DEV-W10-duplicate-review-ui`
-阶段目标：**UI_IMPLEMENTED**（真实 API 由 Codex DEV-D11 并行实现，尚未联调）
+阶段目标：**W10_REAL_API_INTEGRATED**（已 rebase 到含 DEV-D11 的 main 并完成真实联调）
 
 ---
 
@@ -132,16 +132,55 @@ adapter 只发 id 与枚举值，**不发**文本、分数、阈值或 match_kin
 | 422 行为 | 保留面板与用户输入，不刷新 |
 | 前端测试框架 | 项目无 vitest / jest，按任务书「不要为测试安装重量依赖」未新增 |
 
-## 10. 当前状态与下一步
+## 10. 真实 API 联调（DEV-D11-FINAL-INTEGRATION-AND-W10-REAL-API-R2）
 
-本阶段标记 **UI_IMPLEMENTED / WAITING_FOR_D11_API**。
+基线：W10 已 rebase 到 `main = 652b68f4aa39a294c60734ac93ba619ca337df23`（含 DEV-D11），零冲突，rebase 前后本任务 6 个文件内容字节一致。
 
-真实 API（Codex DEV-D11）尚未进入 main，因此：
+### 契约核对
 
-- 本分支**没有**做过真实联调，报告中不声称联调通过。
-- 面板在 API 缺失时会显示错误态，这是预期行为，不是缺陷。
-- 开发期仅通过类型系统与冻结契约保证形状一致，未在浏览器中跑通真实请求。
+逐字段比对 `resources/js/api/types.ts` 的 5 组接口与 D11 `DuplicateReviewService` 实际返回：
+Result 6 字段、Query 7 字段、Match 9 字段、Candidate 7 字段、Decision 5 字段
+——**全部存在且一致，W10 契约无需任何改动**。标记 `CONTRACT_MATCHED`。
 
-等待 Codex 返回 `D11_API_RUNTIME_VERIFIED` 后再进行真实 API 联调，届时需核对：GET 各状态、POST 三种决策、422 保留上下文、append-only 的 `decision_no` 递增、以及跨项目 scope 的 404 行为。
+### 联调测试
 
-本分支不合并 main。
+`tests/Feature/W10RealApiIntegrationTest.php`，8 passed / 199 assertions。
+全部走真实 HTTP 内核、真实冻结路由、真实 Controller、真实数据库，无 mock、无 stub、无假数据。
+
+| 场景 | 验证内容 |
+| --- | --- |
+| GET 01 | 无 Working Copy → 200 + `query_count=0`，与「已检查无候选」区分 |
+| GET 02 | Working 有内容但无 candidate → `query_count=1`、`candidate_count=0` |
+| GET 03 | original_exact / normalized_exact / overlap 三档并存，多字段多 candidate，same-field only |
+| Decision 04 | 同一 pairing 连续三次 → `decision_no` 1→2→3，`latest_decision` 指向 #3，#1 仍在库 |
+| Decision 05 | 另一字段 pairing 独立从 1 开始，两组互不串线 |
+| Stale 06 | 改 Working Copy 产生新 PageVersion 后，旧 pairing POST → 422；历史 Decision 保留且不迁移；新 Query 首次 Decision 从 1 开始 |
+| 跨项目 07 | 跨 Project / 伪造 Column·Topic·Item / 未知 match version 一律 404 |
+| Decision 08 | 非法 field、非法 decision 值、伪造 `project_id`·`content_item_id`·`decision_no` → 422 且零写入 |
+
+### 联调中实测确认的三条语义
+
+1. **`threshold` 是字段相关的**：`page_title` 为 0.60，`closing_line` 为 0.40。前端不得硬编码，必须读 API 返回值。
+2. **`original_exact` 行的 `normalized_exact` 同为 true**：D09 的 `normalizedExact` 只看规范化后比较，byte 相同必然规范化也相同；D10 用 `match(true)` 优先归入 original 档。两个 flag 不是互斥的。
+3. **短文本可能低于 trigram 阈值而静默产生零候选**：夹具须用足够长的句子。这解释了为何最初的三档夹具只产出 1 个候选——是测试数据问题，非 API 缺陷。
+
+### 联调后回归
+
+| 项目 | 结果 |
+| --- | --- |
+| `W10RealApiIntegrationTest` | 8 passed / 199 assertions |
+| 完整 PHP suite | **253 passed / 2681 assertions**（= main 245/2482 + 联调 8/199，覆盖只增不减） |
+| `vendor/bin/pint --test` | 178 files PASS |
+| `npm run typecheck`（vue-tsc） | 零错误 |
+| Vite build | 成功 |
+| 静态检查 | 无 mock fallback、无 localStorage/sessionStorage 业务状态、无客户端 Jaccard/Ngram、无客户端 threshold 判定、无客户端生成 match_kind |
+
+---
+
+## 11. 当前状态与下一步
+
+真实 API 联调已完成，W10 契约与 D11 完全一致，无需改动。
+
+待 Codex 做独立 W10 Final Review。本分支不合并 main。
+
+遗留：无功能性遗留。已知的三条服务端语义（字段相关 threshold、两个 flag 不互斥、短文本可能零候选）已写入第 10 节，供后续维护参考。
