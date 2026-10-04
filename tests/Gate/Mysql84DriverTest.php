@@ -46,9 +46,24 @@ class Mysql84DriverTest extends TestCase
         $this->assertSame(self::EXPECT_PORT, (string) $mysql['port']);
         $this->assertSame(self::EXPECT_DATABASE, $mysql['database']);
         $this->assertSame(self::EXPECT_USERNAME, $mysql['username']);
-        $this->assertNull(
-            $mysql['url'] ?? null,
-            'DB_URL 非空会整体覆盖逐项校验，必须为空。',
+
+        // DB_URL 空值语义 —— 与 scripts/test-mysql.sh、tests/bootstrap-mysql84-gate.php、
+        // phpunit.mysql84.xml、.env.mysql-testing.example 四处逐字一致：
+        //   允许 —— 未设置（null）、空字符串，以及 Laravel env() 归一化后的
+        //           null（null / NULL / (null)）与 ''（empty / (empty)）。
+        //   拒绝 —— 任何其它非空值，含纯空格。DB_URL 一旦非空，Laravel 的
+        //           ConfigurationUrlParser 会用它整体覆盖 host/port/database/
+        //           username/password，上面四项逐项校验即形同虚设。
+        //
+        // 不能退回 assertNull()：phpunit.mysql84.xml 写的是 <env name="DB_URL" value=""/>，
+        // config 里的形态是空字符串而不是 null，assertNull 会无故失败（假阴性）；
+        // 也不能放宽成 == '' 这类弱比较：那会让纯空格蒙混过关。
+        $dbUrl = $mysql['url'] ?? null;
+        $this->assertTrue(
+            $dbUrl === null || $dbUrl === '',
+            'DB_URL 只允许未设置（null）或空字符串。任何其它非空值（含纯空格）都会整体覆盖'
+            .' host/port/database/username/password，使上面的逐项校验失效。'
+            .' 实际值：'.var_export($dbUrl, true),
         );
 
         // 配置对不代表连上了；问服务器本人。

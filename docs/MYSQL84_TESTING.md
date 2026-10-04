@@ -76,7 +76,7 @@ scripts/test-mysql.sh down      # 销毁容器与数据卷
 
 `DB_URL` 必须**未设置或为空**——它一旦有值就会整体覆盖 host/port/database/username/password，使逐项校验失效。其余六项走 Laravel 实际生效的 `config()` 逐项比对，**不是 grep `.env` 文件**：文件里写对了不代表生效值对。
 
-`DB_URL` 的判定以 **Laravel 的 `env()` 归一化之后**的形态为准，与 `phpunit.mysql84.xml`、`tests/bootstrap-mysql84-gate.php`、`scripts/test-mysql.sh` 三处完全一致：
+`DB_URL` 的判定以 **Laravel 的 `env()` 归一化之后**的形态为准，与 `scripts/test-mysql.sh`、`tests/bootstrap-mysql84-gate.php`、`tests/Gate/Mysql84DriverTest.php`、`phpunit.mysql84.xml` / `.env.mysql-testing.example` 四处完全一致（判定条件统一为「只允许 `null` 或 `''`」）：
 
 | 写法 | 归一化后 | Gate |
 | --- | --- | --- |
@@ -115,6 +115,8 @@ bootstrap 在第一个用例之前做两件事：
 **闸三：测试进程内（`tests/Gate/Mysql84DriverTest.php`）**
 
 从 Laravel 实际建立的连接上再问一次 `VERSION()` / `DATABASE()` / `CURRENT_USER()`，并确认 `content_items` 引擎是 InnoDB（`lockForUpdate` 的前提）。
+
+同一处还会复核生效配置里的 `DB_URL`：只允许 `null` 或 `''`，任何其它非空值（含纯空格）即失败。这条断言与闸一使用的是**同一套**空值语义，不会出现「shell 放行、测试拒绝」或反之的错位。
 
 该类位于 `tests/Gate/`，**只在 `phpunit.mysql84.xml` 中注册**。主线 `phpunit.xml` 不含此目录，因此日常 SQLite 基线的测试数与断言数**零变化**（已实测：`--list-tests` 在主线配置下 Gate 测试数为 0）。
 
@@ -272,3 +274,46 @@ D11 已有的 `test_insert_time_unique_race_returns_controlled_422_and_preserves
 env 侧实测：`DB_URL=`（空值）放行并通过到 `config()` 层的 `DB_CONNECTION = mysql` 校验；非空则立即中止。
 
 本轮同样未实跑 runtime：所有 `EXIT=1` 均止于 PDO 闸门（无 MySQL 监听），`MYSQL84_GATE_DRIVER_PROVEN` 出现 0 次。退出码语义复验不变：`up` / `all` = `127`，校验失败 = `1`，未知子命令 = `2`。
+
+### 12. 三次复审整改记录（2026-10-05，DEV-MYSQL84-TOOLING-FIX3）
+
+只有一个改动点：`tests/Gate/Mysql84DriverTest.php` 中的 `DB_URL` 断言。
+
+**问题：DriverTest 与 Gate 规则不一致**
+
+整改后 bootstrap / shell / XML / env 示例四处都已是「`null` 或 `''` 均允许」，唯独 DriverTest 仍是：
+
+```php
+$this->assertNull($mysql['url'] ?? null, 'DB_URL 非空会整体覆盖逐项校验，必须为空。');
+```
+
+`assertNull` 只接受 `null`。而 `phpunit.mysql84.xml` 明确写的是 `<env name="DB_URL" value=""/>`，传入后 `config('database.connections.mysql.url')` 的形态是**空字符串**——也就是说 Gate 一旦真跑起来，这条断言会在正确配置下失败，是一个假阴性。
+
+**修复：改为显式二值断言**
+
+```php
+$dbUrl = $mysql['url'] ?? null;
+$this->assertTrue(
+    $dbUrl === null || $dbUrl === '',
+    'DB_URL 只允许未设置（null）或空字符串。任何其它非空值（含纯空格）都会整体覆盖'
+    .' host/port/database/username/password，使上面的逐项校验失效。'
+    .' 实际值：'.var_export($dbUrl, true),
+);
+```
+
+用 `===` 全等比较而非弱比较，因此纯空格 `"   "` 仍然被拒（Laravel 不把它归一化为空）。防护一条未删：非空 `DB_URL` 依旧失败。
+
+实测（真实走 Laravel 的 `Env::get()` 归一化，再套用测试中同一判定表达式）：
+
+| `DB_URL` 形态 | `Env::get()` 归一化后 | DriverTest 判定 |
+| --- | --- | --- |
+| 未设置 | `null` | 允许 |
+| `DB_URL=` | `''` | 允许 |
+| `DB_URL=null` / `NULL` / `(null)` | `null` | 允许 |
+| `DB_URL=empty` / `(empty)` | `''` | 允许 |
+| `DB_URL="   "`（纯空格） | `'   '` | **拒绝** |
+| `DB_URL=mysql://root@host/db` | 原值 | **拒绝** |
+
+对照：旧的 `assertNull` 在归一化结果为**空字符串**的三行（`DB_URL=` / `empty` / `(empty)`）会误判失败——正是本次修复消除的假阴性。
+
+本轮无需 MySQL runtime，也未实跑 runtime；结论仅限静态与语义层面，`MYSQL_8_4_RELEASE_GATE_PENDING` 不变。
