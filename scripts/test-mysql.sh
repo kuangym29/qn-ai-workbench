@@ -19,8 +19,11 @@
 # ── 安全边界（任一条不满足即拒绝执行，绝不"降级继续"）─────────────────
 #   1. 生效配置必须是：driver=mysql、host=127.0.0.1、port=3399、
 #      database=qn_workbench_test、user=qn_test、密码=本地公开测试常量。
-#   2. DB_URL 必须未设置或为空。任何非空值都会让 Laravel 用单 URL 覆盖上述全部
-#      字段，使逐项校验失效，因此显式拒绝。（未设置与空字符串都算安全。）
+#   2. DB_URL 必须未设置或**语义为空**。任何非空值都会让 Laravel 用单 URL 覆盖
+#      上述全部字段，使逐项校验失效，因此显式拒绝。语义判定走 Laravel env() 的
+#      归一化规则（本脚本 / bootstrap / DriverTest / XML / env 示例 / 文档 六处一致）：
+#        允许 —— 未设置、DB_URL=、null、NULL、(null)、empty、(empty)
+#        拒绝 —— 纯空格、任意真实 URL 或任何其它非空值
 #   3. 校验走 Laravel 实际生效的 config()，不是 grep .env 文件；
 #      且在 migrate:fresh 之前再验一次，防止中途被改。
 #   4. 测试必须真跑在 MySQL 上：phpunit.xml 把 DB_CONNECTION 硬编码为 sqlite，
@@ -176,18 +179,81 @@ assert_target_before_migrate() {
   assert_effective_target
 }
 
+# ── DB_URL 归一化（对齐 Illuminate\Support\Env::get 的语义）─────────────
+# Laravel 的 env() 读值后会做两层归一：
+#   1. 剥掉成对的外层引号（"x" / 'x' → x）；
+#   2. 小写后命中 null / (null) → null，empty / (empty) → ''。
+# 于是下面这些写法在语义上等价于「未设置或空值」，都必须放行：
+#     未设置、DB_URL=、DB_URL=null / NULL / (null)、DB_URL=empty / (empty)
+# 这两类归一化后仍是实打实的非空字符串，必须拒绝：
+#     DB_URL="   "（纯空格）、DB_URL=mysql://…（真实 URL 或任何其它值）
+#
+# 归一化结果写入 DB_URL_NORM 供报错展示真实值。返回 0 = 安全，1 = 不安全。
+normalize_db_url() {
+  local raw="$1" v
+  DB_URL_NORM=""
+
+  # 只剥一层成对引号，且不动内部空白：纯空格必须原样送进下面的 case 才能被拒。
+  if [[ "$raw" =~ ^\"(.*)\"$ ]]; then
+    v="${BASH_REMATCH[1]}"
+  elif [[ "$raw" =~ ^\'(.*)\'$ ]]; then
+    v="${BASH_REMATCH[1]}"
+  else
+    v="$raw"
+  fi
+
+  case "$(printf '%s' "$v" | tr '[:upper:]' '[:lower:]')" in
+    ''|empty|'(empty)')
+      DB_URL_NORM='<空字符串>'
+      return 0
+      ;;
+    null|'(null)')
+      DB_URL_NORM='<null>'
+      return 0
+      ;;
+  esac
+
+  DB_URL_NORM="$v"
+  return 1
+}
+
 assert_env_file() {
   [ -f "$ENV_FILE" ] || die "缺少 $ENV_FILE。请先执行：cp .env.mysql-testing.example $ENV_FILE"
   if ! grep -qE '^APP_KEY=.+$' "$ENV_FILE"; then
     die "$ENV_FILE 中 APP_KEY 为空。请先执行：php artisan key:generate --env=mysql-testing"
   fi
-  # DB_URL 允许未设置或空值，只拒绝非空。'=' 之后无内容的行（DB_URL=）
-  # 是合法的显式空值写法，不能算作非空。
-  if grep -qE '^DB_URL=.+$' "$ENV_FILE"; then
-    die "$ENV_FILE 中设置了非空 DB_URL。DB_URL 会覆盖全部连接字段，使安全校验失效。
-请删除该行，或将其留空（DB_URL=）后重试。"
+
+  # DB_URL 预检：逐行走上面的归一化，而不是看 '=' 后面有没有字符。
+  # 旧实现 `^DB_URL=.+$` 会把 DB_URL=null / NULL / (null) / empty / (empty)
+  # 这些**语义为空**的写法误判成非空并拒绝，与 Gate 统一规则冲突。
+  # 防护未删：纯空格与任何真实 URL 依旧在此中止。
+  #
+  # 出现多行 DB_URL 时采用 fail-closed：任一行不安全即拒绝，不去猜哪行生效。
+  local raw value unsafe=0 unsafe_value="" seen=0
+  while IFS= read -r raw; do
+    seen=1
+    value="${raw#DB_URL=}"
+    # 只容忍 CRLF 行尾；除此之外不动空白，纯空格必须原样送去归一化。
+    value="${value%$'\r'}"
+    if ! normalize_db_url "$value"; then
+      unsafe=1
+      unsafe_value="$DB_URL_NORM"
+      break
+    fi
+  done < <(grep -E '^DB_URL=' "$ENV_FILE" || true)
+
+  if [ "$unsafe" -eq 1 ]; then
+    die "$ENV_FILE 中的 DB_URL='${unsafe_value}' 不安全。DB_URL 一旦非空，Laravel 会用它整体覆盖
+host/port/database/username/password，逐项安全校验即形同虚设。
+允许：删除该行、DB_URL=、DB_URL=null / NULL / (null)、DB_URL=empty / (empty)。
+拒绝：纯空格与任何真实 URL。"
   fi
-  info "  ✓ $ENV_FILE 存在、APP_KEY 已设置、DB_URL 未设置或为空"
+
+  if [ "$seen" -eq 1 ]; then
+    info "  ✓ $ENV_FILE 存在、APP_KEY 已设置、DB_URL 未设置或语义为空"
+  else
+    info "  ✓ $ENV_FILE 存在、APP_KEY 已设置、DB_URL 未设置"
+  fi
 }
 
 # ── 容器生命周期 ─────────────────────────────────────────────────────
@@ -350,8 +416,9 @@ run_phpunit() {
   local args=(--configuration "$PHPUNIT_CONFIG")
   [ -n "$filter" ] && args+=(--filter "$filter")
 
-  # bootstrap 会在 PHPUnit 启动时断言实际连接；测试进程内的断言由
-  # tests/Concerns/AssertsMysqlGate.php 在每个用例建立连接时再次确认。
+  # bootstrap 会在 PHPUnit 启动时断言实际连接；测试进程内由
+  # tests/Gate/Mysql84DriverTest.php 从已建立的连接上再确认一次
+  # （driver / host / port / database / user / DB_URL 空值语义 / 8.4 版本 / InnoDB）。
   if ! vendor/bin/phpunit "${args[@]}"; then
     die "$label 未通过（MySQL 8.4 测试库）。"
   fi

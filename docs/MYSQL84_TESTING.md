@@ -89,6 +89,8 @@ scripts/test-mysql.sh down      # 销毁容器与数据卷
 
 纯空格算非空：Laravel 不会把 `" "` 归一化成空，它会当作一个无效但非空的 URL 交给底层驱动，错误现场会远离真正的原因。
 
+`.env.mysql-testing` 的文件层预检（`assert_env_file`）用的是**同一张表**：逐行取出 `DB_URL=` 的值，按同样的归一化判定，而不是看 `=` 后面有没有字符。出现多行 `DB_URL` 时按 fail-closed 处理——任一行不安全即拒绝，不去猜哪一行生效。
+
 ```
 DB_CONNECTION = mysql
 DB_HOST       = 127.0.0.1
@@ -317,3 +319,42 @@ $this->assertTrue(
 对照：旧的 `assertNull` 在归一化结果为**空字符串**的三行（`DB_URL=` / `empty` / `(empty)`）会误判失败——正是本次修复消除的假阴性。
 
 本轮无需 MySQL runtime，也未实跑 runtime；结论仅限静态与语义层面，`MYSQL_8_4_RELEASE_GATE_PENDING` 不变。
+
+### 13. 四次复审整改记录（2026-10-05，DEV-MYSQL84-TOOLING-FIX4）
+
+第一个 blocker：`scripts/test-mysql.sh` 的 `assert_env_file()` 预检。
+
+**问题：文件层预检与统一规则冲突**
+
+预检原本是 `grep -qE '^DB_URL=.+$'`，只看 `=` 后面有没有字符。于是：
+
+| 写法 | 归一化语义 | 旧预检 | 应得结论 |
+| --- | --- | --- | --- |
+| `DB_URL=null` / `NULL` / `(null)` | `null` | **拒绝** | 允许 |
+| `DB_URL=empty` / `(empty)` | `''` | **拒绝** | 允许 |
+
+这五种**语义为空**的写法会被提前判成非空并中止——与 shell 其它分支、bootstrap、DriverTest 已锁定的规则相反。
+
+**修复：预检改走归一化，不删除预检**
+
+新增 `normalize_db_url()`，逐行按 Laravel 的 `env()` 语义归一（剥一层成对引号 → 小写后命中 `null` / `(null)` 得 null，`empty` / `(empty)` 得 `''`），然后判定「只允许 null 或 `''`」。多行 `DB_URL` 采用 fail-closed：任一行不安全即拒。
+
+**实测矩阵**（走真实脚本里的 `assert_env_file()`，见下）：
+
+| `.env.mysql-testing` 中的写法 | 结果 |
+| --- | --- |
+| 未设置（无 `DB_URL` 行） | `PASS`（`EXIT=0`） |
+| `DB_URL=` | `PASS` |
+| `DB_URL=null` | `PASS` |
+| `DB_URL=NULL` | `PASS` |
+| `DB_URL=(null)` | `PASS` |
+| `DB_URL=empty` | `PASS` |
+| `DB_URL=(empty)` | `PASS` |
+| `DB_URL="   "`（纯空格） | **FAIL**（`EXIT=1`） |
+| `DB_URL=mysql://root@host/db` | **FAIL**（`EXIT=1`） |
+
+对照：旧的 `^DB_URL=.+$` 在 `null` / `NULL` / `(null)` / `empty` / `(empty)` 五行会误拒——正是本次消除的假阳性。防护未削弱：纯空格与真实 URL 仍被拒。
+
+**顺带修正**：`run_phpunit()` 的注释指向了并不存在的 `tests/Concerns/AssertsMysqlGate.php`，实际自证类是 `tests/Gate/Mysql84DriverTest.php`，已改正，避免后人按错误路径去找。
+
+本轮同样未实跑 runtime（无 Docker/Podman），结论仅限静态与语义层面。
