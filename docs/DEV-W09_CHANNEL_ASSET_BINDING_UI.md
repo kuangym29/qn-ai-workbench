@@ -2,7 +2,15 @@
 
 让每个 ChannelTask 明确记录「每一页最终选用了哪一个共享 AssetVersion」。**渠道不复制图片**——绑定只是指向共享资产的一个引用。
 
-**本轮 Migration 数量为 0**，未修改任何后端文件（`app/**`、`database/**`、`routes/**`、`tests/Feature/**`），三份中央共享文档也留给 ChatGPT 统一同步。
+**本轮 Migration 数量为 0**：W09 只做前端与集成验收，未新增或修改任何 migration。渠道素材绑定相关的 migration 属 DEV-011A，已在 W09 之前的基线中合入，不计入本轮。
+
+按当前 `main` 的实际 diff 核对（本轮三个提交 `e46eb4f` / `14d4dc1` / `4cd9ec1`）：
+
+- `app/**`、`database/**`、`routes/**`：**未改动**；
+- `tests/Feature/**`：**有改动**——集成验收阶段由 `14d4dc1` 新增 `tests/Feature/W09IntegrationVerificationTest.php`（详见下文「运行验收」），该文件随后在 `93bb355`（DEV-W11 Auth Lite）中被调整；
+- 前端实现为 5 个文件：`resources/js/api/channelAssets.ts`、`resources/js/api/types.ts`、`components/ChannelAssetBindingDialog.vue`、`components/ChannelAssetBindings.vue`、`pages/Production/Workspace.vue`（其中 `types.ts` 后续由 DEV-W10 追加了查重相关字段，未改动 W09 的绑定字段）。
+
+三份中央共享文档留给 ChatGPT 统一同步。
 
 ## 角色映射
 
