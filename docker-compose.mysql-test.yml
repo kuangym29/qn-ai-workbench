@@ -4,29 +4,33 @@
 # 这是一个**一次性、可丢弃**的测试实例，与任何开发库或生产库无关。
 #
 # 隔离保证：
-#   - 固定随机 host 端口 3399，不与本机 3306/3307 的既有实例冲突
+#   - 固定 host 端口 3399（仅绑 127.0.0.1），不与本机 3306/3307 的既有实例冲突
 #   - 独立库名 qn_workbench_test、独立账号 qn_test
 #   - 密码为公开的本地测试常量，仅用于 throwaway 容器，绝非任何真实凭据
-#   - 容器名显式带 disposable 前缀，`--rm` 退出即销毁
+#   - 固定 project name qn-workbench-mysql84-gate：up / down / logs 全部只作用于
+#     该 project，不会误伤本机任何其它 compose 项目或容器
+#   - 数据全部落在容器 tmpfs，`down -v` 后无任何磁盘残留
 #
-# 用法：
-#   docker compose -f docker-compose.mysql-test.yml up -d
+# 用法（建议交给 scripts/test-mysql.sh，它会带上 -p <project name>）：
+#   docker compose -p qn-workbench-mysql84-gate -f docker-compose.mysql-test.yml up -d
 #   # 等待 healthy 后按 docs/MYSQL84_TESTING.md 执行验证
-#   docker compose -f docker-compose.mysql-test.yml down -v
+#   docker compose -p qn-workbench-mysql84-gate -f docker-compose.mysql-test.yml down -v
 #
-# 注意：本文件不含任何真实密码。真实测试用 .env 另存为 .env.mysql-testing，
+# 注意：本文件不含任何真实密码。真实测试用 env 另存为 .env.mysql-testing，
 # 该文件已被 .gitignore 忽略，绝不提交。
+
+name: qn-workbench-mysql84-gate
 
 services:
   mysql-test:
     image: mysql:8.4
-    container_name: qn-workbench-mysql84-disposable
     command:
       # 明确指定 InnoDB 与 utf8mb4，避免依赖镜像默认值。
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
+      # lockForUpdate 的行锁语义依赖 InnoDB，不留默认值。
       - --default-storage-engine=InnoDB
-      # 行锁是本次验证的核心对象，保持默认 REPEATABLE READ 并打印出来便于核对。
+      # 行锁是本次验证的核心对象，固定 REPEATABLE READ 并由脚本断言实际生效值。
       - --transaction-isolation=REPEATABLE-READ
       # 让 lockForUpdate 的等待行为可观测，避免静默死锁直接失败。
       - --innodb-lock-wait-timeout=10
@@ -36,7 +40,7 @@ services:
       MYSQL_USER: qn_test
       MYSQL_PASSWORD: qn_test_pw
     ports:
-      # 宿主机侧随机端口，避免与本机既有 MySQL 冲突。
+      # 只绑定回环地址，并避开本机既有的 3306 / 3307 实例。
       - "127.0.0.1:3399:3306"
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uqn_test", "-pqn_test_pw"]

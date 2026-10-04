@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    PHPUnit 变体：真跑 MySQL 8.4 的 Release Gate 专用配置。
+
+    为什么需要这个文件：
+    仓库根部的 phpunit.xml 把 DB_CONNECTION 硬编码为 sqlite、DB_DATABASE 为
+    :memory:。Laravel 的 <env> 元素在测试启动时强制覆盖 .env 加载进来的值，
+    因此给 php artisan test 加上 mysql-testing 这个环境名，连接到的仍然是
+    SQLite 内存库。结果就是"测试全绿"却完全没碰到 MySQL —— 这正是本 Gate
+    最需要防的假阳性。
+
+    这个变体做三件事：
+      1. 去掉 phpunit.xml 的 sqlite / :memory: 覆盖，改锁 MySQL 测试库；
+      2. bootstrap 换成 tests/bootstrap-mysql84-gate.php，连接建立前就断言
+         实际 driver 与 database 是 MySQL 测试库，不是就退出；
+      3. DB_URL 显式置空，避免单 URL 覆盖掉逐项校验。
+
+    仅供 scripts/test-mysql.sh 使用。日常开发仍应使用 phpunit.xml（SQLite 内存库，
+    快速且无需容器）。若要改本文件，先改 scripts/test-mysql.sh 顶部的常量。
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/bootstrap-mysql84-gate.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+        <!--
+            Gate 自证套件：确认测试进程真的连在 MySQL 8.4 测试库上。
+            只在本配置下注册；日常 phpunit.xml 不含此目录，因此主线
+            SQLite 基线不会多出 skip 或 fail。
+        -->
+        <testsuite name="Gate">
+            <directory>tests/Gate</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
+        <env name="BROADCAST_CONNECTION" value="null"/>
+        <env name="CACHE_STORE" value="array"/>
+
+        <!-- ↓ 与 scripts/test-mysql.sh 的常量必须逐字一致 -->
+        <env name="DB_CONNECTION" value="mysql"/>
+        <env name="DB_HOST" value="127.0.0.1"/>
+        <env name="DB_PORT" value="3399"/>
+        <env name="DB_DATABASE" value="qn_workbench_test"/>
+        <env name="DB_USERNAME" value="qn_test"/>
+        <env name="DB_PASSWORD" value="qn_test_pw"/>
+        <env name="DB_URL" value=""/>
+        <env name="DB_CHARSET" value="utf8mb4"/>
+        <env name="DB_COLLATION" value="utf8mb4_unicode_ci"/>
+        <!-- ↑ -->
+
+        <env name="MAIL_MAILER" value="array"/>
+        <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="SESSION_DRIVER" value="array"/>
+        <env name="TELESCOPE_ENABLED" value="false"/>
+        <env name="NIGHTWATCH_ENABLED" value="false"/>
+    </php>
+</phpunit>
