@@ -1,0 +1,136 @@
+name: MySQL 8.4 disposable Runtime Gate
+
+# Scaffold pushes skip the whole job. Add the marker only after the
+# Gate-only concurrency test has passed independent review.
+on:
+  push:
+    branches: [ci/mysql84-runtime-gate]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mysql84-runtime-gate
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    if: ${{ !github.event.deleted && contains(github.event.head_commit.message, '[run-mysql84-gate]') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout triggering commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Initialize evidence
+        run: |
+          mkdir -p gate-evidence
+          {
+            printf 'checkout_sha=%s\n' "$GITHUB_SHA"
+            printf 'run_id=%s attempt=%s\n' "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+            printf 'image_os=%s image_version=%s\n' "${ImageOS:-unknown}" "${ImageVersion:-unknown}"
+            cat /etc/os-release
+            uname -a
+            bash --version
+            docker version
+            docker info
+            docker compose version
+          } > gate-evidence/environment.log 2>&1
+          docker compose version --short | grep -Eq '^v?2\.'
+
+      - name: Setup PHP and Composer
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, pdo_sqlite, mbstring, intl, dom, xml, xmlwriter, curl, fileinfo, zip
+          tools: composer:v2
+          coverage: none
+        env:
+          fail-fast: 'true'
+
+      - name: Verify PHP and install locked test dependencies
+        run: |
+          php -r 'if (PHP_VERSION_ID < 80401) { fwrite(STDERR, "PHP >= 8.4.1 required\n"); exit(1); }'
+          { php --version; php -m; composer --version; } > gate-evidence/php-composer.log 2>&1
+          composer install --no-interaction --prefer-dist 2>&1 | tee gate-evidence/composer-install.log
+          composer check-platform-reqs 2>&1 | tee gate-evidence/platform.log
+
+      - name: Require independently reviewed concurrency test
+        run: |
+          # Fail closed until the reviewed Gate-only test is present.
+          test -f tests/Gate/Mysql84ConcurrencyTest.php
+          test -f phpunit.mysql84.xml
+          grep -Fq 'tests/Gate' phpunit.mysql84.xml
+
+      - name: Prepare disposable configuration and image evidence
+        run: |
+          test ! -e .env
+          cp .env.mysql-testing.example .env.mysql-testing
+          php artisan key:generate --env=mysql-testing --no-interaction >/dev/null
+          docker compose -p qn-workbench-mysql84-gate -f docker-compose.mysql-test.yml config --quiet
+          docker pull mysql:8.4 2>&1 | tee gate-evidence/image-pull.log
+          docker image inspect mysql:8.4 --format '{{json .RepoDigests}}' > gate-evidence/image-digest.log
+
+      - name: Run formal Gate and capture server evidence
+        run: |
+          # Observer only connects inside this exact disposable service.
+          # Record VERSION() before the Gate's EXIT trap destroys the container.
+          (
+            for attempt in $(seq 1 180); do
+              if docker compose -p qn-workbench-mysql84-gate -f docker-compose.mysql-test.yml exec -T mysql-test \
+                mysql -h127.0.0.1 -uqn_test -pqn_test_pw -Dqn_workbench_test \
+                -N -e 'SELECT VERSION(), DATABASE(), CURRENT_USER(), @@transaction_isolation;' \
+                > gate-evidence/mysql-server.tmp 2>/dev/null; then
+                mv gate-evidence/mysql-server.tmp gate-evidence/mysql-server.log
+                exit 0
+              fi
+              sleep 1
+            done
+            exit 1
+          ) &
+          observer_pid=$!
+          set +e
+          bash scripts/test-mysql.sh all 2>&1 | tee gate-evidence/gate.log
+          gate_rc=${PIPESTATUS[0]}
+          wait "$observer_pid"
+          observer_rc=$?
+          set -e
+          printf 'gate_exit_code=%s observer_exit_code=%s\n' "$gate_rc" "$observer_rc" > gate-evidence/exit-code.log
+          test "$gate_rc" -eq 0
+          test "$observer_rc" -eq 0
+          grep -Fq MYSQL84_GATE_DRIVER_PROVEN gate-evidence/gate.log
+          grep -Fq STRUCTURE_ASSERT_OK gate-evidence/gate.log
+          grep -Fq MYSQL84_GATE_TEST_PASS gate-evidence/gate.log
+          # Concurrency assertions/results remain in the unfiltered full suite log.
+
+      - name: Independently clean and verify disposable resources
+        if: ${{ always() }}
+        run: |
+          mkdir -p gate-evidence
+          if ! docker info >/dev/null 2>&1; then
+            echo 'CLEANUP_UNVERIFIABLE: Docker unavailable' | tee gate-evidence/cleanup.log
+            exit 1
+          fi
+          docker compose -p qn-workbench-mysql84-gate -f docker-compose.mysql-test.yml down -v --remove-orphans \
+            > gate-evidence/cleanup.log 2>&1
+          containers=$(docker ps -aq --filter label=com.docker.compose.project=qn-workbench-mysql84-gate)
+          volumes=$(docker volume ls -q --filter label=com.docker.compose.project=qn-workbench-mysql84-gate)
+          printf 'remaining_containers=%s\nremaining_volumes=%s\n' "$containers" "$volumes" >> gate-evidence/cleanup.log
+          test -z "$containers"
+          test -z "$volumes"
+          echo CLEANUP_VERIFIED >> gate-evidence/cleanup.log
+
+      - name: Preserve evidence even on failure
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: mysql84-gate-${{ github.sha }}-${{ github.run_attempt }}
+          path: gate-evidence/*.log
+          if-no-files-found: error
+          retention-days: 30
