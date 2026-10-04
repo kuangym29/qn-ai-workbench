@@ -6,6 +6,7 @@ use App\Http\Controllers\ChannelTaskController;
 use App\Http\Controllers\ContentColumnController;
 use App\Http\Controllers\ContentItemController;
 use App\Http\Controllers\ContentPageController;
+use App\Http\Controllers\DuplicateReviewController;
 use App\Http\Controllers\ProductionTaskController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SourceReferenceController;
@@ -107,6 +108,9 @@ Route::prefix('api')->group(function (): void {
     Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/copy/revisions/{revision}', [ContentPageController::class, 'revision']);
     Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/copy/current', [ContentPageController::class, 'current']);
     Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/copy/working', [ContentPageController::class, 'working']);
+
+    Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/duplicate-review', [DuplicateReviewController::class, 'index']);
+    Route::post('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/duplicate-review/decisions', [DuplicateReviewController::class, 'store']);
 
     Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production', [ProductionTaskController::class, 'show']);
     Route::post('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/production', [ProductionTaskController::class, 'store']);
