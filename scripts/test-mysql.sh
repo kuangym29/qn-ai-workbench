@@ -19,8 +19,8 @@
 # ── 安全边界（任一条不满足即拒绝执行，绝不"降级继续"）─────────────────
 #   1. 生效配置必须是：driver=mysql、host=127.0.0.1、port=3399、
 #      database=qn_workbench_test、user=qn_test、密码=本地公开测试常量。
-#   2. DB_URL 必须为空。设置它会让 Laravel 用单 URL 覆盖上述全部字段，
-#      使逐项校验失效，因此显式拒绝。
+#   2. DB_URL 必须未设置或为空。任何非空值都会让 Laravel 用单 URL 覆盖上述全部
+#      字段，使逐项校验失效，因此显式拒绝。（未设置与空字符串都算安全。）
 #   3. 校验走 Laravel 实际生效的 config()，不是 grep .env 文件；
 #      且在 migrate:fresh 之前再验一次，防止中途被改。
 #   4. 测试必须真跑在 MySQL 上：phpunit.xml 把 DB_CONNECTION 硬编码为 sqlite，
@@ -96,16 +96,34 @@ expect_eq() {
   info "  ✓ $label = $actual"
 }
 
-# 拒绝 DB_URL：它会整体覆盖 host/port/database/username/password，
-# 使逐项安全校验形同虚设。
+# DB_URL 语义（与 phpunit.mysql84.xml 的 <env> 和 bootstrap 闸门完全一致）：
+#   允许 —— 未设置（config 读到 null）、显式空字符串。两者都不会覆盖任何连接字段。
+#   拒绝 —— 任何非空字符串。DB_URL 一旦有值，Laravel 用它整体覆盖
+#           host/port/database/username/password，逐项安全校验即形同虚设。
+#
+# tinker 侧输出 __DB_URL__<NUL 或空> 这样的显式标记，而不是把 null 折叠成空串，
+# 这样本函数能区分「未设置」与「非空」，不会像单纯的 -n 判断那样含糊。
 assert_no_db_url() {
   local url
-  url="$(php artisan tinker --env=mysql-testing --execute='echo config("database.connections.mysql.url") === null ? "" : (string) config("database.connections.mysql.url");' 2>/dev/null | tr -d '\r' | tail -1)"
-  if [ -n "$url" ]; then
-    die "检测到 DB_URL='$url'。DB_URL 会覆盖全部连接字段，使安全校验失效。
-请在 $ENV_FILE 中移除 DB_URL 后重试。"
+  url="$(php artisan tinker --env=mysql-testing --execute='
+    $u = config("database.connections.mysql.url");
+    echo "__DB_URL__" . ($u === null ? "<null>" : "<" . $u . ">");
+  ' 2>/dev/null | tr -d '\r' | grep -o '__DB_URL__.*' | tail -1)"
+
+  if [ -z "$url" ]; then
+    die "无法读取生效的 DB_URL（tinker 无输出）。为避免在未证明的目标上运行，验证已中止。"
   fi
-  info "  ✓ DB_URL 未设置（逐项校验有效）"
+
+  # <null> 与 <> 都表示安全；其余一律拒绝。
+  case "$url" in
+    '__DB_URL__<null>'|'__DB_URL__<>')
+      info "  ✓ DB_URL 未设置或为空（逐项校验有效）"
+      ;;
+    *)
+      die "检测到 DB_URL=${url#__DB_URL__}。DB_URL 会覆盖全部连接字段，使安全校验失效。
+请在 $ENV_FILE 中移除 DB_URL、或将其留空（DB_URL=）后重试。"
+      ;;
+  esac
 }
 
 # 通过 Laravel 实际生效的 config() 校验目标，**不是** grep .env 文件。
@@ -163,10 +181,13 @@ assert_env_file() {
   if ! grep -qE '^APP_KEY=.+$' "$ENV_FILE"; then
     die "$ENV_FILE 中 APP_KEY 为空。请先执行：php artisan key:generate --env=mysql-testing"
   fi
+  # DB_URL 允许未设置或空值，只拒绝非空。'=' 之后无内容的行（DB_URL=）
+  # 是合法的显式空值写法，不能算作非空。
   if grep -qE '^DB_URL=.+$' "$ENV_FILE"; then
-    die "$ENV_FILE 中设置了 DB_URL。DB_URL 会覆盖全部连接字段，使安全校验失效。请移除该行。"
+    die "$ENV_FILE 中设置了非空 DB_URL。DB_URL 会覆盖全部连接字段，使安全校验失效。
+请删除该行，或将其留空（DB_URL=）后重试。"
   fi
-  info "  ✓ $ENV_FILE 存在、APP_KEY 已设置、无 DB_URL"
+  info "  ✓ $ENV_FILE 存在、APP_KEY 已设置、DB_URL 未设置或为空"
 }
 
 # ── 容器生命周期 ─────────────────────────────────────────────────────
@@ -350,10 +371,11 @@ assert_phpunit_config_is_mysql() {
 若为 sqlite，测试跑的是内存库，Gate 结果无效。"
   [ "$db" = "$DB_NAME" ] || die "$PHPUNIT_CONFIG 的 DB_DATABASE='$db'，必须为 $DB_NAME。"
 
+  # 同样允许空值：value="" 是显式空，合法。只拒绝非空。
   if grep -qE '<env name="DB_URL" value="[^"]+' "$PHPUNIT_CONFIG"; then
-    die "$PHPUNIT_CONFIG 设置了非空 DB_URL，会覆盖逐项校验。"
+    die "$PHPUNIT_CONFIG 设置了非空 DB_URL，会覆盖逐项校验。请改为空值。"
   fi
-  info "  ✓ $PHPUNIT_CONFIG 锁定 mysql / $DB_NAME，无 DB_URL"
+  info "  ✓ $PHPUNIT_CONFIG 锁定 mysql / $DB_NAME，DB_URL 未设置或为空"
 }
 
 verify_full_suite() {

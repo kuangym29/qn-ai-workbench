@@ -13,7 +13,8 @@
       1. 去掉 phpunit.xml 的 sqlite / :memory: 覆盖，改锁 MySQL 测试库；
       2. bootstrap 换成 tests/bootstrap-mysql84-gate.php，连接建立前就断言
          实际 driver 与 database 是 MySQL 测试库，不是就退出；
-      3. DB_URL 显式置空，避免单 URL 覆盖掉逐项校验。
+      3. DB_URL 显式留空，避免单 URL 覆盖掉逐项校验。留空是安全的；Gate 只拒绝
+         非空值——任何非空 DB_URL 都会整体覆盖 host/port/database/username/password。
 
     仅供 scripts/test-mysql.sh 使用。日常开发仍应使用 phpunit.xml（SQLite 内存库，
     快速且无需容器）。若要改本文件，先改 scripts/test-mysql.sh 顶部的常量。

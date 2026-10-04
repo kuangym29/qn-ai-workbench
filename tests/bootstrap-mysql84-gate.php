@@ -12,8 +12,8 @@
  * 这里做两层证明，任何一层不通过都在第一个测试用例之前就退出：
  *
  *   闸 1（配置层）：生效的 driver / host / port / database / user 必须逐项等于
- *                   约定的隔离测试目标，且 DB_URL 为空（否则单 URL 会覆盖上面
- *                   全部字段，使逐项校验失效）。
+ *                   约定的隔离测试目标；DB_URL 必须未设置或为空（任何非空值都会
+ *                   整体覆盖上述字段，使逐项校验失效）。
  *   闸 2（连接层）：真正建立 PDO 连接，向服务器问 version() 与 database()。
  *                   只有连上真的 MySQL 8.4 的 qn_workbench_test 才会走到这里。
  *
@@ -47,18 +47,40 @@ $gatePass = function (string $line): void {
 
 // ── 闸 1：配置层逐项校验 ─────────────────────────────────────────────
 // 读 phpunit.xml 注入的 $_ENV/$_SERVER。Laravel 的 <env> 默认写入这两处。
-$readEnv = static function (string $key) use (&$gateFail): string {
+//
+// 两个不同的读取器，因为它们的"缺失"含义不同：
+//   readEnvStrict —— 用于必须精确匹配的目标字段。未定义时返回哨兵值，
+//                    让期望值比较报错，而不是静默放行。
+//   readEnvNullable —— 用于 DB_URL。未定义返回 null（这是**允许**的形态），
+//                    与"非空"严格区分。
+$readEnvStrict = static function (string $key): string {
     foreach ([$_ENV, $_SERVER, getenv()] as $bag) {
         if (is_array($bag) && array_key_exists($key, $bag) && $bag[$key] !== false) {
             return (string) $bag[$key];
         }
     }
-    // 缺失时返回哨兵值，交由期望值比较报错，而不是静默放行。
+
     return "<unset:{$key}>";
 };
 
+// 与 Laravel Env::get 的归一化保持一致：字面 null / (null) 归一为 null，
+// 字面 empty / (empty) 归一为 ''。因此"未设置"与"显式空"都应被视为安全。
+$readEnvNullable = static function (string $key) use ($readEnvStrict): ?string {
+    $raw = $readEnvStrict($key);
+    if ($raw === "<unset:{$key}>") {
+        return null;
+    }
+    // <env value="..."> 注入的原始值是字符串，Laravel 之后才做这层归一化。
+    // 这里提前做，才能与 config('database.connections.mysql.url') 的结果对齐。
+    return match (strtolower($raw)) {
+        'null', '(null)' => null,
+        'empty', '(empty)' => '',
+        default => $raw,
+    };
+};
+
 foreach ($expected as $key => $want) {
-    $got = $readEnv($key);
+    $got = $readEnvStrict($key);
     if ($got !== $want) {
         $gateFail("{$key} 期望 '{$want}'，实际 '{$got}'。
     拒绝在未证明的数据库上运行测试。请通过 scripts/test-mysql.sh 使用
@@ -71,12 +93,21 @@ foreach ($expected as $key => $want) {
     }
 }
 
-$dbUrl = $readEnv('DB_URL');
-if ($dbUrl !== '') {
+// DB_URL 语义（与 scripts/test-mysql.sh 的 assert_no_db_url 一致）：
+//   允许 —— 未设置（null）、空字符串。两者归一化后都不会覆盖任何连接字段。
+//   拒绝 —— 任何非空字符串，含纯空格。DB_URL 一旦有值，Laravel 会用它整体覆盖
+//           host/port/database/username/password，上面的逐项校验即形同虚设。
+//           注意纯空格也算非空：Laravel 不会把 " " 归一化为空，它会当成一个
+//           无效但非空的 URL 交给底层驱动，错误现场会远离真正的原因。
+//
+// 不能写成 `$dbUrl !== ''`：那样未定义时（值为 null）会被误判为"非空"而
+// 无故中止，那是一个假失败。
+$dbUrl = $readEnvNullable('DB_URL');
+if ($dbUrl !== null && $dbUrl !== '') {
     $gateFail("DB_URL='{$dbUrl}' 非空。它会整体覆盖 host/port/database/username/password，
-    使上面的逐项校验形同虚设。");
+    使上面的逐项校验形同虚设。若要显式留空，请写 DB_URL=（空值）或直接删除该行。");
 }
-$gatePass('DB_URL 为空（逐项校验有效）');
+$gatePass('DB_URL 未设置或为空（逐项校验有效）');
 
 // ── 闸 2：连接层，向服务器自证身份 ───────────────────────────────────
 $dsn = sprintf(
