@@ -14,6 +14,7 @@ use App\Models\Topic;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use LogicException;
 use Tests\TestCase;
 
@@ -137,6 +138,67 @@ class DuplicateReviewApiTest extends TestCase
         $original->delete();
     }
 
+    public function test_stale_query_keeps_its_decision_but_new_working_version_has_new_identity(): void
+    {
+        [$project, $item, $path] = $this->context();
+        $this->postJson("/api/projects/{$project->id}/select")->assertOk();
+        [, $otherItem] = $this->context($project);
+        [$oldQuery, $match] = $this->pair($item, $otherItem);
+        $oldDecisionId = $this->postJson("$path/decisions", $this->decisionPayload($oldQuery, $match))
+            ->assertCreated()->assertJsonPath('data.decision_no', 1)->json('data.id');
+
+        $newQuery = $this->version($item, 1, PageType::Content, [
+            'page_title' => '同一句测试文本',
+        ], page: $oldQuery->contentPage);
+        $this->postJson("$path/decisions", $this->decisionPayload($oldQuery, $match))
+            ->assertUnprocessable()->assertJsonValidationErrors('query_page_version_id');
+        $this->getJson($path)->assertOk()
+            ->assertJsonPath('data.queries.0.page_version_id', $newQuery->id)
+            ->assertJsonPath('data.queries.0.candidates.0.latest_decision', null);
+        $this->postJson("$path/decisions", $this->decisionPayload($newQuery, $match))
+            ->assertCreated()->assertJsonPath('data.decision_no', 1);
+        $this->assertDatabaseHas('duplicate_review_decisions', [
+            'id' => $oldDecisionId,
+            'query_page_version_id' => $oldQuery->id,
+            'decision_no' => 1,
+        ]);
+        $this->assertDatabaseCount('duplicate_review_decisions', 2);
+    }
+
+    public function test_latest_decision_and_number_are_isolated_by_exact_four_field_pairing(): void
+    {
+        [$project, $item, $path] = $this->context();
+        $this->postJson("/api/projects/{$project->id}/select")->assertOk();
+        [, $otherItem] = $this->context($project);
+        $revision = $this->revision($otherItem);
+        $match = $this->version($otherItem, 1, PageType::Cover, [
+            'cover_title' => '相同文本', 'cover_subtitle' => '相同文本',
+        ], $revision);
+        $query = $this->version($item, 1, PageType::Cover, [
+            'cover_title' => '相同文本', 'cover_subtitle' => '相同文本',
+        ]);
+        $title = [
+            ...$this->decisionPayload($query, $match),
+            'query_field' => 'cover_title',
+            'match_field' => 'cover_title',
+        ];
+        $subtitle = [
+            ...$this->decisionPayload($query, $match),
+            'query_field' => 'cover_subtitle',
+            'match_field' => 'cover_subtitle',
+        ];
+        $this->postJson("$path/decisions", $title)->assertCreated()->assertJsonPath('data.decision_no', 1);
+        $this->postJson("$path/decisions", [...$subtitle, 'decision' => 'ignored'])
+            ->assertCreated()->assertJsonPath('data.decision_no', 1);
+        $this->postJson("$path/decisions", [...$title, 'decision' => 'false_positive'])
+            ->assertCreated()->assertJsonPath('data.decision_no', 2);
+        $queries = collect($this->getJson($path)->assertOk()->json('data.queries'))->keyBy('field');
+        $this->assertSame('false_positive', $queries['cover_title']['candidates'][0]['latest_decision']['decision']);
+        $this->assertSame(2, $queries['cover_title']['candidates'][0]['latest_decision']['decision_no']);
+        $this->assertSame('ignored', $queries['cover_subtitle']['candidates'][0]['latest_decision']['decision']);
+        $this->assertSame(1, $queries['cover_subtitle']['candidates'][0]['latest_decision']['decision_no']);
+    }
+
     public function test_invalid_or_stale_pair_is_rejected_without_writes(): void
     {
         [$project, $item, $path] = $this->context();
@@ -169,6 +231,8 @@ class DuplicateReviewApiTest extends TestCase
         [$foreignProject, $foreignItem] = $this->context();
         $foreignMatch = $this->version($foreignItem, 1, PageType::Content, ['page_title' => '同一句测试文本'], $this->revision($foreignItem));
         $this->postJson("$path/decisions", [...$payload, 'match_page_version_id' => $foreignMatch->id])->assertNotFound();
+        $foreignQuery = $this->version($foreignItem, 2, PageType::Content, ['page_title' => '同一句测试文本']);
+        $this->postJson("$path/decisions", [...$payload, 'query_page_version_id' => $foreignQuery->id])->assertNotFound();
         $this->getJson(str_replace("/projects/{$project->id}", "/projects/{$foreignProject->id}", $path))->assertNotFound();
         $this->assertDatabaseCount('duplicate_review_decisions', 0);
     }
@@ -266,13 +330,64 @@ class DuplicateReviewApiTest extends TestCase
         [, $otherItem] = $this->context($project);
         [$query, $match] = $this->pair($item, $otherItem);
         $this->postJson("$path/decisions", $this->decisionPayload($query, $match))->assertCreated();
-        $this->expectException(QueryException::class);
-        DB::table('duplicate_review_decisions')->insert([
-            'project_id' => $project->id, 'content_item_id' => $item->id,
-            'query_page_version_id' => $query->id, 'query_field' => 'page_title',
-            'match_page_version_id' => $match->id, 'match_field' => 'page_title',
-            'decision_no' => 1, 'decision' => 'ignored',
-            'created_at' => now(), 'updated_at' => now(),
+        try {
+            DB::table('duplicate_review_decisions')->insert([
+                'project_id' => $project->id, 'content_item_id' => $item->id,
+                'query_page_version_id' => $query->id, 'query_field' => 'page_title',
+                'match_page_version_id' => $match->id, 'match_field' => 'page_title',
+                'decision_no' => 1, 'decision' => 'ignored',
+                'created_at' => now(), 'updated_at' => now(),
+            ]);
+            $this->fail('The database must reject a simulated duplicate-number race.');
+        } catch (QueryException) {
+            $this->assertDatabaseCount('duplicate_review_decisions', 1);
+            $this->assertDatabaseHas('duplicate_review_decisions', [
+                'query_page_version_id' => $query->id,
+                'match_page_version_id' => $match->id,
+                'decision_no' => 1,
+                'decision' => 'confirmed_duplicate',
+            ]);
+        }
+        $this->postJson("$path/decisions", [...$this->decisionPayload($query, $match), 'decision' => 'ignored'])
+            ->assertCreated()->assertJsonPath('data.decision_no', 2);
+    }
+
+    public function test_insert_time_unique_race_returns_controlled_422_and_preserves_history(): void
+    {
+        [$project, $item, $path] = $this->context();
+        $this->postJson("/api/projects/{$project->id}/select")->assertOk();
+        [, $otherItem] = $this->context($project);
+        [$query, $match] = $this->pair($item, $otherItem);
+        $payload = $this->decisionPayload($query, $match);
+        $firstId = $this->postJson("$path/decisions", $payload)->assertCreated()
+            ->assertJsonPath('data.decision_no', 1)->json('data.id');
+
+        $eventName = 'eloquent.creating: '.DuplicateReviewDecision::class;
+        Event::listen($eventName, static function (DuplicateReviewDecision $pending): void {
+            DB::table('duplicate_review_decisions')->insert([
+                'project_id' => $pending->project_id,
+                'content_item_id' => $pending->content_item_id,
+                'query_page_version_id' => $pending->query_page_version_id,
+                'query_field' => $pending->query_field,
+                'match_page_version_id' => $pending->match_page_version_id,
+                'match_field' => $pending->match_field,
+                'decision_no' => $pending->decision_no,
+                'decision' => 'ignored',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        });
+        try {
+            $this->postJson("$path/decisions", [...$payload, 'decision' => 'false_positive'])
+                ->assertUnprocessable()->assertJsonValidationErrors('decision');
+        } finally {
+            Event::forget($eventName);
+        }
+        $this->assertDatabaseCount('duplicate_review_decisions', 1);
+        $this->assertDatabaseHas('duplicate_review_decisions', [
+            'id' => $firstId,
+            'decision_no' => 1,
+            'decision' => 'confirmed_duplicate',
         ]);
     }
 }

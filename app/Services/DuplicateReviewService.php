@@ -10,6 +10,7 @@ use App\Services\DuplicateCheck\DuplicateCandidateFinder;
 use App\Services\DuplicateCheck\DuplicateComparableEntry;
 use App\Services\DuplicateCheck\DuplicateCorpusBuilder;
 use App\Services\DuplicateCheck\DuplicateField;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -87,56 +88,62 @@ class DuplicateReviewService
 
     public function appendDecision(ContentItem $item, array $data): DuplicateReviewDecision
     {
-        return DB::transaction(function () use ($item, $data): DuplicateReviewDecision {
-            // Serialize decision number allocation for every pair under this item.
-            ContentItem::query()->whereKey($item->id)->lockForUpdate()->firstOrFail();
+        try {
+            return DB::transaction(function () use ($item, $data): DuplicateReviewDecision {
+                // Serialize decision number allocation for every pair under this item.
+                ContentItem::query()->whereKey($item->id)->lockForUpdate()->firstOrFail();
 
-            $queryVersion = ContentPageVersion::query()->where('project_id', $item->project_id)
-                ->where('content_item_id', $item->id)->with('contentPage')
-                ->findOrFail($data['query_page_version_id']);
-            $matchVersion = ContentPageVersion::query()->where('project_id', $item->project_id)
-                ->with(['contentPage', 'contentCopyRevision'])
-                ->findOrFail($data['match_page_version_id']);
+                $queryVersion = ContentPageVersion::query()->where('project_id', $item->project_id)
+                    ->where('content_item_id', $item->id)->with('contentPage')
+                    ->findOrFail($data['query_page_version_id']);
+                $matchVersion = ContentPageVersion::query()->where('project_id', $item->project_id)
+                    ->with(['contentPage', 'contentCopyRevision'])
+                    ->findOrFail($data['match_page_version_id']);
 
-            $latestVersionId = ContentPageVersion::query()
-                ->where('content_page_id', $queryVersion->content_page_id)
-                ->orderByDesc('version_no')->value('id');
-            if ($queryVersion->copy_revision_id !== null || $queryVersion->id !== $latestVersionId) {
-                throw ValidationException::withMessages(['query_page_version_id' => 'The working version is no longer current.']);
-            }
-            if ($matchVersion->copy_revision_id === null || $matchVersion->contentCopyRevision === null) {
-                throw ValidationException::withMessages(['match_page_version_id' => 'The match must be a formal revision.']);
-            }
+                $latestVersionId = ContentPageVersion::query()
+                    ->where('content_page_id', $queryVersion->content_page_id)
+                    ->orderByDesc('version_no')->value('id');
+                if ($queryVersion->copy_revision_id !== null || $queryVersion->id !== $latestVersionId) {
+                    throw ValidationException::withMessages(['query_page_version_id' => 'The working version is no longer current.']);
+                }
+                if ($matchVersion->copy_revision_id === null || $matchVersion->contentCopyRevision === null) {
+                    throw ValidationException::withMessages(['match_page_version_id' => 'The match must be a formal revision.']);
+                }
 
-            $queryField = DuplicateField::from($data['query_field']);
-            $matchField = DuplicateField::from($data['match_field']);
-            $query = $this->entryFor($queryVersion, $queryField, true);
-            $match = $this->entryFor($matchVersion, $matchField, false);
-            if ($query === null || $match === null || $this->finder->find($query, [$match], 1) === []) {
-                throw ValidationException::withMessages(['match_page_version_id' => 'This pair is not a duplicate candidate.']);
-            }
+                $queryField = DuplicateField::from($data['query_field']);
+                $matchField = DuplicateField::from($data['match_field']);
+                $query = $this->entryFor($queryVersion, $queryField, true);
+                $match = $this->entryFor($matchVersion, $matchField, false);
+                if ($query === null || $match === null || $this->finder->find($query, [$match], 1) === []) {
+                    throw ValidationException::withMessages(['match_page_version_id' => 'This pair is not a duplicate candidate.']);
+                }
 
-            $next = (int) DuplicateReviewDecision::query()
-                ->where('project_id', $item->project_id)
-                ->where('content_item_id', $item->id)
-                ->where('query_page_version_id', $queryVersion->id)
-                ->where('query_field', $queryField->value)
-                ->where('match_page_version_id', $matchVersion->id)
-                ->where('match_field', $matchField->value)
-                ->max('decision_no') + 1;
+                $next = (int) DuplicateReviewDecision::query()
+                    ->where('project_id', $item->project_id)
+                    ->where('content_item_id', $item->id)
+                    ->where('query_page_version_id', $queryVersion->id)
+                    ->where('query_field', $queryField->value)
+                    ->where('match_page_version_id', $matchVersion->id)
+                    ->where('match_field', $matchField->value)
+                    ->max('decision_no') + 1;
 
-            return DuplicateReviewDecision::create([
-                'project_id' => $item->project_id,
-                'content_item_id' => $item->id,
-                'query_page_version_id' => $queryVersion->id,
-                'query_field' => $queryField->value,
-                'match_page_version_id' => $matchVersion->id,
-                'match_field' => $matchField->value,
-                'decision_no' => $next,
-                'decision' => $data['decision'],
-                'note' => $data['note'] ?? null,
+                return DuplicateReviewDecision::create([
+                    'project_id' => $item->project_id,
+                    'content_item_id' => $item->id,
+                    'query_page_version_id' => $queryVersion->id,
+                    'query_field' => $queryField->value,
+                    'match_page_version_id' => $matchVersion->id,
+                    'match_field' => $matchField->value,
+                    'decision_no' => $next,
+                    'decision' => $data['decision'],
+                    'note' => $data['note'] ?? null,
+                ]);
+            });
+        } catch (UniqueConstraintViolationException) {
+            throw ValidationException::withMessages([
+                'decision' => 'A concurrent decision was recorded. Refresh and retry.',
             ]);
-        });
+        }
     }
 
     private function workingVersions(ContentItem $item): array

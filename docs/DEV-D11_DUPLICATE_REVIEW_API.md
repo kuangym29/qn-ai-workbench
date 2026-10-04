@@ -30,6 +30,8 @@ POST 请求只接受 `query_page_version_id`、`query_field`、`match_page_versi
 
 POST 重新确认 Query 是当前最大版本的草稿、属于 URL Item；Match 属于同 Project 的正式 Revision；两端字段受 PageType 映射支持，且 Finder 当前确实返回此配对。未知版本、跨 Project 或错误 Item 归属返回 404，已过期 Query、非正式 Match、非法字段或非候选配对返回 422。读取其他 Item 的正式版本仅限同 Project；ProjectContext 本身不是用户身份授权。
 
+Decision 永远绑定提交时的 `query_page_version_id`。新草稿成为最大版本后，旧 Query 的历史 Decision 保留，但旧版本再次 POST 返回 422；新版本是新的 Query 身份，起始 `decision_no = 1`。GET 只对当前返回的 Candidate 挂载同一 `query_page_version_id + query_field + match_page_version_id + match_field` 配对中 `decision_no` 最大的 `latest_decision`，不按 Item、Page 或文本合并。事务中的 Item 行锁与配对序号唯一键共同保护并发；插入时若仍发生唯一冲突，事务回滚并返回受控 422，不覆盖旧决定。
+
 数据库以复合外键保证决策 Query 指向同 Project、同 ContentItem 的 PageVersion，Match 指向同 Project 的 PageVersion。约束并不替代 POST 的“当前 Working / 正式 Revision / 候选”业务检查。
 
 ## 本轮不做
