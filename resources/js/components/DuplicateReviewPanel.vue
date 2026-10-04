@@ -100,7 +100,9 @@ async function decide(
     toast.success('已记录审核决定');
   } catch (e) {
     if (is404(e)) {
-      submitError.value = '当前篇目或候选已不在当前会话作用域内，请刷新后重试。';
+      result.value = null;
+      loadError.value = '当前篇目或候选已不在当前会话作用域内，请刷新后重试。';
+      status.value = 'error';
     } else {
       // 422 lands here too: the pairing is no longer valid (for example the working
       // version moved on). We keep the panel as-is so the reviewer keeps their input.
@@ -204,15 +206,14 @@ defineExpose({ reload: load });
           已检查 {{ queryCount }} 个字段，没有发现与同项目正式历史版本的重复候选。
         </p>
 
-        <p
-          v-else-if="allReviewed"
-          class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
-        >
-          {{ candidateCount }} 个候选已全部处理完成。重新确认正式文案前可再复查一次。
-        </p>
-
         <template v-else>
-          <p class="text-xs text-slate-500">
+          <p
+            v-if="allReviewed"
+            class="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+          >
+            {{ candidateCount }} 个候选已全部处理完成。重新确认正式文案前可再复查一次。
+          </p>
+          <p v-else class="text-xs text-slate-500">
             还有 {{ pendingCount }} 个候选待处理。请对照左右两侧文案后给出判断。
           </p>
 
