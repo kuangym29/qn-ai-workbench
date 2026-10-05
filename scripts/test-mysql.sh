@@ -10,11 +10,13 @@
 # 前置条件：Docker（或 Podman，使用环境变量 CONTAINER_RUNTIME 覆盖）。
 # 用法：
 #   scripts/test-mysql.sh up      # 启动并等待 healthy
-#   scripts/test-mysql.sh verify  # 执行 migration / 结构断言 / 定向测试
-#   scripts/test-mysql.sh suite   # 完整 PHP suite（MySQL）
-#   scripts/test-mysql.sh down    # 销毁容器与数据卷
-#   scripts/test-mysql.sh all     # up + verify + suite + down（推荐）
-#   scripts/test-mysql.sh logs    # 查看容器日志
+#   scripts/test-mysql.sh verify      # 执行 migration / 结构断言 / 定向测试
+#   scripts/test-mysql.sh suite       # 完整 PHP suite（MySQL）
+#   scripts/test-mysql.sh down        # 销毁容器与数据卷
+#   scripts/test-mysql.sh all         # up + grant + verify + suite + down（推荐）
+#   scripts/test-mysql.sh grant       # 给 qn_test 补 performance_schema 只读权限
+#   scripts/test-mysql.sh concurrency # 只跑并发 Gate（行锁串行化验证）
+#   scripts/test-mysql.sh logs        # 查看容器日志
 #
 # ── 安全边界（任一条不满足即拒绝执行，绝不"降级继续"）─────────────────
 #   1. 生效配置必须是：driver=mysql、host=127.0.0.1、port=3399、
@@ -57,6 +59,10 @@ DB_HOST="127.0.0.1"
 DB_NAME="qn_workbench_test"
 DB_USER="qn_test"
 DB_PASSWORD="qn_test_pw"
+
+# 与 docker-compose.mysql-test.yml 的 MYSQL_ROOT_PASSWORD 一致，只用于容器内授权。
+# 它不是任何真实凭据；使用它只做一件事：给上面这个 throwaway 账号补观测权限。
+MYSQL_ROOT_PASSWORD="qn_test_root_pw"
 
 # 结构断言的期望值。
 EXPECT_MYSQL_VERSION_PREFIX="8.4."
@@ -294,6 +300,45 @@ down() {
   info "  ✓ 容器与数据卷已销毁"
 }
 
+# ── 并发 Gate 的观测权限 ────────────────────────────────────────────
+# tests/Gate/Mysql84ConcurrencyTest.php 必须用 performance_schema.data_lock_waits
+# 证明 "worker B 正在等待 worker A"；没有这个读权限就没有任何资格谈"证明了并发"。
+# 官方镜像创建的 qn_test 默认只有 qn_workbench_test.* 的权限，这里补一条只读。
+#
+# 幂等：重复执行只会重新授权一次。GRANT 失败不静默、也不降级——
+# 并发 Gate 会在运行时明确 FAIL 并指出是权限问题。
+ensure_grants() {
+  require_runtime
+  log "并发 Gate 前置：授权 performance_schema 观测能力"
+
+  local grant_sql="GRANT SELECT ON performance_schema.* TO '${DB_USER}'@'%';"
+  if ! compose exec -T mysql-test mysql -uroot "-p${MYSQL_ROOT_PASSWORD}" -e "${grant_sql}" >/dev/null 2>&1; then
+    die "无法给 ${DB_USER} 授予 performance_schema 读权限。
+可能原因：容器未 healthy，或 root 凭据与 docker-compose.mysql-test.yml 不一致。
+并发 Gate 依赖 performance_schema.data_lock_waits 证明锁等待；缺少它不能宣称通过。"
+  fi
+  info "  ✓ ${grant_sql}"
+
+  # 立即以 throwaway 账号自检：授权有没有真的生效，不能只看 GRANT 没报错。
+  local check
+  check="$(compose exec -T mysql-test mysql -u"${DB_USER}" "-p${DB_PASSWORD}" \
+    -N -B -e 'SELECT COUNT(*) FROM performance_schema.data_lock_waits;' 2>&1 | tr -d '\r' || true)"
+
+  if [ -z "$check" ] || printf '%s' "$check" | grep -qiE 'error|access denied'; then
+    die "${DB_USER} 仍无法读取 performance_schema.data_lock_waits（返回：${check:-<空>}）。
+并发 Gate 需要该权限；没有它测试会明确 FAIL，而不是退化成顺序执行。"
+  fi
+
+  info "  ✓ 以 ${DB_USER} 身份读取 performance_schema.data_lock_waits 成功"
+}
+
+verify_concurrency_gate() {
+  assert_env_file
+  assert_effective_target
+  ensure_grants
+  run_phpunit "Mysql84ConcurrencyTest"
+}
+
 logs() {
   require_runtime
   compose logs --tail "${2:-100}"
@@ -460,6 +505,7 @@ run_all() {
   trap 'rc=$?; down >/dev/null 2>&1 || true; exit $rc' EXIT
 
   up
+  ensure_grants
   verify_migrations
   # 不加 `|| echo`：那会把失败吞掉。全量 suite 未全绿就以非 0 结束，
   # 由 trap 完成清理。
@@ -471,14 +517,16 @@ run_all() {
 }
 
 case "${1:-}" in
-  up)     up ;;
-  down)   down ;;
-  logs)   logs "$@" ;;
-  verify) verify_migrations ;;
-  suite)  verify_full_suite ;;
-  all)    run_all ;;
+  up)          up ;;
+  down)        down ;;
+  logs)        logs "$@" ;;
+  grant)       ensure_grants ;;
+  verify)      verify_migrations ;;
+  suite)       verify_full_suite ;;
+  concurrency) verify_concurrency_gate ;;
+  all)         run_all ;;
   *)
-    echo "用法: $0 {up|down|logs|verify|suite|all}" >&2
+    echo "用法: $0 {up|down|logs|grant|verify|suite|concurrency|all}" >&2
     exit 2
     ;;
 esac
