@@ -31,6 +31,8 @@ use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Tests\Gate\Support\ConcurrencyRuntimeDirectory;
+use Tests\Gate\Support\PauseWatchdogTimeout;
+use Tests\Gate\Support\WorkerPauseGate;
 
 if (PHP_SAPI !== 'cli') {
     fwrite(STDERR, "[worker] 只能以 CLI 方式运行。\n");
@@ -146,14 +148,28 @@ if ($role === 'A') {
                 'paused_at' => microtime(true),
             ]);
 
-            $holdUntil = microtime(true) + (float) ($payload['hold_seconds'] ?? 8.0);
+            // watchdog 只是"防父进程异常导致永久挂住"，**不是**"到点就释放"。
+            //
+            // 唯一能放行 A 的，是父进程明确写下的 release-A 信号；超时必须抛异常，
+            // 由 WorkerPauseGate 统一保证这条语义（并有单测钉住）。异常会冒泡出
+            // DuplicateReviewService 内部的 DB::transaction 闭包 → 事务整体回滚 →
+            // worker 非 0 退出。于是"超时"永远不可能被当成一次正常释放。
+            $pauseTimeout = (float) ($payload['pause_timeout_seconds'] ?? 30.0);
 
-            while (microtime(true) < $holdUntil) {
-                if ($runtime->exists('release-A')) {
-                    break;
-                }
+            try {
+                WorkerPauseGate::await(
+                    static fn (): bool => $runtime->exists(ConcurrencyRuntimeDirectory::RELEASE_SIGNAL),
+                    $pauseTimeout,
+                );
+            } catch (PauseWatchdogTimeout $timeout) {
+                $runtime->putJson('a-watchdog.json', [
+                    'role' => 'A',
+                    'conn_id' => $connectionId,
+                    'pause_timeout_seconds' => $pauseTimeout,
+                    'timed_out_at' => microtime(true),
+                ]);
 
-                usleep(20_000);
+                throw $timeout;
             }
 
             $runtime->putJson('released.json', [

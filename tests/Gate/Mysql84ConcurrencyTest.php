@@ -57,18 +57,29 @@ final class Mysql84ConcurrencyTest extends TestCase
     private const NOTE_B = 'worker-b-second-decision';
 
     // ── 时间预算 ─────────────────────────────────────────────────────
-    // 注意：docker-compose.mysql-test.yml 里配置了 --innodb-lock-wait-timeout=10。
-    // 下面两个值都必须小于 10s，否则观测失败时会先等到 MySQL 自己的超时，
-    // 现场会被 "Lock wait timeout exceeded" 掩盖掉真正的原因。
-    private const A_HOLD_SECONDS = 8.0;
+    //
+    // 只有**一个**窗口受 MySQL 的 --innodb-lock-wait-timeout=10 约束：
+    // 「B 开始在 lockForUpdate 上等待」到「A 收到 release 并提交」这段时间。
+    // B 一旦等满 10s，MySQL 会自己抛 Lock wait timeout exceeded，把真正的
+    // 编排失败（没观测到等待、锁没生效、连接串了）掩盖成一堆超时噪音。
+    //
+    // 因此：
+    //   - WAIT_LOCK_OBSERVE_SECONDS 必须明显小于 10s。它是父进程的观测窗口，
+    //     命中后立刻 release，所以它几乎就是上面那个窗口的长度。留一倍以上余量。
+    //   - A_PAUSE_TIMEOUT_SECONDS 是 worker A 的 watchdog，只用来防止父进程
+    //     异常退出后 A 永久占着行锁。它**可以**（也应该）大于 10s，因为它是
+    //     兜底而不是流程；而且它到期绝不正常提交，只抛异常回滚。
+    //   - WAIT_A_PAUSED_SECONDS / WAIT_B_CONNECTION_SECONDS 发生在任何锁等待之前
+    //     （A 还没被等、B 还没调 service），不受该超时约束。
+    private const WAIT_LOCK_OBSERVE_SECONDS = 5.0;
 
-    private const WAIT_LOCK_WAIT = 6.0;
+    private const A_PAUSE_TIMEOUT_SECONDS = 30.0;
 
-    private const WAIT_A_PAUSED = 20.0;
+    private const WAIT_A_PAUSED_SECONDS = 20.0;
 
-    private const WAIT_B_CONNECTION = 10.0;
+    private const WAIT_B_CONNECTION_SECONDS = 10.0;
 
-    private const WAIT_WORKER_EXIT = 25.0;
+    private const WAIT_WORKER_EXIT_SECONDS = 25.0;
 
     /**
      * 两个 worker 对同一个 ContentItem、同一个四字段 pairing 争夺编号。
@@ -111,15 +122,15 @@ final class Mysql84ConcurrencyTest extends TestCase
                 'runtime_dir' => $runtime->path,
                 'content_item_id' => $item->id,
                 'data' => [...$pairing, 'decision' => 'confirmed_duplicate', 'note' => self::NOTE_A],
-                'hold_seconds' => self::A_HOLD_SECONDS,
+                'pause_timeout_seconds' => self::A_PAUSE_TIMEOUT_SECONDS,
                 'expected' => $this->expectedTarget(),
             ]);
 
-            $paused = $runtime->awaitJson('paused.json', self::WAIT_A_PAUSED);
+            $paused = $runtime->awaitJson('paused.json', self::WAIT_A_PAUSED_SECONDS);
 
             if ($paused === null) {
                 $this->fail(
-                    '[concurrency-gate] worker A 未能在 '.self::WAIT_A_PAUSED."s 内进入 creating 暂停，并发窗口没有形成。\n"
+                    '[concurrency-gate] worker A 未能在 '.self::WAIT_A_PAUSED_SECONDS."s 内进入 creating 暂停，并发窗口没有形成。\n"
                     .json_encode($workerA->describe(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
                 );
             }
@@ -141,11 +152,11 @@ final class Mysql84ConcurrencyTest extends TestCase
                 'expected' => $this->expectedTarget(),
             ]);
 
-            $connB = $runtime->awaitJson('conn-B.json', self::WAIT_B_CONNECTION);
+            $connB = $runtime->awaitJson('conn-B.json', self::WAIT_B_CONNECTION_SECONDS);
 
             if ($connB === null) {
                 $this->fail(
-                    '[concurrency-gate] worker B 未能在 '.self::WAIT_B_CONNECTION."s 内建立连接。\n"
+                    '[concurrency-gate] worker B 未能在 '.self::WAIT_B_CONNECTION_SECONDS."s 内建立连接。\n"
                     .json_encode($workerB->describe(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
                 );
             }
@@ -154,7 +165,7 @@ final class Mysql84ConcurrencyTest extends TestCase
             $this->assertNotSame($connectionA, $connectionB, '两个 worker 必须是两个 MySQL 会话；CONNECTION_ID 相同说明进程隔离没生效。');
 
             // 证据 1（决定性）：data_lock_waits 里必须出现 requesting=B、blocking=A 的记录。
-            $wait = $observer->waitForRowLockWait($connectionB, $connectionA, self::WAIT_LOCK_WAIT);
+            $wait = $observer->waitForRowLockWait($connectionB, $connectionA, self::WAIT_LOCK_OBSERVE_SECONDS);
 
             if ($wait === null) {
                 $this->fail(
@@ -170,9 +181,9 @@ final class Mysql84ConcurrencyTest extends TestCase
             $runtime->release();
 
             foreach ([$workerA, $workerB] as $worker) {
-                if (! $worker->waitForExit(self::WAIT_WORKER_EXIT)) {
+                if (! $worker->waitForExit(self::WAIT_WORKER_EXIT_SECONDS)) {
                     $this->fail(
-                        "[concurrency-gate] worker {$worker->role} 在 ".self::WAIT_WORKER_EXIT."s 内未退出。\n"
+                        "[concurrency-gate] worker {$worker->role} 在 ".self::WAIT_WORKER_EXIT_SECONDS."s 内未退出。\n"
                         .json_encode($worker->describe(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
                     );
                 }
