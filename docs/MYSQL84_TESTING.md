@@ -443,6 +443,7 @@ $this->assertTrue(
 **已知的运行时前置条件**（首次实跑前请确认）：
 
 1. `qn_test` 需要 `SELECT ON performance_schema.*`（`scripts/test-mysql.sh grant` 已负责）；
+2. `APP_KEY` 由 `scripts/test-mysql.sh` 在调用 PHPUnit 时**按进程注入**（见 §16），无需手工导出，也不要写进 `.env` / `.env.testing` / CI secret；
 2. `--innodb-lock-wait-timeout=10` 约束的**只有一个**窗口：「B 开始在 `lockForUpdate` 上等待」→「A 收到放行并提交」。因此父进程的观测窗口设为 5s（`WAIT_LOCK_OBSERVE_SECONDS`），留足一倍以上余量；命中后立即放行。A 的 watchdog（`A_PAUSE_TIMEOUT_SECONDS` = 30s）是防父进程异常导致永久挂住的兜底，**可以**大于 10s，且它到期只回滚、绝不正常提交。
 3. worker 用 `proc_open` 拉起，需要本机 `PHP_BINARY` 可用、且 `.env.mysql-testing` 已存在（orchestrator 会把实际生效的 DB 配置与 `APP_KEY` 显式传给子进程，并在 worker 侧再做一次目标自证）。
 
@@ -480,3 +481,45 @@ $this->assertTrue(
 受 `--innodb-lock-wait-timeout=10` 约束的**只有一个**窗口：「B 开始在 `lockForUpdate` 上等待」→「A 收到放行并提交」。父进程观测窗口 `WAIT_LOCK_OBSERVE_SECONDS = 5s`，命中即放行，留一倍以上余量。A 的 watchdog `A_PAUSE_TIMEOUT_SECONDS = 30s` 是防挂死兜底，**允许**大于 10s，且到期只回滚。此前「所有父窗口都必须 < 10s」是错误假设——真正需要小于 10s 的只有 B 的等待时长。
 
 **本轮同样未实跑 Runtime Gate**（无 Docker / Podman），静态检查见提交说明；`MYSQL_8_4_RELEASE_GATE_PENDING` 保持。
+
+### 16. APP_KEY 传递修复记录（2026-10-05，DEV-MYSQL84-GATE-APPKEY-FIX3）
+
+**现象**：GitHub Actions Run `37292699175` —— MySQL 与结构 Gate 全绿，但
+`DuplicateReviewApiTest` 13 errors / 0 assertions，统一是
+`Illuminate\Encryption\MissingAppKeyException`。
+
+**根因**：`phpunit.mysql84.xml` 把 `APP_ENV` 固定为 `testing`，Laravel 因此**不会**去读
+`.env.mysql-testing`；那个文件里由 `php artisan key:generate --env=mysql-testing`
+生成的 `APP_KEY` 到不了 PHPUnit 进程，HTTP Feature tests 启动 Laravel 时 key 为空。
+
+**修法**（在官方 Gate runner 内，`scripts/test-mysql.sh`）：
+
+1. `resolve_test_app_key()` 通过 **Laravel 自己**（`php artisan tinker --env=mysql-testing`
+   读 `config('app.key')`）取生效值，不自己实现 dotenv 解析器；
+2. 只接受非空：取不到、或字面 `null` / 空白 → 返回失败，**fail-closed**；
+3. `run_phpunit()` 用行内前缀 `APP_KEY="$TEST_APP_KEY" vendor/bin/phpunit …` 注入，
+   **只作用于这一条命令**（刻意不用 `export`，避免 key 扩散到后续所有子进程）；
+4. 不写 `.env` / `.env.testing` / GitHub secret / artifact / 日志。
+
+`tests/bootstrap-mysql84-gate.php` 增加 **闸 1.5**：APP_KEY 未设置 / 空 / 字面 `null` /
+纯空格 → Gate 直接 FAIL；非空只打印 `APP_KEY 已提供（值不显示）`。这样一旦传递链再断，
+会在**第一个用例之前**给出明确错误，而不是 13 个 HTTP 测试集体 MissingAppKey。
+
+**传递链**（已逐跳验证）：
+
+```text
+.env.mysql-testing
+  → resolve_test_app_key()（tinker 读 config('app.key')）
+  → APP_KEY="…" 行内注入 phpunit 进程
+  → Laravel config('app.key')            ← 注入则长度 51 一致；不注入则长度 0
+  → ConcurrencyWorkerProcess::environment() → 子进程 APP_KEY 一致
+```
+
+并发 worker 无需改动：它本就通过 `getenv()` 继承进程环境，并以 `config('app.key')` 复核。
+
+**不泄露的验证方式**：所有检查都只输出「长度」与「是否一致」的布尔值，脚本里没有
+`set -x`、没有 `export APP_KEY`、没有把 key 放进任何 echo / die 文案；日志只出现
+`✓ APP_KEY 已加载并将传给 PHPUnit（值不显示）` 与 `APP_KEY 已提供（值不显示）`。
+
+**本轮未实跑 Runtime Gate**（本机无 Docker / Podman），静态与链路验证见提交说明；
+`MYSQL_8_4_RELEASE_GATE_PENDING` 保持。
