@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\CopyStatus;
 use App\Enums\PageType;
 use App\Models\ContentItem;
+use App\Models\ContentPage;
 use App\Models\Project;
 use App\Services\HistoryImport\FinalImageCopyParser;
 use App\Services\HistoryImport\YujianHistoryImporter;
@@ -12,6 +13,7 @@ use App\Services\HistoryImport\YujianHistoryManifest;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -252,15 +254,54 @@ class YujianHistoryImporterTest extends TestCase
 
     public function test_database_failure_rolls_back_whole_batch(): void
     {
-        DB::statement("CREATE TRIGGER fail_history_page BEFORE INSERT ON content_page_versions BEGIN SELECT RAISE(ABORT, 'injected failure'); END");
+        // 故障注入必须**方言中立**。
+        //
+        // 旧实现用的是 `CREATE TRIGGER … SELECT RAISE(ABORT, …)` —— 那是 SQLite 专属语法，
+        // 拿到 MySQL 8.4 上直接 1064 语法错误，测试连注入都做不到，更谈不上验证回滚。
+        //
+        // 现在改为：在 Eloquent creating 钩子里执行一条**必然失败**的写入 ——
+        // 向一张不存在的表插入。SQLite 报 "no such table"，MySQL 报 "Table … doesn't exist"，
+        // 两者都抛真正的 QueryException。
+        //
+        // 注入点选 ContentPage：importer 的事务里，project / column / topic / item /
+        // revision 都已经写完，正要写第一张 content_page 时才失败 —— 因此下面那条
+        // "注入时 projects 已非空" 的断言能证明失败**发生在事务中途**，
+        // 而不是第一句 SQL 之前（那样回滚证明不了任何东西）。
+        $injected = false;
+        $projectsBeforeInjection = 0;
+        $eventName = 'eloquent.creating: '.ContentPage::class;
+
+        Event::listen($eventName, function () use (&$injected, &$projectsBeforeInjection): void {
+            if ($injected) {
+                return;
+            }
+
+            $injected = true;
+            $projectsBeforeInjection = DB::table('projects')->count();
+
+            DB::statement('INSERT INTO qn_no_such_table_for_failure_injection (id) VALUES (1)');
+        });
+
         try {
             $this->importer()->apply($this->plan());
             $this->fail('Expected transaction to fail.');
         } catch (QueryException $exception) {
-            $this->assertStringContainsString('injected failure', $exception->getMessage());
+            $this->assertMatchesRegularExpression(
+                '/no such table|doesn\'t exist|does not exist|unknown table/i',
+                $exception->getMessage(),
+            );
+        } finally {
+            Event::forget($eventName);
         }
-        $this->assertSame(0, DB::table('projects')->count());
-        $this->assertSame(0, DB::table('content_copy_revisions')->count());
+
+        $this->assertTrue($injected, '故障注入必须真的发生过，否则这个用例什么都没验证。');
+        $this->assertGreaterThan(
+            0,
+            $projectsBeforeInjection,
+            '失败必须发生在事务中途：注入时 projects 表里已经有行，否则证明不了整批回滚。',
+        );
+        $this->assertSame(0, DB::table('projects')->count(), '整批回滚后 projects 必须为 0。');
+        $this->assertSame(0, DB::table('content_copy_revisions')->count(), '整批回滚后 content_copy_revisions 必须为 0。');
     }
 
     public function test_parser_rejects_duplicate_page_and_unknown_structure(): void
