@@ -20,7 +20,6 @@
  * 之后 Laravel 用同一组 env 建连，因此测试进程内跑的必然是这个库。
  * 未通过时退出码非 0，Gate 不会被误判为通过。
  */
-
 $root = dirname(__DIR__);
 
 require $root.'/vendor/autoload.php';
@@ -70,6 +69,7 @@ $readEnvNullable = static function (string $key) use ($readEnvStrict): ?string {
     if ($raw === "<unset:{$key}>") {
         return null;
     }
+
     // <env value="..."> 注入的原始值是字符串，Laravel 之后才做这层归一化。
     // 这里提前做，才能与 config('database.connections.mysql.url') 的结果对齐。
     return match (strtolower($raw)) {
@@ -108,6 +108,31 @@ if ($dbUrl !== null && $dbUrl !== '') {
     使上面的逐项校验形同虚设。若要显式留空，请写 DB_URL=（空值）或直接删除该行。");
 }
 $gatePass('DB_URL 未设置或为空（逐项校验有效）');
+
+// ── 闸 1.5：APP_KEY ────────────────────────────────────────────────
+// 为什么需要这道闸：
+//   phpunit.mysql84.xml 把 APP_ENV 固定为 testing，Laravel 因此**不会**去读
+//   .env.mysql-testing —— 那个文件里的 APP_KEY 到不了测试进程。
+//   结果是所有 HTTP Feature 测试在启动 Laravel 时抛 MissingAppKeyException，
+//   表现为"结构 Gate 全绿、功能测试集体报错"，排查成本极高。
+//   scripts/test-mysql.sh 会把该 key 注入 PHPUnit 进程；这里再确认一次，
+//   断链时能在**第一个用例之前**给出明确错误。
+//
+// 语义与 DB_URL 判定一致：只接受非空；取不到即 FAIL。
+// 纯空格同样按"空"处理 —— 与本 Gate 对 DB_URL 的既有契约保持一致：一个显然
+// 无效的 key 应该在闸门就被拦下，而不是放行到 Encrypter 去抛一个更难懂的错。
+// 无论通过与否都不打印 key 的值。
+$appKey = $readEnvNullable('APP_KEY');
+
+if ($appKey === null || $appKey === '' || trim($appKey) === '') {
+    $gateFail('APP_KEY 未设置或为空，HTTP 测试会以 MissingAppKeyException 失败。
+    请通过 scripts/test-mysql.sh 运行（它会把 .env.mysql-testing 的 APP_KEY
+    注入本次 PHPUnit 进程）。若 key 本身缺失，先执行：
+        php artisan key:generate --env=mysql-testing
+    刻意不在此处写死 key，也不在失败信息里输出 key 的值。');
+}
+
+$gatePass('APP_KEY 已提供（值不显示）');
 
 // ── 闸 2：连接层，向服务器自证身份 ───────────────────────────────────
 $dsn = sprintf(
