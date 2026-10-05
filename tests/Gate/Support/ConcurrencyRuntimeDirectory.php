@@ -23,6 +23,9 @@ use RuntimeException;
  */
 final class ConcurrencyRuntimeDirectory
 {
+    /** 父进程放行 worker A 的信号文件名。 */
+    public const RELEASE_SIGNAL = 'release-A';
+
     public function __construct(public readonly string $path) {}
 
     public static function create(string $prefix = 'qn-mysql84-concurrency'): self

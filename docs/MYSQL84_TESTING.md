@@ -48,6 +48,10 @@ D11 的决策链依赖三处 MySQL 与 SQLite 行为差异，SQLite 全绿无法
 | `tests/Gate/Support/ConcurrencyWorkerProcess.php` | 独立 worker 进程的启动、输出采集与超时回收 |
 | `tests/Gate/Support/LockWaitObserver.php` | 从 `performance_schema` 观测「谁在等谁」的证据采集 |
 | `tests/Gate/Support/GateInfrastructureUnavailable.php` | 观测能力缺失时抛出的异常（必须 FAIL，不得降级） |
+| `tests/Gate/Support/WorkerPauseGate.php` | A 的暂停闸门：只有显式放行才继续，超时抛异常（不碰 IO，可单测） |
+| `tests/Gate/Support/PauseWatchdogTimeout.php` | watchdog 超时异常；抛出即意味着事务必须回滚 |
+| `tests/Gate/LockWaitProbeErrorClassificationTest.php` | NOWAIT 错误分类回归检查：只有 driver code 3572 算锁冲突 |
+| `tests/Gate/WorkerPauseWatchdogTest.php` | watchdog 语义回归检查：超时必须抛异常而非放行 |
 | `tests/Gate/Support/concurrency_worker.php` | worker 入口脚本：独立 bootstrap + 真实调用 `appendDecision()` |
 | `scripts/test-mysql.sh` | 启停 + 校验 + 验证一体的执行脚本 |
 | `docs/MYSQL84_TESTING.md` | 本文件 |
@@ -182,7 +186,7 @@ SQLite 层面那套「先 sleep 再让第二个调用执行」在这里毫无意
 | 暂停窗口 | worker A 注册 `eloquent.creating: App\Models\DuplicateReviewDecision` 监听，在回调里写 `paused.json` 并阻塞等待 `release-A`；此刻 A 已拿到 `content_items` 行锁、编号算完，但 INSERT 未发生、事务未提交 |
 | B 的启动时机 | orchestrator 只在读到 `paused.json` 之后才启动 worker B；worker B 自己也会再确认一次，看不到信号就拒绝执行（避免退化成顺序执行） |
 | 释放 | orchestrator 观测到锁等待后写 `release-A`；A 提交 #1，B 随即获锁并读到 #1，算出 #2 |
-| 兜底 | A 的暂停上限 8s < `--innodb-lock-wait-timeout=10`，任何观测失败都不会让 B 先撞上 MySQL 自己的超时而掩盖真因；worker 最终一律被 `kill()` 回收，不会留下占锁的活事务 |
+| 兜底 | A 的暂停是一道**只能由父进程显式放行**的闸门（`WorkerPauseGate`）：watchdog 到期不会当成释放，而是抛 `PauseWatchdogTimeout`，异常冒泡出 `DB::transaction` 闭包 → 事务回滚、worker 非 0 退出、不 INSERT 不 COMMIT；worker 最终一律被 `kill()` 回收，不会留下占锁的活事务 |
 
 #### 如何证明真实 lock wait
 
@@ -190,7 +194,8 @@ SQLite 层面那套「先 sleep 再让第二个调用执行」在这里毫无意
 
 1. **决定性证据**：`performance_schema.data_lock_waits` 出现 `requesting = worker B 的 PROCESSLIST_ID`、`blocking = worker A 的 PROCESSLIST_ID` 的记录。这条记录是 InnoDB 真的把 B 挂起时才写入的，且这里是**精确匹配双向**，不是"存在任何等待就行"。
    连接身份来自各 worker 自己上报的 `SELECT CONNECTION_ID()`，经 `performance_schema.threads` 与 `THREAD_ID` 关联。
-2. **行锁确实存在**：A 暂停期间，orchestrator 用第三条连接执行 `SELECT id FROM content_items WHERE id = ? FOR UPDATE NOWAIT`，撞出 MySQL 3572 才算通过；同时检查 `data_locks` 里 A 已 `GRANTED` 的锁。若 NOWAIT 竟然抢到了，说明排他锁不存在，直接失败。
+2. **行锁确实存在**：A 暂停期间，orchestrator 用第三条连接执行 `SELECT id FROM content_items WHERE id = ? FOR UPDATE NOWAIT`，撞出 MySQL **driver code 3572** 才算通过；同时检查 `data_locks` 里 A 已 `GRANTED` 的锁。若 NOWAIT 竟然抢到了，说明排他锁不存在，直接失败。
+   判定**只认 driver code 3572**（取自 PDO `errorInfo[1]`），不看 message 文本：`QueryException` 的 message 会带上原始 SQL，而 SQL 本身含 `NOWAIT`，用文本匹配会把 1142 权限错误、1064 语法错误、2006 连接错误一并误判成「锁成立」。SQLSTATE 同样不可用——3572 与 2006 都是 `HY000`。这条规则由 `LockWaitProbeErrorClassificationTest` 钉住，不需要真实数据库即可回归。
 3. **时间旁证**：B 的 `call_started_at` 早于 A 的 `resumed_at`，而 B 的 `lock_returned_at` 晚于 A 的 `resumed_at`——说明 B 确实被堵了一段时间。**单靠时间推断无效**，它只在 1、2 成立时作为旁证记录。
 
 #### 需要的额外 MySQL 权限
@@ -438,5 +443,40 @@ $this->assertTrue(
 **已知的运行时前置条件**（首次实跑前请确认）：
 
 1. `qn_test` 需要 `SELECT ON performance_schema.*`（`scripts/test-mysql.sh grant` 已负责）；
-2. `--innodb-lock-wait-timeout=10` 是现有的 compose 配置，测试内的观测窗口（6s）与 A 的暂停上限（8s）都严格小于它；
+2. `--innodb-lock-wait-timeout=10` 约束的**只有一个**窗口：「B 开始在 `lockForUpdate` 上等待」→「A 收到放行并提交」。因此父进程的观测窗口设为 5s（`WAIT_LOCK_OBSERVE_SECONDS`），留足一倍以上余量；命中后立即放行。A 的 watchdog（`A_PAUSE_TIMEOUT_SECONDS` = 30s）是防父进程异常导致永久挂住的兜底，**可以**大于 10s，且它到期只回滚、绝不正常提交。
 3. worker 用 `proc_open` 拉起，需要本机 `PHP_BINARY` 可用、且 `.env.mysql-testing` 已存在（orchestrator 会把实际生效的 DB 配置与 `APP_KEY` 显式传给子进程，并在 worker 侧再做一次目标自证）。
+
+### 15. 并发 Gate 二次整改记录（2026-10-05，DEV-MYSQL84-CONCURRENCY-GATE-FIX2）
+
+修两个会直接导致**假绿**的缺陷，并给两者都补上不依赖 MySQL 的回归检查。
+
+**Blocker 1：NOWAIT 错误分类过宽**
+
+旧判定是 `str_contains($message, '3572') || str_contains(strtolower($message), 'nowait')`。但 `QueryException` 的 message 会带上原始 SQL，而这条 SQL 本身就含 `NOWAIT`——于是 1142（权限不足）、1064（语法错误）、2006（连接断开）全会被判成「锁成立」。这类误判最危险的地方在于：它会把一次观测故障包装成「排他锁已证明」。
+
+现在只认 **MySQL driver code 3572**，取自 PDO 的 `errorInfo[1]`：
+
+- SQLSTATE 不可用——3572 与 2006 同为 `HY000`，1142/1064 同为 `42000`；
+- `QueryException` 构造时调用 `parent::__construct('', 0, $previous)`，自身的 `errorInfo` 通常为空，真正带 driver code 的是 `previous` 那层 `PDOException`，所以要沿异常链取；
+- 取不到 driver code 时判为「不是锁冲突」，由调用方原样抛出——绝不「取不到就当锁成立」。
+
+**Blocker 2：watchdog 到期被当成正常释放**
+
+旧循环到期即跳出，随后 A 照常 INSERT + COMMIT。父进程一旦没在窗口内放行，整场编排会悄悄退化成「A 先提交、B 顺序执行」的假并发，甚至可能报出一份漂亮的「编号已串行化」结论。
+
+现在 A 的暂停是一道只能显式放行的闸门（`WorkerPauseGate::await()`）：超时抛 `PauseWatchdogTimeout`，异常冒泡出 `DB::transaction` 闭包 → 事务回滚 → worker 非 0 退出 → 不 INSERT、不 COMMIT。payload 字段也由 `hold_seconds` 更名为 `pause_timeout_seconds`，语义不再有歧义。
+
+**新增的两个回归检查都不需要数据库**
+
+| 检查 | 覆盖 | 实测 |
+| --- | --- | --- |
+| `LockWaitProbeErrorClassificationTest` | 3572 → true；1142 / 1064 / 2006 / `errorInfo` 缺失 → 重新抛出；并构造「SQLSTATE 相同、driver code 不同」的对照，证明判定不依赖 SQLSTATE | 5 tests / 19 assertions |
+| `WorkerPauseWatchdogTest` | 已放行立即返回；迟到放行仍被承认；超时必抛异常；`timeout=0` 也不放行；边界时刻到达的信号不被误伤 | 5 tests / 10 assertions |
+
+两者合计 **10 tests / 29 assertions 全绿**，bootstrap 只需 `vendor/autoload.php`，全程未连接任何数据库。它们只注册在 `phpunit.mysql84.xml` 的 Gate testsuite 下，主线 SQLite suite 的测试数与断言数不变（实测仍为 270 / 0 命中）。
+
+**时间预算重新设计**
+
+受 `--innodb-lock-wait-timeout=10` 约束的**只有一个**窗口：「B 开始在 `lockForUpdate` 上等待」→「A 收到放行并提交」。父进程观测窗口 `WAIT_LOCK_OBSERVE_SECONDS = 5s`，命中即放行，留一倍以上余量。A 的 watchdog `A_PAUSE_TIMEOUT_SECONDS = 30s` 是防挂死兜底，**允许**大于 10s，且到期只回滚。此前「所有父窗口都必须 < 10s」是错误假设——真正需要小于 10s 的只有 B 的等待时长。
+
+**本轮同样未实跑 Runtime Gate**（无 Docker / Podman），静态检查见提交说明；`MYSQL_8_4_RELEASE_GATE_PENDING` 保持。
