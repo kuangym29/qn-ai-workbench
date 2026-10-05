@@ -273,29 +273,123 @@ host/port/database/username/password，逐项安全校验即形同虚设。
 # 不进 artifact、不进日志。
 #
 # 取不到或为空一律 fail-closed：宁可明确中止，也不让它以 13 个红测试的形式失败。
+#
+# ── probe 协议 ────────────────────────────────────────────────────────
+# tinker --execute 必须输出且**只**输出一条记录：
+#
+#   __QN_APP_KEY_B64__<base64(APP_KEY)>__END__
+#
+# 为什么这样设计（前一版的 false-accept 都出在这里）：
+#   旧实现是 `tinker … | tr -d '\r' | tail -1`，于是：
+#     - 管道后的 $? 是 tail 的退出码，php 失败也可能被当成成功；
+#     - warning / prompt / 错误文字只要落在最后一行，就会被当成 key；
+#     - 多条输出被 tail -1 静默丢弃，看起来"成功"。
+#   现在：完整捕获 stdout + 独立取 php 的真实退出码 + 严格结构校验，
+#   任何多余、重复、畸形、无法解码的输出一律 fail-closed。
+#
+# key 整体（含标准 Laravel 的 "base64:" 前缀）被 base64 编码一次，
+# 解码后逐字节还原，绝不剥掉或二次解释该前缀。
 TEST_APP_KEY=""
+APP_KEY_PROBE_FAILURE=""
 
-resolve_test_app_key() {
-  local key
+PROBE_MARKER_PREFIX="__QN_APP_KEY_B64__"
+PROBE_MARKER_SUFFIX="__END__"
 
-  # 命令替换会吞掉 stdout，所以 tinker 的输出不会流到终端。
-  # 失败时也不打印 tinker 的原始输出（那可能带路径等信息），只报"读不到"。
-  key="$(php artisan tinker --env=mysql-testing --execute='
-    $k = config("app.key");
-    echo is_string($k) ? $k : "";
-  ' 2>/dev/null | tr -d '\r' | tail -1)"
+# 纯解析：入参是 probe 的**完整** stdout。
+# 成功 → 写入 TEST_APP_KEY 并返回 0；失败 → 返回 1。
+# 任何分支都不会把入参内容写进变量以外的输出。
+parse_app_key_probe_output() {
+  local raw="$1"
+  local trimmed encoded decoded markers
 
-  # Laravel 的 env() 归一化可能给出字面 "null"；那同样视为"没有 key"。
-  key="${key#"${key%%[![:space:]]*}"}"   # 去前导空白
-  key="${key%"${key##*[![:space:]]}"}"   # 去尾部空白
+  TEST_APP_KEY=""
+  APP_KEY_PROBE_FAILURE="APP_KEY probe 输出格式无效"
 
-  if [ -z "$key" ] || [ "$key" = "null" ] || [ "$key" = "(null)" ]; then
-    TEST_APP_KEY=""
+  # 允许首尾空白；除此之外不允许出现任何其它内容。
+  trimmed="${raw#"${raw%%[![:space:]]*}"}"
+  trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+
+  [ -n "$trimmed" ] || return 1
+
+  # 整条输出必须**恰好**是一条 marker：缺前缀、缺后缀、或夹带内容都拒。
+  case "$trimmed" in
+    "${PROBE_MARKER_PREFIX}"*"${PROBE_MARKER_SUFFIX}") ;;
+    *) return 1 ;;
+  esac
+
+  # marker 只能出现一次。两条及以上（哪怕其中一条合法）一律拒。
+  markers="$(printf '%s' "$trimmed" | grep -o "$PROBE_MARKER_PREFIX" | wc -l | tr -d ' ')"
+  [ "$markers" = "1" ] || return 1
+
+  encoded="${trimmed#"$PROBE_MARKER_PREFIX"}"
+  encoded="${encoded%"$PROBE_MARKER_SUFFIX"}"
+
+  # 编码体里不得再出现 marker 片段。
+  case "$encoded" in
+    *"$PROBE_MARKER_PREFIX"*|*"$PROBE_MARKER_SUFFIX"*) return 1 ;;
+  esac
+
+  # 严格 base64 字符集：空格、换行、@、# 等一律拒。
+  case "$encoded" in
+    ""|*[!A-Za-z0-9+/=]*) return 1 ;;
+  esac
+
+  # 长度必须是 4 的倍数，否则解码不可能成功。
+  [ $(( ${#encoded} % 4 )) -eq 0 ] || return 1
+
+  if ! command -v base64 >/dev/null 2>&1; then
+    APP_KEY_PROBE_FAILURE="APP_KEY probe 缺少 base64 解码工具"
     return 1
   fi
 
-  TEST_APP_KEY="$key"
+  if ! decoded="$(printf '%s' "$encoded" | base64 -d 2>/dev/null)"; then
+    APP_KEY_PROBE_FAILURE="APP_KEY probe 编码无法解码"
+    return 1
+  fi
+
+  # 解码后去掉首尾空白，必须仍非空（纯空白同样视为没有 key）。
+  decoded="${decoded#"${decoded%%[![:space:]]*}"}"
+  decoded="${decoded%"${decoded##*[![:space:]]}"}"
+
+  if [ -z "$decoded" ]; then
+    APP_KEY_PROBE_FAILURE="APP_KEY probe 解码结果为空"
+    return 1
+  fi
+
+  TEST_APP_KEY="$decoded"
+  APP_KEY_PROBE_FAILURE=""
   return 0
+}
+
+resolve_test_app_key() {
+  local probe_stdout="" probe_rc=0
+
+  # 不能写成 `local x="$(…)"`：那样 $? 取到的是 local 自己的退出码（永远 0），
+  # php 的真实失败会被吞掉。这里显式分两步，先赋值再取 rc。
+  #
+  # marker 名通过行内环境变量传给 probe，保证 bash 与 PHP 两侧单一来源；
+  # 传的是 marker 名称，不是 key。
+  probe_stdout="$(
+    QN_PROBE_PREFIX="$PROBE_MARKER_PREFIX" QN_PROBE_SUFFIX="$PROBE_MARKER_SUFFIX" \
+    php artisan tinker --env=mysql-testing --execute='
+      $key = config("app.key");
+      $pre = (string) (getenv("QN_PROBE_PREFIX") ?: "");
+      $suf = (string) (getenv("QN_PROBE_SUFFIX") ?: "");
+      if ($pre === "" || $suf === "") { exit(3); }
+      echo "\n" . $pre . base64_encode(is_string($key) ? $key : "") . $suf . "\n";
+    ' 2>/dev/null
+  )"
+
+  probe_rc=$?
+
+  # php 失败即失败：即使 stdout 里恰好有一条看起来合法的 marker 也不接受。
+  if [ "$probe_rc" -ne 0 ]; then
+    TEST_APP_KEY=""
+    APP_KEY_PROBE_FAILURE="APP_KEY probe 执行失败"
+    return 1
+  fi
+
+  parse_app_key_probe_output "$probe_stdout"
 }
 
 assert_test_app_key() {
@@ -308,7 +402,8 @@ assert_test_app_key() {
   fi
 
   if ! resolve_test_app_key; then
-    die "$ENV_FILE 中没有可用的 APP_KEY。
+    # 原因只取固定短语，绝不回显 probe 的 stdout / marker / key。
+    die "${APP_KEY_PROBE_FAILURE:-APP_KEY probe 失败}：$ENV_FILE 中没有可用的 APP_KEY。
 请执行：php artisan key:generate --env=mysql-testing
 Gate 不会把 key 写进 .env / .env.testing / 日志 / artifact，也不会打印它的值。"
   fi

@@ -523,3 +523,42 @@ $this->assertTrue(
 
 **本轮未实跑 Runtime Gate**（本机无 Docker / Podman），静态与链路验证见提交说明；
 `MYSQL_8_4_RELEASE_GATE_PENDING` 保持。
+
+### 17. APP_KEY probe 严格化记录（2026-10-05，DEV-MYSQL84-GATE-APPKEY-FIX4）
+
+FIX3 的 `resolve_test_app_key()` 用的是 `tinker … | tr -d '\r' | tail -1`，存在四类
+false-accept：管道后的 `$?` 是 `tail` 的退出码（php 失败也可能被当成成功）；warning /
+prompt / 错误文字只要落在最后一行就会被当成 key；多条输出被 `tail -1` 静默丢弃；bootstrap
+只能验证"非空"，无法知道字符串是否真来自 `config('app.key')`。
+
+**probe 协议**：`tinker --execute` 只输出一条记录，key 整体做一次 base64 编码。
+
+```text
+__QN_APP_KEY_B64__<base64(APP_KEY)>__END__
+```
+
+marker 名通过行内环境变量（`QN_PROBE_PREFIX` / `QN_PROBE_SUFFIX`）传给探针，保证 bash
+与 PHP 两侧单一来源；传的是 marker 名，不是 key。标准 Laravel 的 `base64:` 前缀被整体
+编码一次，解码后逐字节还原，不剥除也不二次解释。
+
+**解析层 `parse_app_key_probe_output()` 的十项判定**（任一不满足即 fail-closed）：
+完整 stdout 捕获 → 独立取 php 真实退出码（非 0 立即拒，即使 stdout 里有合法 marker）→
+去首尾空白后必须整条匹配单条 marker → marker 出现次数恰好为 1 → 编码体不得再含
+marker 片段 → 严格 base64 字符集 → 长度是 4 的倍数 → `base64 -d` 成功 → 解码结果
+去空白后非空。**不再使用 `tail -1`**，任何多余输出都会让整条匹配失败。
+
+**退出码处理**：`probe_stdout="$(…)"` 与 `probe_rc=$?` 显式分两步写。刻意不写成
+`local x="$(…)"` —— 那样 `$?` 取到的是 `local` 自己的退出码（永远 0），探针失败会被吞掉。
+函数由 `if ! resolve_test_app_key` 调用，因此不依赖 errexit，全部显式 `return 1`。
+
+**secret 安全**：失败原因只取固定短语（`APP_KEY probe 执行失败` / `输出格式无效` /
+`编码无法解码` / `解码结果为空`），不回显 stdout、marker、编码体或 key；无 `set -x`、
+无 `export APP_KEY`、不写 `.env.testing` / artifact / workflow secret。
+
+**回归矩阵**（stub 替换 `php`，不连 MySQL，13 项全部符合预期）：
+正常单一 marker 通过；**rc≠0 但含合法 marker 拒绝**（旧实现会误接受）；warning-only 拒绝；
+两条 marker 拒绝；marker + 额外输出拒绝；缺 `__END__` 拒绝；长度非 4 倍数 / 非法字符 /
+非法 padding 拒绝；解码为空拒绝；解码为纯空格拒绝；`base64:…` key 还原后与原值逐字节
+一致（前缀保留、长度 51）。
+
+**本轮未实跑 Runtime Gate**（本机无 Docker / Podman）；`MYSQL_8_4_RELEASE_GATE_PENDING` 保持。
