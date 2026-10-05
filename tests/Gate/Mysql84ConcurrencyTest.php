@@ -277,7 +277,23 @@ final class Mysql84ConcurrencyTest extends TestCase
 
         $this->assertSame('mysql', (string) config('database.default'), '本 Gate 测试必须跑在 MySQL 上。');
         $this->assertSame(self::EXPECTED_DATABASE, (string) ($connection['database'] ?? ''), '本 Gate 测试必须跑在隔离的 MySQL 测试库上。');
-        $this->assertNull($connection['url'] ?? null, 'DB_URL 非空会使用单 URL 覆盖逐项校验。');
+
+        // DB_URL 的判定与 Gate 其余五处完全一致（phpunit.mysql84.xml、bootstrap、
+        // 并发 worker、scripts/test-mysql.sh、.env.mysql-testing.example、文档）：
+        //   允许 —— 未设置（null）、空字符串，以及 Laravel 归一化后落在这两种形态的值；
+        //   拒绝 —— 任何其它非空值，含纯空格与真实 URL。
+        //
+        // 不能写成 assertNull()：phpunit.mysql84.xml 写的是 <env name="DB_URL" value=""/>，
+        // 正确配置下 config 读到的是**空字符串**而不是 null，assertNull() 会把合法配置
+        // 判成失败——那是一个假阴性，也和已锁定的契约自相矛盾。
+        // 也不用 assertEmpty()/== '' 之类的宽松写法：那会把 '0'、' ' 这类非法值一起放过。
+        $actualUrl = $connection['url'] ?? null;
+        $this->assertTrue(
+            $actualUrl === null || $actualUrl === '',
+            'DB_URL 只允许未设置（null）或空字符串。实际值：'.var_export($actualUrl, true)
+            .'。任何其它非空值（含纯空格）都会整体覆盖 host/port/database/username/password，'
+            .'使逐项校验形同虚设。',
+        );
 
         $this->assertTrue(
             Schema::hasTable('duplicate_review_decisions'),
