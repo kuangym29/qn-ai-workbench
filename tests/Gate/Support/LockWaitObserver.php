@@ -6,6 +6,8 @@ namespace Tests\Gate\Support;
 
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use PDOException;
+use Throwable;
 
 /**
  * 从 MySQL 侧独立证明「worker B 正在等待 worker A 持有的行锁」。
@@ -29,6 +31,15 @@ use Illuminate\Support\Facades\DB;
  */
 final class LockWaitObserver
 {
+    /**
+     * MySQL driver code：Statement aborted because lock(s) could not be acquired
+     * immediately and NOWAIT is set.
+     *
+     * 只认这个数字。SQLSTATE 不能用——它对 3572、1142、1064、2006 全都是 HY000/42000，
+     * 根本区分不开。
+     */
+    public const LOCK_CONFLICT_DRIVER_CODE = 3572;
+
     private const GRANT_HINT = "docker compose -p qn-workbench-mysql84-gate -f docker-compose.mysql-test.yml \\\n"
         ."  exec -T mysql-test mysql -uroot -pqn_test_root_pw \\\n"
         ."  -e \"GRANT SELECT ON performance_schema.* TO 'qn_test'@'%';\"\n"
@@ -149,27 +160,89 @@ final class LockWaitObserver
     /**
      * NOWAIT 探针：用 orchestrator 自己的连接去抢同一行的 X 锁。
      *
-     * 返回 true = 立刻被拒（3572），说明该行此刻确实被别的会话独占持有，
+     * 返回 true = 立刻被拒（driver code 3572），说明该行此刻确实被别的会话独占持有，
      * 也就是锁真的存在；返回 false = 竟然抢到了，说明根本没有排他锁，
      * 后面的并发结论全部不成立。
      *
      * NOWAIT 保证这行查询不会自己排队等候，因此它不会参与锁竞争、也几乎不占时间。
+     *
+     * 只有 {@see self::LOCK_CONFLICT_DRIVER_CODE} 才算锁冲突；权限、语法、连接等
+     * 任何其它错误一律原样抛出，绝不转成"锁成立"。
      */
     public function rowIsLockedForUpdate(string $table, int $primaryKey): bool
     {
         try {
             DB::selectOne("SELECT id FROM {$table} WHERE id = ? FOR UPDATE NOWAIT", [$primaryKey]);
         } catch (QueryException $e) {
-            // MySQL 8: 3572 Statement aborted because lock(s) could not be acquired
-            // immediately and NOWAIT is set.
-            if (str_contains($e->getMessage(), '3572') || str_contains(strtolower($e->getMessage()), 'nowait')) {
-                return true;
-            }
-
-            throw $e;
+            return self::lockConflictOrRethrow($e);
         }
 
         return false;
+    }
+
+    /**
+     * 唯一的分类入口：只有 driver code 3572 返回 true，其余一律原样抛出。
+     *
+     * 做成独立于数据库的纯函数，是为了让"1142 权限错误不得被当成锁成立"
+     * 这条规则可以被回归检查直接验证，而不必真去连一个 MySQL。
+     *
+     * @throws QueryException 非 3572 的任何异常，原样抛给调用方
+     */
+    public static function lockConflictOrRethrow(QueryException $error): bool
+    {
+        if (self::isLockConflict($error)) {
+            return true;
+        }
+
+        throw $error;
+    }
+
+    /**
+     * 从异常链里取 MySQL **driver** 错误码（errorInfo[1]）。
+     *
+     * 为什么必须走 errorInfo：
+     *   - QueryException 继承 PDOException，但它构造时调用 parent::__construct('', 0, $previous)，
+     *     自身的 errorInfo 通常是空的，真正带 driver code 的是 previous 那层 PDOException；
+     *   - QueryException::getCode() 已被 Laravel 覆盖成 SQLSTATE（如 HY000 / 42000），
+     *     SQLSTATE 不唯一，不能用来判别。
+     *
+     * 取不到就返回 null —— 调用方必须据此保守处理，绝不能"取不到就当锁成立"。
+     */
+    public static function driverErrorCode(Throwable $error): ?int
+    {
+        for ($current = $error; $current !== null; $current = $current->getPrevious()) {
+            if (! $current instanceof PDOException) {
+                continue;
+            }
+
+            $errorInfo = $current->errorInfo;
+
+            if (! is_array($errorInfo) || ! array_key_exists(1, $errorInfo)) {
+                continue;
+            }
+
+            $driverCode = $errorInfo[1];
+
+            if (is_int($driverCode) || (is_string($driverCode) && ctype_digit($driverCode))) {
+                return (int) $driverCode;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 该异常是否**恰好**是 NOWAIT 锁冲突。
+     *
+     * 判定只依据 driver code，不看 message 文本。这一点是刻意的：
+     * QueryException 的 message 会带上原始 SQL，而这条 SQL 本身含 NOWAIT，
+     * 于是任何 message 匹配（无论是找 "3572" 还是找 "nowait"）都会把
+     * 1142 权限错误、1064 语法错误、2006 连接错误一并误判成"锁存在"，
+     * 进而把一个本该 FAIL 的观测故障粉饰成"并发已证明"。
+     */
+    public static function isLockConflict(QueryException $error): bool
+    {
+        return self::driverErrorCode($error) === self::LOCK_CONFLICT_DRIVER_CODE;
     }
 
     /**
