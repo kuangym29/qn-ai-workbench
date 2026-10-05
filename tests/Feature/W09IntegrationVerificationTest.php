@@ -220,13 +220,19 @@ class W09IntegrationVerificationTest extends TestCase
         $this->pass('1.7', "POST bindings 201；binding_no={$created['binding_no']}，13 个 TS 字段齐全");
 
         // 1.8 append-only: binding twice moves current forward, never updates in place
-        $this->postJson("$path/bindings", [
+        // 第二次绑定的返回值必须保存：current_binding.id 是数据库自增主键，
+        // 写死成 2 既依赖插入顺序，也不是稳定业务语义。
+        $created2 = $this->postJson("$path/bindings", [
             'content_page_id' => $pageOne->id, 'asset_version_id' => $v2->id,
-        ])->assertCreated();
+        ])->assertCreated()->json('data');
         $body = $this->getJson($path)->assertOk()->json('data');
         $this->assertSame(2, $body['pages'][0]['current_binding']['binding_no']);
         $this->assertSame($v2->id, $body['pages'][0]['current_binding']['asset_version_id']);
-        $this->assertSame(2, $body['pages'][0]['current_binding']['id'], 'current_binding.id');
+        $this->assertSame(
+            $created2['id'],
+            $body['pages'][0]['current_binding']['id'],
+            'current_binding.id 必须等于第二次 POST 实际返回的 binding id',
+        );
         $this->pass('1.8', '重复绑定为追加（append-only），current_binding 指向最新 binding_no');
 
         // 1.9 latest_binding === current_binding when both are the newest row

@@ -271,8 +271,15 @@ final class Mysql84ConcurrencyTest extends TestCase
             // worker 必须被回收：留着活着的事务会占住行锁，污染后续用例。
             $workerA?->kill();
             $workerB?->kill();
-            $this->cleanupScenario((int) $project->id);
-            $runtime->destroy();
+
+            // 清理失败（外键残留、连接异常等）不能连带把临时目录也留下：
+            // 目录残留会污染下一次运行的信号读取，所以 runtime 的释放放在内层 finally，
+            // 保证它一定被执行；清理本身的异常随后照常抛出，不被吞掉。
+            try {
+                $this->cleanupScenario((int) $project->id);
+            } finally {
+                $runtime->destroy();
+            }
         }
     }
 
@@ -425,6 +432,9 @@ final class Mysql84ConcurrencyTest extends TestCase
         DB::table('content_items')->where('project_id', $projectId)->delete();
         DB::table('topics')->where('project_id', $projectId)->delete();
         DB::table('content_columns')->where('project_id', $projectId)->delete();
-        DB::table('projects')->whereKey($projectId)->delete();
+        // 用 where('id', …) 而不是 whereKey()：Query Builder 的 whereKey 生成的是
+        // `WHERE key = ?`（它只在模型上解析主键名，Query Builder 上没有），
+        // 在 MySQL 上必然报 Unknown column 'key'，导致整个清理失败。
+        DB::table('projects')->where('id', $projectId)->delete();
     }
 }
