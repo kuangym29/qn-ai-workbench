@@ -262,6 +262,60 @@ host/port/database/username/password，逐项安全校验即形同虚设。
   fi
 }
 
+# ── 测试用 APP_KEY ──────────────────────────────────────────────────
+# 问题：phpunit.mysql84.xml 把 APP_ENV 固定为 testing，Laravel 因此**不会**去读
+# .env.mysql-testing —— 那个文件里由 `key:generate --env=mysql-testing` 生成的
+# APP_KEY 到不了 PHPUnit 进程，于是所有 HTTP Feature 测试启动 Laravel 时抛
+# MissingAppKeyException（表现为"结构 Gate 全绿、13 个功能测试集体报错"）。
+#
+# 修法：只用 Laravel 自己去读生效值（不自己实现 dotenv 解析器），然后**只对这一次
+# PHPUnit 进程**以环境变量注入。不写 .env / .env.testing、不进 GitHub secret、
+# 不进 artifact、不进日志。
+#
+# 取不到或为空一律 fail-closed：宁可明确中止，也不让它以 13 个红测试的形式失败。
+TEST_APP_KEY=""
+
+resolve_test_app_key() {
+  local key
+
+  # 命令替换会吞掉 stdout，所以 tinker 的输出不会流到终端。
+  # 失败时也不打印 tinker 的原始输出（那可能带路径等信息），只报"读不到"。
+  key="$(php artisan tinker --env=mysql-testing --execute='
+    $k = config("app.key");
+    echo is_string($k) ? $k : "";
+  ' 2>/dev/null | tr -d '\r' | tail -1)"
+
+  # Laravel 的 env() 归一化可能给出字面 "null"；那同样视为"没有 key"。
+  key="${key#"${key%%[![:space:]]*}"}"   # 去前导空白
+  key="${key%"${key##*[![:space:]]}"}"   # 去尾部空白
+
+  if [ -z "$key" ] || [ "$key" = "null" ] || [ "$key" = "(null)" ]; then
+    TEST_APP_KEY=""
+    return 1
+  fi
+
+  TEST_APP_KEY="$key"
+  return 0
+}
+
+assert_test_app_key() {
+  log "解析测试用 APP_KEY（来自 .env.mysql-testing；不落盘、不打印）"
+
+  if [ ! -f "$ENV_FILE" ]; then
+    die "缺少 $ENV_FILE，无法解析 APP_KEY。请先执行：
+  cp .env.mysql-testing.example $ENV_FILE
+  php artisan key:generate --env=mysql-testing"
+  fi
+
+  if ! resolve_test_app_key; then
+    die "$ENV_FILE 中没有可用的 APP_KEY。
+请执行：php artisan key:generate --env=mysql-testing
+Gate 不会把 key 写进 .env / .env.testing / 日志 / artifact，也不会打印它的值。"
+  fi
+
+  info "  ✓ APP_KEY 已加载并将传给 PHPUnit（值不显示）"
+}
+
 # ── 容器生命周期 ─────────────────────────────────────────────────────
 
 wait_healthy() {
@@ -452,6 +506,9 @@ run_phpunit() {
   local label="完整 PHP suite"
   [ -n "$filter" ] && label="定向测试 $filter"
 
+  # APP_KEY 必须最先解析：缺它的话后面每个 HTTP 用例都会 MissingAppKey。
+  assert_test_app_key
+
   log "运行 $label（配置: $PHPUNIT_CONFIG）"
   printf 'MYSQL84_GATE_TEST_START driver=%s host=%s port=%s db=%s user=%s\n' \
     "$DB_DRIVER" "$DB_HOST" "$HOST_PORT" "$DB_NAME" "$DB_USER"
@@ -461,10 +518,16 @@ run_phpunit() {
   local args=(--configuration "$PHPUNIT_CONFIG")
   [ -n "$filter" ] && args+=(--filter "$filter")
 
-  # bootstrap 会在 PHPUnit 启动时断言实际连接；测试进程内由
+  # bootstrap 会在 PHPUnit 启动时断言实际连接与 APP_KEY 是否存在；测试进程内由
   # tests/Gate/Mysql84DriverTest.php 从已建立的连接上再确认一次
   # （driver / host / port / database / user / DB_URL 空值语义 / 8.4 版本 / InnoDB）。
-  if ! vendor/bin/phpunit "${args[@]}"; then
+  #
+  # APP_KEY 只注入这一次调用，不落盘。子进程（并发 worker）会经 getenv() 继承它，
+  # 并在 ConcurrencyWorkerProcess::environment() 里用 config('app.key') 再确认一次。
+  #
+  # 刻意不用 `export APP_KEY` —— 那会把 key 扩散到本脚本后续所有子进程；
+  # 行内前缀只作用于这一条命令。
+  if ! APP_KEY="$TEST_APP_KEY" vendor/bin/phpunit "${args[@]}"; then
     die "$label 未通过（MySQL 8.4 测试库）。"
   fi
   printf 'MYSQL84_GATE_TEST_PASS %s\n' "$label"
