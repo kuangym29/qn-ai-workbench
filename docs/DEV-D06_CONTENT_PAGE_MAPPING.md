@@ -30,6 +30,12 @@
 
 所有路径基于：`E:\CodexData\CODEX 项目文件夹\QN 青柠育见 品牌\`
 
+### 1.1 路径口径说明（2026-10-06 六栏目集中迁移）
+
+本文件中的 `source_path` 为**历史识别值**，作为来源身份保持不变。2026-10-06 六栏目集中迁移后，实际文件读取由 `YujianHistoryManifest::currentSourcePath()` 解析至当前唯一物理位置 `2.5D家庭IP形象/01_栏目内容项目/序号_栏目/...`。
+
+历史识别值与当前物理位置的逐条对应关系见 `docs/DEV-D07_SOURCE_PROVENANCE_AUDIT.md` 第 1.1 节。本文件不改写任何历史 `source_path`。
+
 ---
 
 ## 2. 四篇总表

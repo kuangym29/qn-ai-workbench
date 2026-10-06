@@ -70,7 +70,7 @@ class YujianHistoryImporterTest extends TestCase
     private function makeSyntheticSources(): void
     {
         foreach (YujianHistoryManifest::allPaths() as $path) {
-            $this->writeSource($path, 'synthetic source reference');
+            $this->writeSource(YujianHistoryManifest::currentSourcePath($path), 'synthetic source reference');
         }
         $mapping = [];
         $columnNames = collect(YujianHistoryManifest::columns())->pluck('name', 'slug');
@@ -115,7 +115,7 @@ class YujianHistoryImporterTest extends TestCase
                 $mapping[] = '| '.$number.' | '.$type->value.' | '.implode(' | ', $fields).' |';
             }
             $mapping[] = '';
-            $this->writeSource($item['final_path'], implode("\n", $markdown));
+            $this->writeSource(YujianHistoryManifest::currentSourcePath($item['final_path']), implode("\n", $markdown));
         }
         file_put_contents($this->mappingPath, implode("\n", $mapping));
     }

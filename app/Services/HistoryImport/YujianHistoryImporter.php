@@ -73,6 +73,7 @@ class YujianHistoryImporter
         if ($relative === '' || str_contains($relative, '..') || preg_match('/^(?:[A-Za-z]:|[\\\\\/])/', $relative)) {
             throw new RuntimeException("IMPORT_ABORT: unsafe source path {$relative}.");
         }
+        $relative = YujianHistoryManifest::currentSourcePath($relative);
         $candidate = $root.DIRECTORY_SEPARATOR.str_replace('/', DIRECTORY_SEPARATOR, $relative);
         $resolved = realpath($candidate);
         if ($resolved === false || ! is_file($resolved)) {
