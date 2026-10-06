@@ -51,7 +51,7 @@ npm run build
 ```
 
 - **禁止**把 `composer update` 作为生产部署常规步骤。生产必须按 lock 安装，否则实际依赖版本会偏离已验证组合。
-- `npm run build` 产物为前端正式构建输出，Web 服务器必须指向该产物。
+- 执行 `npm run build` 生成前端静态资源。Web 服务器根目录必须指向项目 `public/`，应用请求交由 `public/index.php` 处理；构建资源位于 `public/build/`。
 
 ---
 
@@ -85,7 +85,8 @@ php artisan key:generate
   - **禁止 root**
   - **禁止空密码**
 - **不复用** MySQL Gate 的 `qn_test` 测试账号；
-- **不把 MySQL Gate 测试配置复制到生产**。
+- **不把 MySQL Gate 测试配置复制到生产**；
+- 应用运行账号必须可写 `storage/` 与 `bootstrap/cache/`；同时必须确保 `.env` 不可被 Web 直接访问。
 
 本文不记录任何真实生产密码示例。
 
@@ -249,8 +250,10 @@ login → Project → Topic → Content Item → Copy / Revision → Production 
 - [ ] `.env` 不可公开访问
 - [ ] 数据库账号非 root、非空密码
 
-### Files
+### Files / Application Permissions
 
+- [ ] `storage/` 对应用运行账号可写
+- [ ] `bootstrap/cache/` 对应用运行账号可写
 - [ ] Asset 实际文件目录存在
 - [ ] 权限正确
 - [ ] 持久化策略已确认

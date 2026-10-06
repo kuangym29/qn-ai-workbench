@@ -4,9 +4,10 @@
 
 | 项 | 值 |
 | --- | --- |
-| 交付归档基线 main SHA | `8e5d08b36fc3e4f3fa30b5f52ad06186b4b67a9c` |
-| 基线 tree | `11da9ba33702ba3d6707af68d1a97acbc470c7f6` |
-| 归档分支 | `docs/V1-acceptance-archive-v2`（基于上述 main，未合 main） |
+| 创建时交付归档基线 main SHA | `8e5d08b36fc3e4f3fa30b5f52ad06186b4b67a9c` |
+| 创建时基线 tree | `11da9ba33702ba3d6707af68d1a97acbc470c7f6` |
+| 创建时归档分支 | `docs/V1-acceptance-archive-v2` |
+| Acceptance Archive V2 集成状态 | ✅ 已进入 main `3c799c7a6cab2e5813d40b27a4ad240ef169814d` |
 | 归档日期 | 2026-10-06 |
 | **当前发布状态** | **技术验收已通过；Release Closeout 进行中；尚未正式发布。** |
 | 配套清单 | [`docs/V1_ACCEPTANCE_CHECKLIST.md`](V1_ACCEPTANCE_CHECKLIST.md) |
@@ -24,9 +25,9 @@
 - MySQL 8.4 Runtime Gate 已在真实 MySQL 8.4.11 环境通过（Run `37343124218` / Job `111874925038`，Full MySQL `283 tests / 3281 assertions`，gate 与 observer 退出码均为 `0`，cleanup verified）
 - 真并发 Runtime Proof 已通过（`performance_schema.data_lock_waits` 证明真实行锁等待）
 - README 已收口并进入 main
-- 本 Acceptance Archive 正在收口
+- Acceptance Archive V2 已进入 main `3c799c7a6cab2e5813d40b27a4ad240ef169814d`
 
-仍待完成的是发布流程：Release / Deployment Docs 收口、最终 main SHA 锁定、Final Release Review、`v1.0` tag 与 GitHub Release。
+仍待完成的是发布流程：Release / Deployment Docs 当前候选包尚待审核并进入 main、final smoke / consistency review、最终 main SHA 锁定、Final Release Review、`v1.0` tag 与 GitHub Release。
 
 完整证据见 [`docs/V1_ACCEPTANCE_CHECKLIST.md`](V1_ACCEPTANCE_CHECKLIST.md) 与 [`docs/MYSQL84_TESTING.md`](MYSQL84_TESTING.md)。
 

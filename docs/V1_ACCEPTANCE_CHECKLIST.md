@@ -4,9 +4,10 @@
 
 | 项 | 值 |
 | --- | --- |
-| 验收归档基线 main SHA | `8e5d08b36fc3e4f3fa30b5f52ad06186b4b67a9c` |
-| 基线 tree | `11da9ba33702ba3d6707af68d1a97acbc470c7f6` |
-| 归档分支 | `docs/V1-acceptance-archive-v2`（基于上述 main，未合 main） |
+| 创建时验收归档基线 main SHA | `8e5d08b36fc3e4f3fa30b5f52ad06186b4b67a9c` |
+| 创建时基线 tree | `11da9ba33702ba3d6707af68d1a97acbc470c7f6` |
+| 创建时归档分支 | `docs/V1-acceptance-archive-v2` |
+| Acceptance Archive V2 集成状态 | ✅ 已进入 main `3c799c7a6cab2e5813d40b27a4ad240ef169814d` |
 | 归档日期 | 2026-10-06 |
 | 结论 | **V1 技术验收 Gate 已全部通过；当前进入 Release Closeout，尚未创建 `v1.0` tag / GitHub Release。** |
 
@@ -22,7 +23,7 @@ V1 的三段状态必须分开看，不能互相替代：
 | 阶段 | 状态 | 说明 |
 | --- | --- | --- |
 | **1. 技术验收** | ✅ **已完成** | SQLite、Golden Workflow、Browser Runtime、Auth、W09 / W10、MySQL 8.4 真实 Runtime、真并发证明、六栏目新物理路径读取验证，全部通过 |
-| **2. Release Closeout** | 🔄 **进行中** | 本 Acceptance Archive V2 合入 main、Release / Deployment Docs 收口、最终 main SHA 锁定、Final Release Review |
+| **2. Release Closeout** | 🔄 **进行中** | Release / Deployment Docs 收口、final smoke / consistency review、最终 main SHA 锁定、Final Release Review |
 | **3. 正式发布** | ⏳ **尚未发生** | tag = 0，GitHub Release = 0 |
 
 **技术 Gate 已全部通过**；当前未完成的是**发布流程**，不是功能或数据库 Gate。
