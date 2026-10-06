@@ -201,25 +201,24 @@ README 当前口径：技术验收完成、MySQL 8.4 Runtime Gate = Passed、Rel
 
 ---
 
-## 九、Release Closeout Pending
+## 九、正式发布前剩余条件
 
-以下为**发布流程 Pending**，不是功能或数据库 Gate Pending：
+以下为**发布流程剩余条件**，不是功能或数据库 Gate Pending：
 
-1. Acceptance Archive V2 审核并进入 main
-2. Release / Deployment Docs 审核并进入 main
-3. 当前 main 上 final smoke / consistency review 通过
-4. 最终 main SHA 锁定
-5. Final Release Review = Pass
-6. 发布负责人决定创建 `v1.0` tag
-7. 创建 GitHub Release，且 tag 与 Release 指向同一个最终 SHA
+1. 当前 main 上 final smoke / consistency review 通过
+2. 最终 main SHA 锁定
+3. Final Release Review = Pass
+4. 发布负责人创建 `v1.0` tag
+5. 创建 GitHub Release，且 tag 与 Release 指向同一个最终 SHA
 
+> Acceptance Archive V2 已进入 main `3c799c7a6cab2e5813d40b27a4ad240ef169814d`；Release / Deployment Docs 为当前 Closeout 文档阶段。
 > tag 与 GitHub Release 是**最后动作**。本归档不创建 tag，也不创建 Release。
 
 ---
 
 ## 十、最终发布条件
 
-正式发布至少要求第九节 1–7 全部成立。其中第 4–7 项（最终 SHA 锁定、Final Review、`v1.0`、GitHub Release）**尚未满足**，因此当前不得宣布已发布。
+正式发布至少要求第九节 1–5 全部成立。其中第 2–5 项（最终 SHA 锁定、Final Review、`v1.0`、GitHub Release）**尚未满足**，因此当前不得宣布已发布。
 
 ---
 
