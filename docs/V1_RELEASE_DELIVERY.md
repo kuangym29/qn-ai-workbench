@@ -9,7 +9,7 @@
 | 归档分支 | `docs/V1-acceptance-archive-v2`（基于上述 main，未合 main） |
 | 归档日期 | 2026-10-06 |
 | **当前发布状态** | **技术验收已通过；Release Closeout 进行中；尚未正式发布。** |
-| 配套清单 | [`docs/V1_ACCEPTANCE_CHECKLIST.md`](docs/V1_ACCEPTANCE_CHECKLIST.md) |
+| 配套清单 | [`docs/V1_ACCEPTANCE_CHECKLIST.md`](V1_ACCEPTANCE_CHECKLIST.md) |
 
 > 不使用「可发布 / 不可发布」的二元判断：当前既无 final release SHA，也无 `v1.0` tag 与 GitHub Release，三者缺一即不构成正式发布。
 
@@ -28,7 +28,7 @@
 
 仍待完成的是发布流程：Release / Deployment Docs 收口、最终 main SHA 锁定、Final Release Review、`v1.0` tag 与 GitHub Release。
 
-完整证据见 [`docs/V1_ACCEPTANCE_CHECKLIST.md`](docs/V1_ACCEPTANCE_CHECKLIST.md) 与 [`docs/MYSQL84_TESTING.md`](docs/MYSQL84_TESTING.md)。
+完整证据见 [`docs/V1_ACCEPTANCE_CHECKLIST.md`](V1_ACCEPTANCE_CHECKLIST.md) 与 [`docs/MYSQL84_TESTING.md`](MYSQL84_TESTING.md)。
 
 ---
 
@@ -53,7 +53,7 @@
 
 **已合入 main 且已在真实 MySQL 8.4 Runtime 中通过验证的 Gate 工具链：**
 
-`scripts/test-mysql.sh`（正式入口 `scripts/test-mysql.sh all`）、`docker-compose.mysql-test.yml`、`phpunit.mysql84.xml`、`tests/bootstrap-mysql84-gate.php`、`.env.mysql-testing.example`，操作与安全边界见 [`docs/MYSQL84_TESTING.md`](docs/MYSQL84_TESTING.md)。
+`scripts/test-mysql.sh`（正式入口 `scripts/test-mysql.sh all`）、`docker-compose.mysql-test.yml`、`phpunit.mysql84.xml`、`tests/bootstrap-mysql84-gate.php`、`.env.mysql-testing.example`，操作与安全边界见 [`docs/MYSQL84_TESTING.md`](MYSQL84_TESTING.md)。
 
 **普通测试基线**：`php artisan test` 为 SQLite 内存库，当前 **270 passed / 3209 assertions**。它是开发回归基线，**不构成真实 MySQL 证明**；数据库结论以第三节的 Runtime 证据为准。
 
@@ -124,7 +124,7 @@
 
 ## 八、维护约定
 
-本文件与 [`docs/V1_ACCEPTANCE_CHECKLIST.md`](docs/V1_ACCEPTANCE_CHECKLIST.md) 只做**状态性**更新。任何一次修订都不得：
+本文件与 [`docs/V1_ACCEPTANCE_CHECKLIST.md`](V1_ACCEPTANCE_CHECKLIST.md) 只做**状态性**更新。任何一次修订都不得：
 
 - 把未执行的项目写成已通过；
 - 改写已记录的跑分、Gate 结论或非阻断项；
