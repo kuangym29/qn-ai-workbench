@@ -298,12 +298,9 @@ login → Project → Topic → Content Item → Copy / Revision → Production 
 
 ## 十六、Release SHA 口径
 
-当前 `3c799c7a6cab2e5813d40b27a4ad240ef169814d` 只是**本任务基线**，**不是最终 Release SHA**。
+本 Deployment Checklist 创建时基线为 `3c799c7a6cab2e5813d40b27a4ad240ef169814d`。Release / Deployment Docs 已进入 main `385f6e9258c3c310a92d8cc4c8d09b71c15e8192`，Final Smoke / Consistency 已通过（代码、测试与构建验证均在该 main 上完成）。
 
-最终 SHA 只能在以下条件全部满足后锁定：
-
-1. Release / Deployment Docs 进入 main；
-2. final smoke / consistency review 通过。
+**最终 Release SHA 尚未锁定。** 下一步是在本次 docs-only 状态同步完成并通过独立一致性复审后，锁定正式 main SHA，再执行 Final Release Review。
 
 ---
 

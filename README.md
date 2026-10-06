@@ -122,13 +122,13 @@ scripts/test-mysql.sh all     # 启动 → 校验 → migration → 定向测试
 
 ## 部署提示
 
-本仓库不包含部署脚本，完整清单以后续正式 Deployment / Release 文档为准。正式环境至少注意：
+本仓库不包含生产部署自动化脚本。完整部署清单见 [`docs/V1_DEPLOYMENT_CHECKLIST.md`](docs/V1_DEPLOYMENT_CHECKLIST.md)，当前交付与发布状态见 [`docs/V1_RELEASE_DELIVERY.md`](docs/V1_RELEASE_DELIVERY.md)。正式环境至少注意：
 
 - 全站 HTTPS；
 - `APP_KEY` 在首次部署时生成并**长期保留**，生产升级不得重新生成（会使既有密文与签名失效）；
 - 生产数据库不允许 root 账号或空密码；
 - 先备份再执行 `php artisan migrate`；**生产环境禁止 `migrate:fresh`**；
-- 前端执行正式构建 `npm run build`，并由 Web 服务器指向构建产物；
+- 前端执行正式构建 `npm run build`；Web 服务器根目录指向项目 `public/`，应用请求由 `public/index.php` 处理，构建后的静态资源位于 `public/build/`；
 - Asset 目前是 filesystem-local / metadata-only 体系，需自行保证文件目录的持久化与备份。
 
 ## 关键文档索引
@@ -140,6 +140,9 @@ scripts/test-mysql.sh all     # 启动 → 校验 → migration → 定向测试
 | [`docs/DATABASE_BASELINE.md`](docs/DATABASE_BASELINE.md) | 数据库表结构、约束与迁移基线 |
 | [`docs/DEV_TASKS.md`](docs/DEV_TASKS.md) | 开发任务与进度台账 |
 | [`docs/V1_FINAL_E2E_ACCEPTANCE.md`](docs/V1_FINAL_E2E_ACCEPTANCE.md) | V1 最终端到端验收范围、方法与结果 |
+| [`docs/V1_ACCEPTANCE_CHECKLIST.md`](docs/V1_ACCEPTANCE_CHECKLIST.md) | V1 技术验收归档与 Gate 状态 |
+| [`docs/V1_RELEASE_DELIVERY.md`](docs/V1_RELEASE_DELIVERY.md) | V1 交付范围、边界与发布状态 |
+| [`docs/V1_DEPLOYMENT_CHECKLIST.md`](docs/V1_DEPLOYMENT_CHECKLIST.md) | V1 部署、升级、Smoke、回滚操作清单 |
 | [`docs/MYSQL84_TESTING.md`](docs/MYSQL84_TESTING.md) | MySQL 8.4 Release Gate 的设计、命令与安全边界 |
 
 按开发任务细分的设计 / 契约文档集中在 `docs/` 下，命名形如 `DEV-<模块>_*.md`，按需查阅。
