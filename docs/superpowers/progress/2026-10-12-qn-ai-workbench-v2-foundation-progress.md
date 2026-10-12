@@ -31,3 +31,22 @@
 - MySQL 8.4 真库验证。
 - 全量 PHP 回归。
 - Task 1 最终自审。
+
+## 2026-10-13 Work 接管与复核
+
+- 接管远程 `codex/v2-foundation`，HEAD `68515b2b1edbb6764d0d3419e1604d6a2a904093`。原本机 `01_Main/qn-ai-workbench` 保持 main 未改；本次使用独立完整检出，不包含 QN-Work-Panel。
+- 已读设计基线和 7-task foundation 计划。使用 Work 内只读代理分别审查 schema/约束与 CI；没有直接调用 WorkBuddy/豆包的执行接口，未假设其可用。
+- 远程 CI run `38269905936` 为 failure。PHP job 缺少 APP_KEY；MySQL job 首先因脚本 mode 100644 导致 Permission denied（exit 126）。修复启动方式后还需要生成 MySQL 测试 APP_KEY。
+- Task 1 Ruling：Inspiration 复合外键改为 RESTRICT；保留强制 Project 隔离和长期来源链，不新增删除接口。若将来需要删除被引用灵感，必须先显式处理关联。代价：有来源引用时不能直接物理删除灵感。
+- RED：SQLite 删除已引用灵感触发 NOT NULL topics.project_id；独立 MySQL 8.4.11 同构 FK 实测 ERROR 1830，证明 SET NULL 对两个列一起生效。
+- RED：新 `V2MigrationRollbackTest` 实测 SQLite 无法按字符串名称删除 FK；改用框架常规 FK 名与列数组 dropForeign 后 GREEN。
+- Task 1 Ruling：四个旧测试夹具改为不同 Topic 对应不同 ContentItem，保留来源共享、祖先隔离、默认状态和 V1 全链路测试目的；不放宽 V2 topic 唯一约束。代价：旧测试不再使用同选题多内容的无效夹具。
+- 补测：跨 Project 的 Inspiration/ContentItem 引用拒绝、停止分支仍占唯一键、公众号两种形式共用母内容、直接选题默认值、4 个 V2 migration 回滚/重迁及旧行保留。
+- Task 1 Ruling：MySQL CI 改为每次 foundation push/PR 和手动触发都执行；用 bash 启动脚本、生成两套临时应用密钥。代价：每次 CI 增加 MySQL gate 运行时间。
+- SQLite 全量：`php vendor/phpunit/phpunit/phpunit --colors=never` → 279 tests / 3238 assertions PASS。
+- MySQL 定向：`php vendor/phpunit/phpunit/phpunit -c phpunit.mysql84.xml --filter V2ContentCoreSchemaTest` → 8 tests / 17 assertions PASS，bootstrap 证明 mysql/127.0.0.1:3399/qn_workbench_test/8.4.11。
+- Task 1 Ruling：本机没有 Docker，使用独立新建 data directory 的 MySQL 8.4.11 原生进程和既有 phpunit.mysql84.xml/连接自证；不使用现有业务库和 runtime/mysql-data。代价：本地原生验证不等同于 Docker 生命周期，远程 CI 仍需复验。
+- 本机 PHP 8.5.10，远程 CI 保持 PHP 8.4。
+- 窗口写权限切换后，将含改动和依赖的检出复制至当前可写 `work/qn-ai-workbench`；原检出保留，后续仅在新检出继续。
+- MySQL 全量（包括 Gate/并发）运行中，尚不宣称 Task 1 完成。
+- Task 2 RED：`V2DomainModelTest` 3 项因缺失 Inspiration/ContentBranch/TopicStatus 失败，符合计划；未开始领域实现。

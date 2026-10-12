@@ -294,10 +294,13 @@ class SourceReferenceApiTest extends TestCase
         $this->postJson($itemUrl, ['role' => 'final_image_copy', 'source_path' => $path])->assertCreated();
 
         // 另一个 ContentItem 引用同一路径是正式能力，不算重复
-        $otherItem = ContentItem::factory()->create([
-            'project_id' => $project->id, 'content_column_id' => $column->id, 'topic_id' => $topic->id,
+        $otherTopic = Topic::factory()->create([
+            'project_id' => $project->id, 'content_column_id' => $column->id,
         ]);
-        $otherUrl = "/api/projects/{$project->id}/columns/{$column->id}/topics/{$topic->id}/items/{$otherItem->id}/sources";
+        $otherItem = ContentItem::factory()->create([
+            'project_id' => $project->id, 'content_column_id' => $column->id, 'topic_id' => $otherTopic->id,
+        ]);
+        $otherUrl = "/api/projects/{$project->id}/columns/{$column->id}/topics/{$otherTopic->id}/items/{$otherItem->id}/sources";
         $this->postJson($otherUrl, ['role' => 'final_image_copy', 'source_path' => $path])->assertCreated();
 
         $this->assertSame(2, SourceReference::query()->where('source_path', $path)->count());

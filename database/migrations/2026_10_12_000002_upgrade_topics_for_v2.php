@@ -13,15 +13,16 @@ return new class extends Migration
             $table->string('status', 40)->default('pending')->after('description');
             $table->boolean('is_backup')->default(false)->after('status');
 
-            $table->foreign(['project_id', 'inspiration_id'], 'topics_project_inspiration_foreign')
-                ->references(['project_id', 'id'])->on('inspirations')->nullOnDelete();
+            $table->foreign(['project_id', 'inspiration_id'])
+                // SET NULL would also null project_id, which must remain mandatory.
+                ->references(['project_id', 'id'])->on('inspirations')->restrictOnDelete();
         });
     }
 
     public function down(): void
     {
         Schema::table('topics', function (Blueprint $table): void {
-            $table->dropForeign('topics_project_inspiration_foreign');
+            $table->dropForeign(['project_id', 'inspiration_id']);
             $table->dropColumn(['inspiration_id', 'status', 'is_backup']);
         });
     }
