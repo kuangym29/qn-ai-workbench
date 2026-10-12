@@ -25,5 +25,33 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Run V2 foundation tests
+      - name: Run V2 foundation schema tests
         run: php artisan test tests/Feature/V2ContentCoreSchemaTest.php
+
+      - name: Run full PHP suite
+        run: php artisan test
+
+  mysql84-gate:
+    if: contains(github.event.head_commit.message, '[mysql84]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_mysql
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare isolated MySQL test env
+        run: cp .env.mysql-testing.example .env.mysql-testing
+
+      - name: Run MySQL 8.4 release gate
+        run: ./scripts/test-mysql.sh all
