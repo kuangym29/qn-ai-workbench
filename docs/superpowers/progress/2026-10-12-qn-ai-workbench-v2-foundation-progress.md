@@ -88,3 +88,12 @@
 - 主Work再次运行npm run typecheck、npm run build均PASS（862 modules）。工作区干净，分支codex/v2-foundation；main未改。
 - 独立本地MySQL测试实例已正常shutdown；未触及其他MySQL服务。
 - Tasks1–7代码/测试/文档范围完成。浏览器手工验收尚未执行，按V2_FOUNDATION_ACCEPTANCE.md继续；图片/AI导入/视频/实际审核仍属后续计划。
+
+
+## V2-P2-A01 Foundation浏览器验收（2026-10-13）
+
+- Start HEAD1fe589f；独立分支work/v2-foundation-browser-acceptance。完整记录见docs/V2_P2_A01_BROWSER_ACCEPTANCE.md。
+- 已实际验收到单一母内容+三个分支+进行中一行汇总；SQLite读回Topic1/Item1/Branch1,2,3，无重复。
+- 原生停止确认框造成浏览器输入阻塞；停止/恢复、项目隔离及返回完整手验未完成，状态V2-P2-A01_BLOCKED。
+- 保存后灵感query残留刷新重填已复现，Topics/Pool.vue小型热修typecheck/build通过，浏览器复验待解除阻塞。
+- 本轮PHP294/3471 PASS；重新执行MySQL8.4 gate307/3543 PASS（job114961218151）。未修改PHP/schema或Phase2新功能。
