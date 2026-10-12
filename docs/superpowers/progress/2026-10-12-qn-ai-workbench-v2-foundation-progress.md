@@ -19,7 +19,7 @@
 
 ## Task 1：V2 Core Schema
 
-状态：进行中
+状态：已完成（见 2026-10-13 接管复核和最终 CI 结果）
 
 已完成：
 - 创建 `V2ContentCoreSchemaTest`。
@@ -79,3 +79,12 @@
 - 已更新 README、架构与数据库基线的 V2 优先说明，保留 V1 历史资料；明确旧数据可丢弃、不承诺生产迁移/回填、Plan6清理旧任务模型。
 - 新增 V2_FOUNDATION_ACCEPTANCE.md，列出完整手工闭环、路由、约束与后续视频范围；手工验收项目明确标待执行。
 - 新增 V2 API MySQL 8.4.11 真库复验：11 tests / 177 assertions PASS（含标题200边界和已开始选题换栏目422）。日志 mysql-v2-api-regression.log；与之前全量292项互补，新API已实际在MySQL运行。
+
+
+## 最终 CI 与收尾（2026-10-13）
+
+- 开发提交 77c9eb53872f37ada515e1c52d0b238201949ff8 的远程 run 38291719825 SUCCESS；PHP job114953150647、MySQL job114953150126均成功。
+- 远程 SQLite全量294 tests / 3471 assertions PASS；MySQL8.4全量307 tests / 3543 assertions PASS，定向DuplicateReview13 tests / 122 assertions PASS，完整release gate成功。
+- 主Work再次运行npm run typecheck、npm run build均PASS（862 modules）。工作区干净，分支codex/v2-foundation；main未改。
+- 独立本地MySQL测试实例已正常shutdown；未触及其他MySQL服务。
+- Tasks1–7代码/测试/文档范围完成。浏览器手工验收尚未执行，按V2_FOUNDATION_ACCEPTANCE.md继续；图片/AI导入/视频/实际审核仍属后续计划。
