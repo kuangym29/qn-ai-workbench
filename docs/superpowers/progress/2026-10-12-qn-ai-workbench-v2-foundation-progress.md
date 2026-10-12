@@ -50,3 +50,11 @@
 - 窗口写权限切换后，将含改动和依赖的检出复制至当前可写 `work/qn-ai-workbench`；原检出保留，后续仅在新检出继续。
 - MySQL 全量（包括 Gate/并发）运行中，尚不宣称 Task 1 完成。
 - Task 2 RED：`V2DomainModelTest` 3 项因缺失 Inspiration/ContentBranch/TopicStatus 失败，符合计划；未开始领域实现。
+
+## Task 2：领域模型
+
+- RED 已观察：Inspiration / ContentBranch / TopicStatus 缺失。
+- GREEN：新增来源链模型关系、状态/形式枚举、分支停止恢复；保留仍有 V1 调用的关系和 expectedAssetRole。
+- Task 2 Ruling：增加 Xiaohongshu 枚举会使旧 V1 channel 创建校验自动放行，补测试实测返回 201（RED）；旧请求显式仅允许两个微信渠道后返回 422（GREEN）。代价：旧接口不提供小红书能力，符合预留原则。
+- 定向 50 tests / 534 assertions PASS；SQLite 全量 283 tests / 3279 assertions PASS。
+- 本批次仅模型/工厂/枚举和旧接口预留渠道门禁，不新增前台录入负担。

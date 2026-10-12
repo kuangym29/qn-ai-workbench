@@ -256,6 +256,14 @@ class ChannelTaskApiTest extends TestCase
         $this->assertDatabaseMissing('channel_tasks', ['channel' => 'wechat_channels']);
     }
 
+    public function test_reserved_xiaohongshu_is_not_enabled_by_the_v2_enum(): void
+    {
+        [, , , , $url] = $this->readyProduction();
+        $this->postJson($url.'/channels', ['channel' => 'xiaohongshu'])
+            ->assertUnprocessable()->assertJsonValidationErrors('channel');
+        $this->assertDatabaseCount('channel_tasks', 0);
+    }
+
     public function test_duplicate_channel_is_rejected(): void
     {
         [, , , , $url] = $this->readyProduction();

@@ -12,6 +12,16 @@ class Project extends Model
 
     protected $fillable = ['name', 'slug', 'description'];
 
+    public function inspirations(): HasMany
+    {
+        return $this->hasMany(Inspiration::class);
+    }
+
+    public function contentBranches(): HasMany
+    {
+        return $this->hasMany(ContentBranch::class);
+    }
+
     public function contentColumns(): HasMany
     {
         return $this->hasMany(ContentColumn::class);
