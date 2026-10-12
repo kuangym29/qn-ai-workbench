@@ -1,0 +1,29 @@
+name: V2 Foundation CI
+
+on:
+  push:
+    branches:
+      - codex/v2-foundation
+  workflow_dispatch:
+
+jobs:
+  php-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_sqlite, sqlite3
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Run V2 foundation tests
+        run: php artisan test tests/Feature/V2ContentCoreSchemaTest.php
