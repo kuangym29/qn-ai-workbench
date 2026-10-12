@@ -14,7 +14,7 @@ import { toast } from '../ui/toast';
 import { authState, handleAuthFailure, loadCurrentUser, logout, returnToLogin } from '../stores/auth';
 import { isCsrfOrSessionExpired, isUnauthenticated } from '../api/auth';
 import { http } from '../api/http';
-import Badge from '../components/Badge.vue';
+
 import ToastHost from '../components/ToastHost.vue';
 import AuthUserMenu from '../components/AuthUserMenu.vue';
 
@@ -24,6 +24,20 @@ const isColumnsActive = computed(() => String(page.component).startsWith('Column
 const isSourcesActive = computed(() => String(page.component).startsWith('Sources'));
 
 const projects = ref<Project[]>([]);
+const workspaceLinks = [
+  {path: 'in-progress', label: '进行中'},
+  {path: 'inspirations', label: '灵感'},
+  {path: 'topics', label: '选题'},
+  {path: 'content', label: '内容库'},
+  {path: 'review', label: '待我审核'},
+];
+function goToWorkspace(path: string): void {
+  if (!projectContext.current) { toast.info('请先选择一个项目'); router.visit('/projects'); return; }
+  router.visit(`/projects/${projectContext.current.id}/${path}`);
+}
+function workspaceActive(path: string): boolean {
+  return new RegExp(`/projects/\\d+/${path}(?:/|$|\\?)`).test(page.url);
+}
 
 // The real signed-in user, or null while unknown / signed out. Sourced from
 // GET /api/auth/me only -- never hardcoded, never read from storage.
@@ -124,6 +138,8 @@ async function onSwitch(event: Event): Promise<void> {
     // Follow the switch into the new project. Sources is project scoped, so a stale
     // OLD/sources URL would keep showing the previous project's records (and 404 on
     // every write, because the session is already the NEW project).
+    const workspace = workspaceLinks.find(link => workspaceActive(link.path));
+    if (workspace) router.visit(`/projects/${selected.id}/${workspace.path}`);
     if (isColumnsActive.value) router.visit(`/projects/${selected.id}/columns`);
     if (isSourcesActive.value) router.visit(`/projects/${selected.id}/sources`);
   } catch {
@@ -146,31 +162,16 @@ async function onSwitch(event: Event): Promise<void> {
     <aside class="flex w-60 flex-col bg-slate-900 text-slate-300">
       <div class="border-b border-slate-800 px-5 py-4">
         <p class="text-sm font-semibold text-white">QN AI 内容工作台</p>
-        <p class="text-xs text-slate-500">Lite V1.0</p>
+        <p class="text-xs text-slate-500">V2 创作工作台</p>
       </div>
 
-      <nav class="flex-1 space-y-1 px-3 py-4">
-        <Link href="/projects" :class="navClass(isProjectsActive)">项目</Link>
-        <button type="button" :class="navClass(isColumnsActive)" @click="goToColumns">小栏目</button>
+      <nav class="flex-1 space-y-1 px-3 py-4" aria-label="主要导航">
+        <button v-for="link in workspaceLinks" :key="link.path" type="button" :class="navClass(workspaceActive(link.path))" :aria-current="workspaceActive(link.path) ? 'page' : undefined" @click="goToWorkspace(link.path)">{{ link.label }}</button>
+        <p class="px-3 pt-4 text-xs text-slate-500">设置</p>
+        <Link href="/projects" :class="navClass(isProjectsActive)">项目设置</Link>
+        <button type="button" :class="navClass(isColumnsActive)" @click="goToColumns">栏目设置</button>
         <button type="button" :class="navClass(isSourcesActive)" @click="goToSources">来源管理</button>
-
-        <!--
-          内容流程：选题 / 篇目 / 制作与渠道都已实现（DEV-W05 起 ProductionTask 与
-          ChannelTask 也有正式 API）。它们没有各自独立的全局列表路由，必须从上级层级
-          进入，因此这里只做说明性展示，不提供会误导的 Sidebar 链接。
-        -->
-        <p class="px-3 pb-1 pt-4 text-xs uppercase tracking-wider text-slate-600">内容流程</p>
-        <span :class="navClass(false, false)"
-          >选题 <Badge variant="muted" label="按栏目进入" /></span
-        >
-        <span :class="navClass(false, false)"
-          >篇目 <Badge variant="muted" label="按选题进入" /></span
-        >
-        <span :class="navClass(false, false)"
-          >制作与渠道 <Badge variant="muted" label="按篇目进入" /></span
-        >
-      </nav>
-    </aside>
+      </nav>   </aside>
 
     <!-- Main column -->
     <div class="flex min-w-0 flex-1 flex-col">

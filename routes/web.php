@@ -12,6 +12,7 @@ use App\Http\Controllers\ProductionTaskController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SourceReferenceController;
 use App\Http\Controllers\TopicController;
+use App\Http\Controllers\V2ContentController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -152,5 +153,27 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/sources', [SourceReferenceController::class, 'itemStore']);
         Route::get('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/sources/{sourceReference}', [SourceReferenceController::class, 'itemShow']);
         Route::patch('/projects/{project}/columns/{column}/topics/{topic}/items/{item}/sources/{sourceReference}', [SourceReferenceController::class, 'itemUpdate']);
+    });
+});
+
+// V2 uses flat project scopes; V1 nested entrypoints remain operational until Plan 6.
+Route::middleware('auth')->group(function (): void {
+    $controller = V2ContentController::class;
+    Route::get('/projects/{project}/{page}', [$controller, 'workspace'])->whereIn('page', ['in-progress', 'inspirations', 'topics', 'content', 'review']);
+    Route::get('/projects/{project}/content/{item}', [$controller, 'detailPage']);
+    Route::prefix('api/projects/{project}')->group(function () use ($controller): void {
+        Route::get('/inspirations', [$controller, 'inspirations']);
+        Route::post('/inspirations', [$controller, 'saveInspiration']);
+        Route::patch('/inspirations/{inspiration}', [$controller, 'saveInspiration']);
+        Route::get('/topics', [$controller, 'topics']);
+        Route::post('/topics', [$controller, 'saveTopic']);
+        Route::patch('/topics/{topic}', [$controller, 'saveTopic']);
+        Route::post('/topics/{topic}/start', [$controller, 'start']);
+        Route::get('/items', [$controller, 'items']);
+        Route::get('/items/{item}', [$controller, 'item']);
+        Route::patch('/items/{item}', [$controller, 'item']);
+        Route::post('/items/{item}/branches', [$controller, 'addBranch']);
+        Route::post('/items/{item}/branches/{branch}/stop', [$controller, 'stopBranch']);
+        Route::get('/in-progress', [$controller, 'inProgress']);
     });
 });

@@ -58,3 +58,24 @@
 - Task 2 Ruling：增加 Xiaohongshu 枚举会使旧 V1 channel 创建校验自动放行，补测试实测返回 201（RED）；旧请求显式仅允许两个微信渠道后返回 422（GREEN）。代价：旧接口不提供小红书能力，符合预留原则。
 - 定向 50 tests / 534 assertions PASS；SQLite 全量 283 tests / 3279 assertions PASS。
 - 本批次仅模型/工厂/枚举和旧接口预留渠道门禁，不新增前台录入负担。
+
+## Tasks 1–6 集成结果（2026-10-13）
+
+- Task 1 最终自审完成：MySQL 8.4.11 真库全量 292 tests / 3310 assertions PASS，含迁移回滚、既有 Gate/并发检查。此快照早于新 V2 API 集成；新增 API MySQL 另行复验。
+- Tasks 3–6：Work 后端与前端代理按独立文件范围执行，主 Work 集成；没有调用 WorkBuddy/豆包，没有混入 QN-Work-Panel。
+- 后端 RED：缺少 V2 路由；GREEN 初版 9 tests / 163 assertions。独立复审发现标题 max255 超过数据库200，以及已开始创作的 Topic 换栏目触发 FK500；新增失败测试后修正为 max200/换栏目422，11 tests / 177 assertions PASS。
+- Task 3 Ruling：独立 V2 controller/resource/API client 保留真实契约，旧嵌套 API 暂存到 Plan6。代价：后续清理需合并或删除兼容代码。
+- Task 3 Ruling：开始创作锁 Topic 并检查已有母体，分支添加锁 ContentItem；完整校验渠道组合后事务写入，重复开始409返回已有ID。代价：同一母体的创建/添加请求串行。
+- Task 3 Ruling：已开始创作后拒绝更换栏目，避免破坏既有 Topic/Column 复合外键；同栏目更新允许。代价：改栏目需要后续明确迁移流程。
+- 前端：灵感、选题池/星标、开始创作、真实来源、内容库/共享编辑、分支停止恢复、进行中矩阵与审核占位页完成；小红书禁用。只维护一份前端合法组合元数据。
+- 主 Work SQLite 全量：294 tests / 3471 assertions PASS。前端 npm run typecheck 与 npm run build 均 PASS。
+- 自审：无新增项目管理字段、无额外状态、无 SourceReference 假来源、V2 不依赖 ProductionTask/ChannelTask；视频及其他阶段未提前展开。
+- 通过 GitHub 连接同步 schema/CI 和模型提交，远程提交0f9f12c、ec637a9；对应本地原提交70845e9、2d66f97的 tree 完全一致。保留 backup/v2-foundation-local-audit，再将本地分支对齐相同远程对象，未改工作文件。
+- 原生 Git 远程连接失败，使用 GitHub 连接发布并以 tree SHA/commit SHA校验；仅更新 codex/v2-foundation，main 未动。
+- 新 API MySQL、最新远程 CI及浏览器手工验收尚待确认，不能声称这些已通过。
+
+## Task 7 文档与验收
+
+- 已更新 README、架构与数据库基线的 V2 优先说明，保留 V1 历史资料；明确旧数据可丢弃、不承诺生产迁移/回填、Plan6清理旧任务模型。
+- 新增 V2_FOUNDATION_ACCEPTANCE.md，列出完整手工闭环、路由、约束与后续视频范围；手工验收项目明确标待执行。
+- 新增 V2 API MySQL 8.4.11 真库复验：11 tests / 177 assertions PASS（含标题200边界和已开始选题换栏目422）。日志 mysql-v2-api-regression.log；与之前全量292项互补，新API已实际在MySQL运行。
