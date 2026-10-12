@@ -177,3 +177,11 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/in-progress', [$controller, 'inProgress']);
     });
 });
+
+// V2-P2-C01 (doubao/v2-image-post-frontend) 开发入口。
+// 注意：正式导航接线由 Work 主程序集成时完成；此路由仅为开发预览入口，
+// 渲染 V2 图片文章编辑器（数据由前端 imagePostApi 从 /api 获取）。
+Route::middleware('auth')->group(function (): void {
+    Route::get('/projects/{project}/v2/image-post-preview', fn (int $project) => Inertia::render('V2/ImagePostDevPreview', ['projectId' => $project]));
+    Route::get('/projects/{project}/v2/image-post/{item}', fn (int $project, int $item) => Inertia::render('V2/ImagePostEditor', ['projectId' => $project, 'itemId' => $item]));
+});
