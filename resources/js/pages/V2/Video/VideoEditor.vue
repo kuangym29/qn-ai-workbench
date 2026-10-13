@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // V2 视频号视频制作 —— 正式 Inertia 页面。
-// 数据从 API 加载（videoApi）；按钮（复制任务 / 试样 / 选择片段）为 UI 动作，
-// 真实视频生成由后续后端提供。
+// R1：正式页面必须接收 projectId / itemId / branchId 三参数（branch-aware）。
+// 数据从 API 加载（videoApi）；生成按钮（复制任务 / 试样 / 选择片段）为 UI 动作，
+// 保持 disabled pending integration，真实视频生成由后续后端提供。
 //
 // 注意：本任务未修改 routes/web.php；此页面的正式路由由 Work 主程序集成时接线。
 import { onMounted } from 'vue';
@@ -17,9 +18,10 @@ import { toast } from '../../../ui/toast';
 const props = defineProps<{
   projectId: string | number;
   itemId: string | number;
+  branchId: string | number;
 }>();
 
-const editor = useVideoEditor(props.projectId, props.itemId);
+const editor = useVideoEditor(props.projectId, props.itemId, props.branchId);
 
 function handleScopeError(e: unknown): void {
   if (is404(e)) {
@@ -66,6 +68,7 @@ onMounted(async () => {
       :loading="editor.loading.value"
       :load-error="editor.loadError.value"
       :saving="editor.saving.value"
+      :resolving-source="editor.resolvingSource.value"
       :timeline-open="editor.timelineOpen.value"
       :total-duration="editor.totalDuration.value"
       :timeline="editor.timeline.value"
@@ -81,7 +84,7 @@ onMounted(async () => {
       @sample-first="toast.info('先做试样：待后端提供')"
       @select-segments="toast.info('选择片段生成：待后端提供')"
       @view-source-changes="toast.info('查看修改：来源内容修改对比待后端提供')"
-      @keep-source-changes="toast.success('已继续沿用当前视频制作')"
+      @keep-source-changes="editor.keepSourceChanges()"
     />
   </AdminLayout>
 </template>

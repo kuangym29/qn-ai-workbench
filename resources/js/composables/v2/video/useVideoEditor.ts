@@ -1,10 +1,19 @@
 // V2 视频号视频制作 —— 编辑器状态机 composable。
 //
-// 正式链路：loadWorkspace（含系统计算）→ 编辑 batch_instruction / narration /
-// units（dynamic_instruction / duration_seconds / note）→ save。
-// 底部按钮（复制整批视频任务 / 先做试样 / 选择片段生成）由页面 emit，
-// 本 composable 不开发真实视频生成。
+// 正式链路（R1 branch-aware）：
+//   GET  loadWorkspace(projectId, itemId, branchId)
+//   → 编辑 batch_instruction / narration / units（dynamic_instruction / duration / note）
+//   → PUT save（白名单 VideoSaveInput）→ 成功后重新 GET（不乐观伪造服务端状态）
+//   来源变化「继续沿用」：POST source-change {action:'keep'} → 成功后重新 GET；
+//   失败保留本地提醒，不本地清 source_changed。
+//
+// 生产模块只依赖 videoApi（0 引用 DEV Mock）；DEV 预览 / 测试通过第 4 参注入 client。
+// 底部按钮（复制整批视频任务 / 先做试样 / 选择片段生成）保持 UI / emit，
+// 等待后端集成（disabled pending integration），本 composable 不开发真实视频生成。
 import { computed, ref } from 'vue';
+import type {
+  VideoClient,
+} from './videoApi';
 import type {
   VideoEditorWorkspace,
   VideoProduction,
@@ -21,11 +30,19 @@ import { videoApi } from './videoApi';
 import { firstErrorMessage } from '../../../api/errors';
 import { toast } from '../../../ui/toast';
 
-export function useVideoEditor(projectId: number | string, itemId: number | string) {
+type Id = number | string;
+
+export function useVideoEditor(
+  projectId: Id,
+  itemId: Id,
+  branchId: Id,
+  client: VideoClient = videoApi,
+) {
   const video = ref<VideoProduction | null>(null);
   const loading = ref(true);
   const loadError = ref('');
   const saving = ref(false);
+  const resolvingSource = ref(false);
   const timelineOpen = ref(false);
 
   const totalDuration = computed(() =>
@@ -42,32 +59,58 @@ export function useVideoEditor(projectId: number | string, itemId: number | stri
     video.value = ws.video;
   }
 
-  async function load(): Promise<void> {
-    loading.value = true;
+  /** 加载正式工作负载；silent=true 用于保存 / 来源决策后的后台刷新（不闪整页加载态）。 */
+  async function load(silent = false): Promise<void> {
+    if (!silent) loading.value = true;
     loadError.value = '';
     try {
-      const ws = await videoApi.loadWorkspace(projectId, itemId);
+      const ws = await client.loadWorkspace(projectId, itemId, branchId);
       applyWorkspace(ws);
     } catch (e) {
-      loadError.value = firstErrorMessage(e) ?? '加载失败';
+      if (!silent) loadError.value = firstErrorMessage(e) ?? '加载失败';
+      throw e;
     } finally {
-      loading.value = false;
+      if (!silent) loading.value = false;
     }
   }
 
+  /** 保存用户可编辑字段；重复点击 guard；成功后重新 GET。 */
   async function save(): Promise<boolean> {
     if (!video.value) return false;
+    if (saving.value || resolvingSource.value) return false; // 最小重入 guard
     saving.value = true;
     try {
-      const ws = await videoApi.save(projectId, itemId, buildSaveInput(video.value));
-      applyWorkspace(ws);
+      await client.save(projectId, itemId, branchId, buildSaveInput(video.value));
+      await load(true); // 保存成功：以服务端正式数据为准，重新 GET
       toast.success('已保存视频制作');
       return true;
     } catch (e) {
-      toast.error(firstErrorMessage(e) ?? '保存失败');
+      toast.error(firstErrorMessage(e) ?? '保存失败，请重试');
       return false;
     } finally {
       saving.value = false;
+    }
+  }
+
+  /**
+   * 来源变化「继续沿用」：POST source-change keep → 成功后重新 GET。
+   * 禁止本地直接清 source_changed；失败时保留提醒。
+   */
+  async function keepSourceChanges(): Promise<boolean> {
+    if (!video.value) return false;
+    if (saving.value || resolvingSource.value) return false;
+    if (!video.value.source_changed) return true;
+    resolvingSource.value = true;
+    try {
+      await client.resolveSourceChange(projectId, itemId, branchId, { action: 'keep' });
+      await load(true); // 决策由服务端记录，重新 GET 确认
+      toast.success('已继续沿用当前视频制作');
+      return true;
+    } catch (e) {
+      toast.error(firstErrorMessage(e) ?? '操作失败，请重试');
+      return false;
+    } finally {
+      resolvingSource.value = false;
     }
   }
 
@@ -107,12 +150,14 @@ export function useVideoEditor(projectId: number | string, itemId: number | stri
     loading,
     loadError,
     saving,
+    resolvingSource,
     timelineOpen,
     totalDuration,
     timeline,
     sortedUnits,
     load,
     save,
+    keepSourceChanges,
     updateBatchInstruction,
     updateNarration,
     updateUnit,

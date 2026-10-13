@@ -60,13 +60,17 @@ export function sortUnitsByOrder(units: VideoUnit[]): VideoUnit[] {
   });
 }
 
-/** 收敛为用户可编辑的保存输入（id 用于后端定位单元，不提交系统字段）。 */
+/**
+ * 收敛为用户可编辑的保存输入（R1 白名单）：
+ * units 以 source_page_id 定位（不提交前端行内 id）；
+ * 不提交 order / source_label / title / source_changed / total_duration / timeline。
+ */
 export function buildSaveInput(video: VideoProduction): VideoSaveInput {
   return {
     batch_instruction: video.batch_instruction,
     narration: video.narration,
     units: sortUnitsByOrder(video.units).map((u) => ({
-      id: u.id,
+      source_page_id: u.source_page_id,
       dynamic_instruction: u.dynamic_instruction,
       duration_seconds: u.duration_seconds,
       note: u.note,

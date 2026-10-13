@@ -48,7 +48,7 @@ test('sortUnitsByOrder：稳定排序，无 order 排最后', () => {
   assert.deepEqual(noOrder.map((u) => u.order), [0, 5]);
 });
 
-test('buildSaveInput：只收敛用户可编辑字段，不提交系统字段', () => {
+test('buildSaveInput：只收敛 R1 白名单字段，units 以 source_page_id 定位', () => {
   const video: VideoProduction = {
     id: 1,
     project_id: 1,
@@ -65,8 +65,9 @@ test('buildSaveInput：只收敛用户可编辑字段，不提交系统字段', 
   assert.equal(input.batch_instruction, '整批说明');
   assert.equal(input.narration, '旁白');
   assert.equal(input.units.length, 1);
-  assert.equal(input.units[0].id, 7);
-  assert.ok(!('source_page_id' in input.units[0]));
+  // R1：units 以 source_page_id 定位（不提交前端行内 id）
+  assert.equal(input.units[0].source_page_id, 7);
+  assert.ok(!('id' in input.units[0]));
   assert.ok(!('order' in input.units[0]));
   assert.ok(!('source_label' in input.units[0]));
 });

@@ -20,6 +20,8 @@ const props = defineProps<{
   loading: boolean;
   loadError: string;
   saving: boolean;
+  /** 来源变化决策处理中（继续沿用），最小 busy guard。 */
+  resolvingSource: boolean;
   timelineOpen: boolean;
   totalDuration: number;
   timeline: VideoTimelineItem[];
@@ -78,10 +80,11 @@ const emit = defineEmits<{
           </button>
           <button
             type="button"
-            class="rounded-md border border-amber-300 px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-100"
+            :disabled="resolvingSource"
+            class="rounded-md border border-amber-300 px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-100 disabled:opacity-50"
             @click="emit('keepSourceChanges')"
           >
-            继续沿用
+            {{ resolvingSource ? '处理中…' : '继续沿用' }}
           </button>
         </span>
       </div>
