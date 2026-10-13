@@ -5,15 +5,15 @@
 // 共享信息（栏目 / 来源 / 核心表达 / 整篇故事线）由 Content Item 继承，
 // 前端只读展示，不要求用户重复录入。
 //
-// 命名说明：foundation api/v2.ts 的 ContentItem 实际字段为 core_message，
-// 本模块按任务书使用 core_expression；映射差异由 Work 主程序集成时统一。
+// 正式字段命名（R1 收口）：Content Item 共享字段使用 core_message，
+// UI 显示文字仍为「核心表达」；不再保留 core_expression ↔ core_message adapter。
 
 export interface ArticleContentItem {
   id: number;
   project_id: number;
   title: string;
-  /** 核心表达（共享信息，继承自 Content Item） */
-  core_expression: string | null;
+  /** 核心表达（共享信息，继承自 Content Item；UI 显示「核心表达」） */
+  core_message: string | null;
   /** 整篇故事线（共享信息，继承自 Content Item） */
   story_line: string | null;
   /** 来源展示：栏目名称 */
@@ -69,7 +69,7 @@ export type ArticleSaveInput = ArticleFields;
 //
 // 正式生产链路：前端提交 raw input → 后端 preview → 前端展示 → confirm → 后端 apply。
 // 本前端不实现正式解析业务逻辑；以下类型是后端 preview 响应的展示合同。
-// 开发预览使用显式标注的 MOCK 生成器（见 composables/v2/article/articleCore.ts）。
+// 开发预览使用显式标注的 MOCK 生成器（见 composables/v2/article/articleDevMock.ts）。
 // ---------------------------------------------------------------------------
 
 export interface ArticlePreviewModified {
