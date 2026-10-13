@@ -6,11 +6,11 @@
 // 前端只读展示，不要求用户重复录入。
 //
 // 正式字段命名（R1 收口）：Content Item 共享字段使用 core_message，
-// UI 显示文字仍为「核心表达」；不再保留 core_expression ↔ core_message adapter。
+// UI 显示文字为「核心表达」，内部统一 core_message。
 
 export interface ArticleContentItem {
   id: number;
-  project_id: number;
+  project_id?: number;
   title: string;
   /** 核心表达（共享信息，继承自 Content Item；UI 显示「核心表达」） */
   core_message: string | null;
@@ -37,9 +37,9 @@ export type ArticleFieldKey =
 /** 配图建议：无配图 = 列表为空；position 为空表示位置未指定。 */
 export interface ArticleImageSuggestion {
   /** 文中位置（第几段 / 哪个位置后），null = 未指定位置 */
-  position: number | null;
+  position?: number | null;
   /** 配图内容建议 */
-  description: string;
+  description?: string | null;
   note?: string | null;
 }
 
@@ -58,50 +58,41 @@ export interface ArticleFields {
 
 export interface ArticleEditorWorkspace {
   item: ArticleContentItem;
-  article: ArticleFields;
+  branch: { id: number; channel: string; format: string };
+  article: ArticleFields | null;
 }
 
 /** 保存输入：整篇覆盖正式字段。 */
 export type ArticleSaveInput = ArticleFields;
 
 // ---------------------------------------------------------------------------
-// AI 导入预览合同（占位）
+// AI 导入预览合同（正式 B02）
 //
 // 正式生产链路：前端提交 raw input → 后端 preview → 前端展示 → confirm → 后端 apply。
 // 本前端不实现正式解析业务逻辑；以下类型是后端 preview 响应的展示合同。
-// 开发预览使用显式标注的 MOCK 生成器（见 composables/v2/article/articleDevMock.ts）。
+// 数组 / JSON 按整体字段展示，不在前端再次计算差异。
 // ---------------------------------------------------------------------------
 
 export interface ArticlePreviewModified {
-  field: ArticleFieldKey;
-  /** 展示用字段中文名 */
-  label: string;
-  before: string | null;
-  after: string | null;
+  field: ArticleFieldKey | 'title' | 'core_message' | 'story_line';
+  before: ArticlePreviewValue;
+  after: ArticlePreviewValue;
 }
 
+export type ArticlePreviewValue = string | number | boolean | null | ArticlePreviewValue[] | { [key: string]: ArticlePreviewValue };
+
 export interface ArticlePreviewAdded {
-  label: string;
-  detail: string | null;
+  field: ArticleFieldKey;
+  after: ArticlePreviewValue;
 }
 
 export interface ArticleImportPreview {
-  /** 新增内容（如新增配图建议） */
-  added: ArticlePreviewAdded[];
-  /** 修改（逐字段 before → after） */
-  modified: ArticlePreviewModified[];
-  /** 未变化字段中文名列表 */
-  unchanged: string[];
+  item: { changed: boolean; fields: ArticlePreviewModified[] };
+  article: {
+    added: ArticlePreviewAdded[];
+    modified: ArticlePreviewModified[];
+    unchanged: { field: ArticleFieldKey }[];
+  };
   /** 解析警告（不阻断） */
   warnings: string[];
-}
-
-// ---------------------------------------------------------------------------
-// 开发预览 MOCK 合同（DEV ONLY，明确不进入生产）
-// ---------------------------------------------------------------------------
-
-/** 开发预览的 preview/apply 提供者；正式页面使用后端版本。 */
-export interface ArticleImportProviders {
-  preview: (raw: string) => Promise<ArticleImportPreview>;
-  apply: (raw: string) => Promise<ArticleEditorWorkspace>;
 }

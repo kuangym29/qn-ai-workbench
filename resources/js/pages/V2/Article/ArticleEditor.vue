@@ -3,41 +3,32 @@
 // 数据从 API 加载（articleApi，R1 branch-aware）；AI 导入为后端 preview/apply 链路。
 // 页面只依赖 props（projectId / itemId / branchId），不根据 URL 自动选项目。
 //
-// 注意：本任务未修改 routes/web.php；此页面的正式路由由 Work 主程序集成时接线。
-import { onMounted } from 'vue';
+// 入口由 ArticleImportController 校验项目、篇目、分支与渠道。
+import { shallowRef, watch, computed } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import AdminLayout from '../../../layouts/AdminLayout.vue';
 import PageHeader from '../../../components/PageHeader.vue';
 import Breadcrumb from '../../../components/Breadcrumb.vue';
 import { useArticleEditor, newImageDraft } from '../../../composables/v2/article/useArticleEditor';
 import ArticleEditorBody from '../../../components/V2/Article/ArticleEditorBody.vue';
-import { is404 } from '../../../api/errors';
-import { toast } from '../../../ui/toast';
 
 const props = defineProps<{
   projectId: string | number;
   itemId: string | number;
   branchId: string | number;
+  columnName: string;
+  source: { topic: { id: number; title: string } | null; inspiration: { id: number; body: string } | null };
 }>();
 
-const editor = useArticleEditor(props.projectId, props.itemId, props.branchId);
-
-function handleScopeError(e: unknown): void {
-  if (is404(e)) {
-    toast.error('当前项目或篇目不在当前会话作用域内，已返回项目列表');
-    router.visit('/projects');
-    return;
-  }
-  editor.loadError.value = '加载失败';
-}
-
-onMounted(async () => {
-  try {
-    await editor.load();
-  } catch (e) {
-    handleScopeError(e);
-  }
-});
+const editor = shallowRef(useArticleEditor(props.projectId, props.itemId, props.branchId));
+watch(() => [props.projectId, props.itemId, props.branchId], () => {
+  editor.value = useArticleEditor(props.projectId, props.itemId, props.branchId);
+  void editor.value.load();
+}, { immediate: true });
+const displayItem = computed(() => editor.value.item.value ? {
+  ...editor.value.item.value, column_name: props.columnName,
+  column_slug: props.source.topic?.title ?? props.source.inspiration?.body ?? '',
+} : null);
 </script>
 
 <template>
@@ -63,11 +54,12 @@ onMounted(async () => {
     </PageHeader>
 
     <ArticleEditorBody
-      :item="editor.item.value"
+      :item="displayItem"
       :fields="editor.fields.value"
       :loading="editor.loading.value"
       :load-error="editor.loadError.value"
       :saving="editor.saving.value"
+      :busy="editor.busy.value"
       :phase="editor.phase.value"
       :paste-text="editor.pasteText.value"
       :parse-error="editor.parseError.value"
@@ -81,7 +73,7 @@ onMounted(async () => {
       @add-image="editor.addImage(newImageDraft())"
       @remove-image="editor.removeImage($event)"
       @update-image="(index, patch) => editor.updateImage(index, patch)"
-      @back="router.visit(`/projects/${projectId}/content`)"
+      @back="router.visit(`/projects/${projectId}/content/${itemId}`)"
     />
   </AdminLayout>
 </template>

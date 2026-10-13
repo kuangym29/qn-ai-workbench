@@ -1,7 +1,6 @@
 // V2-P2-C02 图文文章核心纯函数测试（node:test，无需 Vue / 浏览器）。
 // 运行：node --experimental-strip-types --test tests/frontend/v2/article/articleCore.test.ts
-// 说明：DEV Mock（buildMockImportPreview）已隔离到 articleDevMock.ts，
-// 其测试位于 articleDevMock.test.ts；本文件只测正式生产核心纯函数。
+// 只测试正式编辑器的展示与配图编辑辅助函数。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -28,7 +27,7 @@ test('normalizeArticleFields：空串/空白 → null，长正文原样保留', 
   assert.equal(n.cover_suggestion, null);
 });
 
-test('normalizeArticleFields：非字符串输入 → null，配图列表过滤非法项', () => {
+test('normalizeArticleFields：非字符串标题 → null，配图 JSON 原样保留供后端校验', () => {
   const n = normalizeArticleFields({
     headline: 123 as unknown as string,
     image_suggestions: [
@@ -38,7 +37,7 @@ test('normalizeArticleFields：非字符串输入 → null，配图列表过滤�
     ] as never,
   });
   assert.equal(n.headline, null);
-  assert.equal(n.image_suggestions?.length, 1);
+  assert.equal(n.image_suggestions?.length, 3);
   assert.equal(n.image_suggestions?.[0].description, '有效项');
 });
 
@@ -71,4 +70,9 @@ test('ARTICLE_FIELD_LABELS 覆盖全部字段键', () => {
   for (const k of keys) {
     assert.ok(ARTICLE_FIELD_LABELS[k].length > 0);
   }
+});
+
+test('GET suggestions retain JSON keys and whitespace so unchanged save creates no version', () => {
+  const images = [{ position: 2, description: '  原文保留  ' }];
+  assert.deepEqual(normalizeArticleFields({ image_suggestions: images }).image_suggestions, images);
 });

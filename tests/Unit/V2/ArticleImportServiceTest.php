@@ -132,4 +132,20 @@ class ArticleImportServiceTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         (new ArticleImportService())->apply($branch, ['item' => []]);
     }
+
+    public function test_json_object_key_order_does_not_create_false_diff_or_version(): void
+    {
+        $item = ContentItem::factory()->create();
+        $branch = $this->branch($item);
+        $content = ArticleContent::factory()->for($item)->for($branch)->create([
+            'image_suggestions' => [['note' => 'N', 'position' => 1, 'description' => 'D']],
+        ]);
+        $parsed = $this->parsed(['image_suggestions' => [['position' => 1, 'description' => 'D', 'note' => 'N']]]);
+        $service = new ArticleImportService();
+        $this->assertSame([], $service->preview($branch, $parsed)['article']['modified']);
+        $service->apply($branch, $parsed);
+        $this->assertSame(0, $content->versions()->count());
+        (new \App\Services\V2\ArticleManualService())->save($branch, $parsed['article']);
+        $this->assertSame(0, $content->versions()->count());
+    }
 }

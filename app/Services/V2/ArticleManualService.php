@@ -134,8 +134,8 @@ class ArticleManualService
     private function valuesEqual(mixed $before, mixed $after): bool
     {
         if (is_array($before) || is_array($after)) {
-            return json_encode(array_map('self::normalize', (array) $before))
-                === json_encode(array_map('self::normalize', (array) $after));
+            return json_encode(self::normalize((array) $before))
+                === json_encode(self::normalize((array) $after));
         }
 
         return (string) ($before ?? '') === (string) ($after ?? '');
@@ -143,7 +143,15 @@ class ArticleManualService
 
     private static function normalize(mixed $value): mixed
     {
-        return is_array($value) ? array_map('self::normalize', $value) : $value;
+        if (! is_array($value)) {
+            return $value;
+        }
+        $normalized = array_map('self::normalize', $value);
+        if (! array_is_list($normalized)) {
+            ksort($normalized);
+        }
+
+        return $normalized;
     }
 
     private function assertArticle(ContentBranch $branch): void

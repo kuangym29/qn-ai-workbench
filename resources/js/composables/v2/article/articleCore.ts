@@ -5,8 +5,7 @@
 //   这里只提供：
 //     1. normalizeArticleFields()    字段归一化（null / 空串 / 数组）。
 //     2. imageSuggestions 列表纯函数（增 / 删 / 改）。
-//   DEV 预览 Mock（buildMockImportPreview）已迁移到独立文件
-//   composables/v2/article/articleDevMock.ts（DEV ONLY），正式生产模块不引用。
+//   正式校验与 AI diff 均由后端负责；这里不修改服务端配图 JSON 的业务内容。
 import type {
   ArticleFieldKey,
   ArticleFields,
@@ -37,15 +36,9 @@ export function normalizeImageSuggestions(v: unknown): ArticleImageSuggestion[] 
   const items: ArticleImageSuggestion[] = [];
   for (const raw of v) {
     if (typeof raw !== 'object' || raw === null) continue;
-    const o = raw as Record<string, unknown>;
-    const description = typeof o.description === 'string' ? o.description.trim() : '';
-    if (!description) continue;
-    const pos = o.position == null ? null : Number(o.position);
-    items.push({
-      position: Number.isInteger(pos) && pos !== null && pos >= 1 ? pos : null,
-      description,
-      note: normalizeNullable(o.note),
-    });
+    if (Array.isArray(raw)) continue;
+    // Preserve server JSON exactly: adding null keys or trimming text would create a false revision on save.
+    items.push({ ...raw } as ArticleImageSuggestion);
   }
   return items.length > 0 ? items : null;
 }

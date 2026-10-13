@@ -1,17 +1,14 @@
 // V2 公众号图文文章 —— 编辑器状态机 composable（R1：branch-aware）。
 //
 // AI 导入：前端不解析。链路为
-//   paste → runPreview()（调 previewProvider，默认后端）→ preview 展示
-//   → confirmImport()（调 applyProvider，默认后端 apply）→ 刷新工作负载
-// 开发预览注入显式 MOCK providers（见 ArticleDevPreviewApp，MOCK 位于 articleDevMock.ts，
-// 正式生产模块不引用）。
+//   paste → 后端 preview → 展示字段差异 → 确认 → 后端 apply → GET。
+// 客户端仅负责传输和展示，预览原文在确认前固定。
 import { computed, ref } from 'vue';
 import type {
   ArticleContentItem,
   ArticleFields,
   ArticleImageSuggestion,
   ArticleImportPreview,
-  ArticleImportProviders,
 } from '../../../types/v2/article/article';
 import {
   addImageSuggestion,
@@ -26,8 +23,7 @@ import { toast } from '../../../ui/toast';
 export type ArticleImportPhase = 'idle' | 'parsing' | 'preview' | 'error';
 
 export interface ArticleEditorOptions {
-  /** 默认走后端；开发预览注入 MOCK。 */
-  providers?: ArticleImportProviders;
+  client?: typeof articleApi;
 }
 
 export function useArticleEditor(
@@ -38,7 +34,7 @@ export function useArticleEditor(
 ) {
   const item = ref<ArticleContentItem | null>(null);
   const fields = ref<ArticleFields>(normalizeArticleFields(null));
-  const loading = ref(true);
+  const loading = ref(false);
   const loadError = ref('');
   const saving = ref(false);
 
@@ -47,17 +43,16 @@ export function useArticleEditor(
   const pasteText = ref('');
   const parseError = ref('');
   const preview = ref<ArticleImportPreview | null>(null);
-
-  const providers: ArticleImportProviders = options.providers ?? {
-    preview: (raw) => articleApi.preview(projectId, itemId, branchId, raw),
-    apply: (raw) => articleApi.apply(projectId, itemId, branchId, raw),
-  };
+  const previewRaw = ref('');
+  const client = options.client ?? articleApi;
+  const busy = computed(() => loading.value || saving.value || phase.value === 'parsing');
 
   async function load(): Promise<void> {
+    if (busy.value) return;
     loading.value = true;
     loadError.value = '';
     try {
-      const ws = await articleApi.loadWorkspace(projectId, itemId, branchId);
+      const ws = await client.loadWorkspace(projectId, itemId, branchId);
       item.value = ws.item;
       fields.value = normalizeArticleFields(ws.article);
     } catch (e) {
@@ -69,6 +64,7 @@ export function useArticleEditor(
 
   // ---- AI 导入（后端为解析者） ----
   function startImport(): void {
+    if (busy.value) return;
     phase.value = 'idle';
     pasteText.value = '';
     parseError.value = '';
@@ -76,6 +72,7 @@ export function useArticleEditor(
   }
 
   function closeImport(): void {
+    if (busy.value) return;
     phase.value = 'idle';
     pasteText.value = '';
     parseError.value = '';
@@ -83,6 +80,7 @@ export function useArticleEditor(
   }
 
   async function runPreview(): Promise<void> {
+    if (busy.value) return;
     if (!pasteText.value.trim()) {
       parseError.value = '请先粘贴 AI 内容。';
       phase.value = 'error';
@@ -90,8 +88,10 @@ export function useArticleEditor(
     }
     phase.value = 'parsing';
     parseError.value = '';
+    const raw = pasteText.value;
     try {
-      preview.value = await providers.preview(pasteText.value);
+      preview.value = await client.preview(projectId, itemId, branchId, raw);
+      previewRaw.value = raw;
       phase.value = 'preview';
     } catch (e) {
       parseError.value = firstErrorMessage(e) ?? '预览失败';
@@ -100,13 +100,14 @@ export function useArticleEditor(
   }
 
   async function confirmImport(): Promise<void> {
-    if (!preview.value || phase.value !== 'preview') return;
+    if (busy.value || !preview.value || phase.value !== 'preview') return;
     phase.value = 'parsing';
     try {
-      const ws = await providers.apply(pasteText.value);
+      const ws = await client.apply(projectId, itemId, branchId, previewRaw.value);
       item.value = ws.item;
       fields.value = normalizeArticleFields(ws.article);
       toast.success('已应用 AI 导入');
+      phase.value = 'idle';
       closeImport();
     } catch (e) {
       parseError.value = firstErrorMessage(e) ?? '应用失败';
@@ -116,10 +117,12 @@ export function useArticleEditor(
 
   // ---- 手动编辑（修订入口） ----
   function updateField(key: keyof ArticleFields, value: string): void {
+    if (busy.value || key === 'image_suggestions') return;
     fields.value = { ...fields.value, [key]: value.trim() === '' ? null : value };
   }
 
   function updateImageList(list: ArticleImageSuggestion[] | null): void {
+    if (busy.value) return;
     fields.value = { ...fields.value, image_suggestions: list };
   }
 
@@ -137,10 +140,10 @@ export function useArticleEditor(
 
   // ---- 保存 ----
   async function save(): Promise<boolean> {
-    if (!item.value) return false;
+    if (!item.value || busy.value) return false;
     saving.value = true;
     try {
-      const ws = await articleApi.save(projectId, itemId, branchId, fields.value);
+      const ws = await client.save(projectId, itemId, branchId, fields.value);
       item.value = ws.item;
       fields.value = normalizeArticleFields(ws.article);
       toast.success('已保存图文文章');
@@ -159,6 +162,7 @@ export function useArticleEditor(
     loading,
     loadError,
     saving,
+    busy,
     phase,
     pasteText,
     parseError,

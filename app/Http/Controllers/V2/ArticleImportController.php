@@ -31,6 +31,22 @@ use InvalidArgumentException;
  */
 class ArticleImportController extends Controller
 {
+    public function editor(Request $request, Project $project, int $item, int $branch): \Inertia\Response
+    {
+        app(ProjectContext::class)->assertCurrent($request, $project);
+        $branchModel = $this->resolveBranch($project, $item, $branch);
+        $model = $branchModel->contentItem->load(['contentColumn', 'topic.inspiration']);
+
+        return \Inertia\Inertia::render('V2/Article/ArticleEditor', [
+            'projectId' => $project->id, 'itemId' => $model->id, 'branchId' => $branchModel->id,
+            'columnName' => $model->contentColumn->name,
+            'source' => [
+                'topic' => $model->topic?->only(['id', 'title']),
+                'inspiration' => $model->topic?->inspiration?->only(['id', 'body']),
+            ],
+        ]);
+    }
+
     public function show(Request $request, Project $project, int $item, int $branch): JsonResponse
     {
         app(ProjectContext::class)->assertCurrent($request, $project);

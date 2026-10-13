@@ -3,14 +3,20 @@
 // 本组件只消费合同，不执行任何解析。确认前绝不覆盖正式内容。
 import { computed } from 'vue';
 import type { ArticleImportPreview } from '../../../types/v2/article/article';
+import { ARTICLE_FIELD_LABELS } from '../../../composables/v2/article/articleCore';
 
 const props = defineProps<{ preview: ArticleImportPreview }>();
 const emit = defineEmits<{ confirm: []; cancel: [] }>();
+const labels: Record<string, string> = { ...ARTICLE_FIELD_LABELS, title: '文章名称', core_message: '核心表达', story_line: '故事线' };
+const added = computed(() => props.preview.article.added);
+const modified = computed(() => [...props.preview.item.fields, ...props.preview.article.modified]);
+const unchanged = computed(() => props.preview.article.unchanged);
+const display = (value: unknown): string => value == null ? '（空）' : typeof value === 'object' ? JSON.stringify(value, null, 2) : String(value);
 
 const hasChanges = computed(
-  () => props.preview.added.length > 0 || props.preview.modified.length > 0,
+  () => added.value.length > 0 || modified.value.length > 0,
 );
-const changeCount = computed(() => props.preview.added.length + props.preview.modified.length);
+const changeCount = computed(() => added.value.length + modified.value.length);
 </script>
 
 <template>
@@ -31,48 +37,48 @@ const changeCount = computed(() => props.preview.added.length + props.preview.mo
     </div>
 
     <div class="space-y-3 px-4 py-3">
-      <section v-if="preview.added.length">
+      <section v-if="added.length">
         <h4 class="mb-1.5 text-xs font-semibold text-emerald-700">新增</h4>
         <div class="space-y-1.5">
           <div
-            v-for="(a, i) in preview.added"
+            v-for="(a, i) in added"
             :key="`add-${i}`"
             class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900"
           >
-            <span class="font-medium">{{ a.label }}</span>
-            <p v-if="a.detail" class="mt-0.5 whitespace-pre-wrap text-emerald-700">{{ a.detail }}</p>
+            <span class="font-medium">{{ labels[a.field] }}</span>
+            <p class="mt-0.5 whitespace-pre-wrap break-words text-emerald-700">{{ display(a.after) }}</p>
           </div>
         </div>
       </section>
 
-      <section v-if="preview.modified.length">
+      <section v-if="modified.length">
         <h4 class="mb-1.5 text-xs font-semibold text-amber-700">修改</h4>
         <div class="space-y-2">
           <div
-            v-for="(m, i) in preview.modified"
+            v-for="(m, i) in modified"
             :key="`mod-${m.field}-${i}`"
             class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2"
           >
-            <p class="text-sm font-medium text-amber-800">修改{{ m.label }}</p>
+            <p class="text-sm font-medium text-amber-800">修改{{ labels[m.field] }}</p>
             <div class="mt-1 grid gap-2 sm:grid-cols-2">
               <div class="min-w-0">
                 <p class="text-xs text-amber-500">修改前</p>
                 <p class="whitespace-pre-wrap break-words text-sm text-slate-600 line-through decoration-slate-400">
-                  {{ m.before ?? '（空）' }}
+                  {{ display(m.before) }}
                 </p>
               </div>
               <div class="min-w-0">
                 <p class="text-xs text-amber-500">修改后</p>
-                <p class="whitespace-pre-wrap break-words text-sm text-slate-800">{{ m.after ?? '（空）' }}</p>
+                <p class="whitespace-pre-wrap break-words text-sm text-slate-800">{{ display(m.after) }}</p>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <section v-if="preview.unchanged.length">
+      <section v-if="unchanged.length">
         <h4 class="mb-1 text-xs font-semibold text-slate-400">未变化</h4>
-        <p class="text-sm text-slate-500">{{ preview.unchanged.join(' / ') }}</p>
+        <p class="text-sm text-slate-500">{{ unchanged.map(row => labels[row.field]).join(' / ') }}</p>
       </section>
 
       <section v-if="preview.warnings.length">

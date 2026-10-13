@@ -1,83 +1,26 @@
-// V2 公众号图文文章 —— API adapter（R1 合同收口：branch-aware）。
-//
-// 正式端点（冻结，R1）：
-//   GET  /api/projects/{project}/items/{item}/branches/{branch}/article
-//   PUT  /api/projects/{project}/items/{item}/branches/{branch}/article
-//   POST /api/projects/{project}/items/{item}/branches/{branch}/article/preview
-//   POST /api/projects/{project}/items/{item}/branches/{branch}/article/apply
-//
-// 正式 AI 导入链路（后端为唯一解析者）：
-//   POST .../preview  raw → ArticleImportPreview
-//   POST .../apply    raw → ArticleEditorWorkspace
-// 前端不实现解析逻辑，只提交 raw 并展示后端结果。
 import { http } from '../../../api/http';
-import type { ApiResponse } from '../../../api/types';
-import type {
-  ArticleEditorWorkspace,
-  ArticleImportPreview,
-  ArticleSaveInput,
-} from '../../../types/v2/article/article';
+import type { ArticleEditorWorkspace, ArticleImportPreview, ArticleSaveInput } from '../../../types/v2/article/article';
 
-function base(
-  projectId: number | string,
-  itemId: number | string,
-  branchId: number | string,
-): string {
-  return `/api/projects/${Number(projectId)}/items/${Number(itemId)}/branches/${Number(branchId)}/article`;
+/** Backend is the only parser/diff/apply source; writes return status, followed by GET. */
+export function createArticleClient(transport: Pick<typeof http, 'get' | 'put' | 'post'>) {
+  const base = (p: number | string, i: number | string, b: number | string) =>
+    '/api/projects/' + Number(p) + '/items/' + Number(i) + '/branches/' + Number(b) + '/article';
+  async function loadWorkspace(p: number | string, i: number | string, b: number | string): Promise<ArticleEditorWorkspace> {
+    return (await transport.get<ArticleEditorWorkspace>(base(p, i, b))).data;
+  }
+  return {
+    loadWorkspace,
+    async save(p: number | string, i: number | string, b: number | string, input: ArticleSaveInput): Promise<ArticleEditorWorkspace> {
+      await transport.put(base(p, i, b), { ...input, image_suggestions: input.image_suggestions ?? [] });
+      return loadWorkspace(p, i, b);
+    },
+    async preview(p: number | string, i: number | string, b: number | string, raw: string): Promise<ArticleImportPreview> {
+      return (await transport.post<ArticleImportPreview>(base(p, i, b) + '/preview', { raw })).data;
+    },
+    async apply(p: number | string, i: number | string, b: number | string, raw: string): Promise<ArticleEditorWorkspace> {
+      await transport.post(base(p, i, b) + '/apply', { raw });
+      return loadWorkspace(p, i, b);
+    },
+  };
 }
-
-export const articleApi = {
-  /** 加载编辑器工作负载（共享信息 + 正式字段）。 */
-  async loadWorkspace(
-    projectId: number | string,
-    itemId: number | string,
-    branchId: number | string,
-  ): Promise<ArticleEditorWorkspace> {
-    const res = await http.get<ApiResponse<ArticleEditorWorkspace>>(
-      base(projectId, itemId, branchId),
-    );
-    return res.data.data;
-  },
-
-  /** 保存整篇正式字段。 */
-  async save(
-    projectId: number | string,
-    itemId: number | string,
-    branchId: number | string,
-    input: ArticleSaveInput,
-  ): Promise<ArticleEditorWorkspace> {
-    const res = await http.put<ApiResponse<ArticleEditorWorkspace>>(
-      base(projectId, itemId, branchId),
-      input,
-    );
-    return res.data.data;
-  },
-
-  /** AI 导入预览：提交 raw，后端解析。 */
-  async preview(
-    projectId: number | string,
-    itemId: number | string,
-    branchId: number | string,
-    raw: string,
-  ): Promise<ArticleImportPreview> {
-    const res = await http.post<ApiResponse<ArticleImportPreview>>(
-      `${base(projectId, itemId, branchId)}/preview`,
-      { raw },
-    );
-    return res.data.data;
-  },
-
-  /** AI 导入确认：后端 apply 后返回最新工作负载。 */
-  async apply(
-    projectId: number | string,
-    itemId: number | string,
-    branchId: number | string,
-    raw: string,
-  ): Promise<ArticleEditorWorkspace> {
-    const res = await http.post<ApiResponse<ArticleEditorWorkspace>>(
-      `${base(projectId, itemId, branchId)}/apply`,
-      { raw },
-    );
-    return res.data.data;
-  },
-};
+export const articleApi = createArticleClient(http);

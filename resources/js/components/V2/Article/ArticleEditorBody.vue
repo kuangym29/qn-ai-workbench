@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // V2 公众号图文文章编辑器主体 —— 纯展示 + 局部交互（不依赖 Inertia / API）。
-// 正式页面（pages/V2/Article/ArticleEditor.vue）与独立开发预览共用本组件。
+// 由正式页面 pages/V2/Article/ArticleEditor.vue 使用。
 //
 // 布局（克制，不做重型 CMS）：
 //   顶部（文章名称 / 栏目·公众号·图文文章 / 来源 › / 共享信息弱展示）
@@ -27,6 +27,7 @@ const props = defineProps<{
   loading: boolean;
   loadError: string;
   saving: boolean;
+  busy: boolean;
   phase: 'idle' | 'parsing' | 'preview' | 'error';
   pasteText: string;
   parseError: string;
@@ -107,6 +108,7 @@ const IMAGE_FIELD_LABELS = ARTICLE_FIELD_LABELS;
     <template v-else>
       <!-- AI 导入（主入口） -->
       <ArticleAiImport
+        :disabled="busy"
         :model-value="pasteText"
         :phase="phase"
         :parse-error="parseError"
@@ -118,7 +120,7 @@ const IMAGE_FIELD_LABELS = ARTICLE_FIELD_LABELS;
       />
 
       <!-- 人工编辑（修订入口） -->
-      <section class="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
+      <fieldset :disabled="busy || phase === 'preview'" class="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
         <h2 class="text-sm font-semibold text-slate-900">文章内容</h2>
 
         <div>
@@ -177,7 +179,7 @@ const IMAGE_FIELD_LABELS = ARTICLE_FIELD_LABELS;
             @input="emit('updateField', 'cover_suggestion', ($event.target as HTMLTextAreaElement).value)"
           />
         </div>
-      </section>
+      </fieldset>
 
       <!-- 制作子项视觉预留（轻量，不做 Workflow Builder） -->
       <section class="rounded-lg border border-slate-200 bg-white px-5 py-3">
@@ -195,7 +197,7 @@ const IMAGE_FIELD_LABELS = ARTICLE_FIELD_LABELS;
       >
         <button
           type="button"
-          :disabled="saving"
+          :disabled="busy || phase === 'preview'"
           class="rounded-md bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           @click="emit('save')"
         >

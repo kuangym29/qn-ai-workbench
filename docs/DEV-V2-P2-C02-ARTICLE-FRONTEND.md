@@ -1,5 +1,7 @@
 # DEV-V2-P2-C02 公众号图文文章正式编辑器前端
 
+> 历史开发记录。I02 已吸收 C02-R1 并接入正式 B02 API；独立 DEV Preview、Mock 与 providers 已删除。以下接口草案与临时文件清单不再代表生产实现；以 `V2_P2_I02_ARTICLE_INTEGRATION.md` 为准。
+
 - 状态：UI_IMPLEMENTED（R1 合同收口完成；真实后端 API 尚未合入，未联调）
 - 分支：doubao/v2-article-frontend
 - 基线：codex/v2-foundation @ 1fe589f8be6461ab6010b13ce5637699a3d647f8

@@ -10,6 +10,7 @@ defineProps<{
   phase: 'idle' | 'parsing' | 'preview' | 'error';
   parseError: string;
   preview: ArticleImportPreview | null;
+  disabled: boolean;
 }>();
 const emit = defineEmits<{
   'update:modelValue': [value: string];
@@ -33,6 +34,7 @@ const emit = defineEmits<{
 
     <div v-if="phase !== 'preview'" class="space-y-3 px-4 py-3">
       <textarea
+        :disabled="disabled"
         :value="modelValue"
         rows="8"
         class="w-full resize-y rounded-md border border-slate-300 px-3 py-2 font-mono text-sm focus:border-slate-400 focus:outline-none"
@@ -44,7 +46,7 @@ const emit = defineEmits<{
       </p>
       <button
         type="button"
-        :disabled="phase === 'parsing' || !modelValue.trim()"
+        :disabled="disabled || !modelValue.trim()"
         class="rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
         @click="emit('parse')"
       >
