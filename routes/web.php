@@ -13,6 +13,7 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SourceReferenceController;
 use App\Http\Controllers\TopicController;
 use App\Http\Controllers\V2ContentController;
+use App\Http\Controllers\V2\ImagePostImportController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -175,5 +176,9 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/items/{item}/branches', [$controller, 'addBranch']);
         Route::post('/items/{item}/branches/{branch}/stop', [$controller, 'stopBranch']);
         Route::get('/in-progress', [$controller, 'inProgress']);
+
+        // B01：小绿书 AI 结构化导入（仅 image_post 分支）。preview 只读，apply 落库。
+        Route::post('/items/{item}/branches/{branch}/image-post/preview', [ImagePostImportController::class, 'preview']);
+        Route::post('/items/{item}/branches/{branch}/image-post/apply', [ImagePostImportController::class, 'apply']);
     });
 });

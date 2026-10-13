@@ -13,7 +13,11 @@ class ContentPage extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['page_no', 'page_type'];
+    protected $fillable = [
+        'project_id', 'content_item_id', 'page_no', 'page_type',
+        'narrative_role', 'new_fact', 'final_copy',
+        'visual_evidence', 'continuity', 'production_note',
+    ];
 
     protected static function booted(): void
     {
