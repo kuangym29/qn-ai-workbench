@@ -17,9 +17,9 @@
 
 ## Tasks
 
-- [ ] 1. 核对并合入A01/B01/C01原始提交，记录冲突与正式契约。
-- [ ] 2. 为branch-aware正式页面/入口/API客户端/preview/apply写失败测试，运行RED。
-- [ ] 3. 接通真实GET/PUT/preview/apply，统一core_message；删除Stub/DEV冗余，GREEN。
-- [ ] 4. 核对后端保护与集成边界；运行PHP/SQLite/MySQL8.4、前端tests、typecheck/build。
-- [ ] 5. 独立测试数据真实浏览器完成用户20项清单，必要小修按RED/GREEN复验。
-- [ ] 6. 最终自审、台账/验收文档；验证B01历史完整后说明superseded并关闭PR28；推送仅集成分支，复核git状态并停止。
+- [x] 1. 核对并合入A01/B01/C01原始提交，记录冲突与正式契约。
+- [x] 2. 为branch-aware正式页面/入口/API客户端/preview/apply写失败测试，运行RED。
+- [x] 3. 接通真实GET/PUT/preview/apply，统一core_message；删除Stub/DEV冗余，GREEN。
+- [x] 4. 核对后端保护与集成边界；运行PHP/SQLite/MySQL8.4、前端tests、typecheck/build。
+- [x] 5. 独立测试数据真实浏览器完成用户20项清单，必要小修按RED/GREEN复验。
+- [x] 6. 最终自审、台账/验收文档；验证B01历史完整后说明superseded并关闭PR28；推送仅集成分支，复核git状态并停止。
