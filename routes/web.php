@@ -14,6 +14,7 @@ use App\Http\Controllers\SourceReferenceController;
 use App\Http\Controllers\TopicController;
 use App\Http\Controllers\V2ContentController;
 use App\Http\Controllers\V2\ImagePostImportController;
+use App\Http\Controllers\V2\ReusableAssetController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -184,5 +185,8 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/items/{item}/branches/{branch}/image-post/apply', [ImagePostImportController::class, 'apply']);
         Route::get('/items/{item}/branches/{branch}/image-post', [ImagePostImportController::class, 'show']);
         Route::put('/items/{item}/branches/{branch}/image-post', [ImagePostImportController::class, 'save']);
+
+        // B06：人物 / 场景复用资产索引（只读 GET，写入只对内提供 Service）。
+        Route::get('/reusable-assets', [ReusableAssetController::class, 'index']);
     });
 });
