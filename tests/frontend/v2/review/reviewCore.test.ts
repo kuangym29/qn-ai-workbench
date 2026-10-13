@@ -22,7 +22,7 @@ function makeItem(overrides: Partial<ReviewItem> = {}): ReviewItem {
     branch_id: 1,
     status: 'pending',
     content_title: '示例内容',
-    channel: 'wechat',
+    channel: 'wechat_official',
     format: 'image_post',
     review_target_type: 'image_post_copy',
     review_target_label: '小绿书内容',
@@ -55,14 +55,13 @@ test('isPending 判定', () => {
   assert.equal(isPending(makeItem({ status: 'changes_requested' })), false);
 });
 
-test('channelLabel / formatLabel / targetLabel 映射与未知回退', () => {
-  assert.equal(channelLabel('wechat'), '公众号');
-  assert.equal(channelLabel('wechat_video'), '视频号');
-  assert.equal(channelLabel('unknown_channel'), 'unknown_channel');
+test('channelLabel / formatLabel / targetLabel 映射与正式枚举', () => {
+  assert.equal(channelLabel('wechat_official'), '公众号');
+  assert.equal(channelLabel('wechat_channels'), '视频号');
+  assert.equal(channelLabel('xiaohongshu'), '小红书');
   assert.equal(formatLabel('image_post'), '图片文章');
   assert.equal(formatLabel('article'), '图文文章');
   assert.equal(formatLabel('video'), '视频制作');
-  assert.equal(formatLabel('unknown_format'), 'unknown_format');
   assert.equal(targetLabel('image_post_copy'), '小绿书内容');
   assert.equal(targetLabel('image_batch'), '图片批次');
   assert.equal(targetLabel('article_copy'), '公众号图文');

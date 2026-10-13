@@ -9,7 +9,12 @@
 //     4. detectTargetLabel()      轻量局部定位（target_label）预留提取。
 //   DEV 预览 Mock（buildMockReviewItems 等）位于 reviewDevMock.ts（DEV ONLY），
 //   正式生产模块不引用。
-import type { ReviewItem, ReviewStatus } from '../../../types/v2/review/review';
+import type {
+  ReviewChannel,
+  ReviewFormat,
+  ReviewItem,
+  ReviewStatus,
+} from '../../../types/v2/review/review';
 
 export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
   pending: '待审核',
@@ -17,16 +22,15 @@ export const REVIEW_STATUS_LABELS: Record<ReviewStatus, string> = {
   changes_requested: '已退回修改',
 };
 
-/** 渠道中文标签（未知渠道原样返回）。 */
-export const REVIEW_CHANNEL_LABELS: Record<string, string> = {
-  wechat: '公众号',
-  wechat_video: '视频号',
-  official_account: '公众号',
-  video_account: '视频号',
+/** 渠道中文标签（正式枚举：wechat_official / wechat_channels / xiaohongshu）。 */
+export const REVIEW_CHANNEL_LABELS: Record<ReviewChannel, string> = {
+  wechat_official: '公众号',
+  wechat_channels: '视频号',
+  xiaohongshu: '小红书',
 };
 
-/** 内容形式中文标签（未知形式原样返回）。 */
-export const REVIEW_FORMAT_LABELS: Record<string, string> = {
+/** 内容形式中文标签（正式枚举：image_post / article / video）。 */
+export const REVIEW_FORMAT_LABELS: Record<ReviewFormat, string> = {
   image_post: '图片文章',
   article: '图文文章',
   video: '视频制作',
@@ -40,11 +44,11 @@ export const REVIEW_TARGET_LABELS: Record<string, string> = {
   image_batch: '图片批次',
 };
 
-export function channelLabel(channel: string): string {
+export function channelLabel(channel: ReviewChannel): string {
   return REVIEW_CHANNEL_LABELS[channel] ?? channel;
 }
 
-export function formatLabel(format: string): string {
+export function formatLabel(format: ReviewFormat): string {
   return REVIEW_FORMAT_LABELS[format] ?? format;
 }
 

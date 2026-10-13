@@ -11,6 +11,12 @@ export type ReviewStatus = 'pending' | 'approved' | 'changes_requested';
 
 export type ReviewDecisionKind = 'approved' | 'changes_requested';
 
+/** 正式渠道枚举（与 Foundation 正式合同一致；一个正式合同，不做历史 alias 池）。 */
+export type ReviewChannel = 'wechat_official' | 'wechat_channels' | 'xiaohongshu';
+
+/** 正式内容形式枚举（与 Foundation 正式枚举一致）。 */
+export type ReviewFormat = 'image_post' | 'article' | 'video';
+
 /** 待审核项（列表行所需的最小展示字段）。 */
 export interface ReviewItem {
   id: number;
@@ -20,10 +26,10 @@ export interface ReviewItem {
   status: ReviewStatus;
   /** 内容名称 */
   content_title: string;
-  /** 渠道：公众号 / 视频号 */
-  channel: string;
-  /** 内容形式：图片文章 / 图文文章 / 视频制作 */
-  format: string;
+  /** 渠道：正式枚举 wechat_official | wechat_channels | xiaohongshu */
+  channel: ReviewChannel;
+  /** 内容形式：正式枚举 image_post | article | video */
+  format: ReviewFormat;
   /** 审核对象类型（后端定义，如 image_post_copy / article_copy / video_production） */
   review_target_type: string;
   /** 审核对象展示标签：小绿书内容 / 图片批次 / 公众号图文 / 视频制作 */
