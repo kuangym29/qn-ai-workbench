@@ -82,7 +82,7 @@ const IMAGE_FIELD_LABELS = ARTICLE_FIELD_LABELS;
           共享信息（来自内容篇目）
         </summary>
         <div class="mt-2 space-y-1.5 text-xs text-slate-600">
-          <p v-if="item?.core_expression"><span class="text-slate-400">核心表达：</span>{{ item.core_expression }}</p>
+          <p v-if="item?.core_message"><span class="text-slate-400">核心表达：</span>{{ item.core_message }}</p>
           <p v-else class="text-slate-400">核心表达：（未填写）</p>
           <p v-if="item?.story_line"><span class="text-slate-400">整篇故事线：</span>{{ item.story_line }}</p>
           <p v-else class="text-slate-400">整篇故事线：（未填写）</p>
