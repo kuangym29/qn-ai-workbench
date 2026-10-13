@@ -13,6 +13,7 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SourceReferenceController;
 use App\Http\Controllers\TopicController;
 use App\Http\Controllers\V2ContentController;
+use App\Http\Controllers\V2\ImagePostImportController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -161,6 +162,7 @@ Route::middleware('auth')->group(function (): void {
     $controller = V2ContentController::class;
     Route::get('/projects/{project}/{page}', [$controller, 'workspace'])->whereIn('page', ['in-progress', 'inspirations', 'topics', 'content', 'review']);
     Route::get('/projects/{project}/content/{item}', [$controller, 'detailPage']);
+    Route::get('/projects/{project}/content/{item}/branches/{branch}/image-post', [$controller, 'imagePostPage']);
     Route::prefix('api/projects/{project}')->group(function () use ($controller): void {
         Route::get('/inspirations', [$controller, 'inspirations']);
         Route::post('/inspirations', [$controller, 'saveInspiration']);
@@ -175,5 +177,12 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/items/{item}/branches', [$controller, 'addBranch']);
         Route::post('/items/{item}/branches/{branch}/stop', [$controller, 'stopBranch']);
         Route::get('/in-progress', [$controller, 'inProgress']);
+
+        // B01：小绿书（image_post 分支）。
+        // AI 导入：preview 只读，apply 落库。人工编辑：GET 读取，PUT 保存（变化才补版本）。
+        Route::post('/items/{item}/branches/{branch}/image-post/preview', [ImagePostImportController::class, 'preview']);
+        Route::post('/items/{item}/branches/{branch}/image-post/apply', [ImagePostImportController::class, 'apply']);
+        Route::get('/items/{item}/branches/{branch}/image-post', [ImagePostImportController::class, 'show']);
+        Route::put('/items/{item}/branches/{branch}/image-post', [ImagePostImportController::class, 'save']);
     });
 });
