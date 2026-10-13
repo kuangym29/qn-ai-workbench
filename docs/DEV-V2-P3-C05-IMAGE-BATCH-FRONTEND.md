@@ -154,4 +154,121 @@ ImageBatchRunResult { batch_id; mode; unit_ids; status }
 
 - 正式 `image-batch` API 未实现：loadWorkspace / run / copy-task 端点、字段名、404/422 语义以 WorkBuddy Phase 2 后端实现为准。
 - 若后端返回字段命名与本节合同有差异：不擅自改产品结构，由 Work 主程序集成时对齐并记录映射差异。
-- 单页「重新生成 / 继续沿用」为正式决策入口，当前仅本地标记，正式决策由后端记录。
+- 单页「重新生成 / 继续沿用」为正式决策入口，R1 起调用正式 source-change API（见 19 节）。
+
+---
+
+## 19. R1 合同收口（V2-P3-C05-R1）
+
+R1 只做正式数据合同收口，不重做 UI。改动文件均为 C05 自有文件。
+
+### 19.1 ImageBatchUnit 不再包含 selected
+
+- 勾选只是浏览器当前执行选择，不属于服务端工作台正式数据。
+- 前端 composable 本地维护 `selectedUnitIds: Set<number|string>`；单页勾选 / 全选 / 取消选择 / 已选计数 / trial / partial targets 全部基于它。
+- `GET workspace` 不返回选择状态；页面重新加载 / 执行成功后重新 GET 时选择清空为正常行为。
+- 不为选择状态增加任何数据库概念。
+
+### 19.2 Draft 保存合同（PUT）
+
+```
+PUT /api/projects/{project}/items/{item}/branches/{branch}/image-batch
+body: {
+  batch_instruction: string,
+  batch_note: string | null,
+  units: [{ id, special_requirement: string | null }]
+}
+```
+
+只发送用户可编辑的制作补充；`final_copy / visual_evidence / characters / scene / page_type` 属于来源内容 / 系统继承，前端不可写。
+
+### 19.3 Dirty 自动保存（不增加用户流程节点）
+
+- 修改 `batch_instruction / batch_note / 单页 special_requirement` → `dirty = true`（弱化提示：已保存 / 有未保存修改 / 保存中… / 保存失败）。
+- 执行「整批生成 / 先做试样 / 选择部分页面生成 / 复制整批生图任务」前若 dirty：先自动 `PUT Draft` → 成功后再执行。
+- Draft 保存失败：**不得**继续 run / copy-task，明确提示保存失败。
+- 用户不需要额外点一次“保存”。
+
+### 19.4 Run 输入
+
+```
+POST …/image-batch/run
+body: { mode: 'full' | 'trial' | 'partial', unit_ids: [] }
+```
+
+- full：`unit_ids` 可为空，由后端解释为整批。
+- trial / partial：必须有 `unit_ids`。
+- run body 不重复塞整批说明（run 前已确保 Draft 保存，后端据此创建准确 task snapshot）。
+
+### 19.5 Copy Task
+
+```
+POST …/image-batch/copy-task
+```
+
+前端不拼 Prompt；后端读取最新 Draft + 最新页面结构 + 资产状态 + 最新特殊要求生成完整 Task。前端只调用 / 获取结果 / 复制。
+
+### 19.6 来源变化决策（source-change）
+
+```
+POST …/image-batch/units/{unit}/source-change
+body: { action: 'keep' | 'regenerate' }
+```
+
+- 「继续沿用」→ `action: 'keep'`；「重新生成」→ `action: 'regenerate'`。
+- 成功后**重新 GET 工作台**，不乐观伪造服务端状态。
+- 「查看修改」仍为轻量查看（直接读 `source_change_summary`）。
+
+### 19.7 正式 API 端点总表
+
+| 方法 | 端点 | 说明 |
+|---|---|---|
+| GET | `…/image-batch` | 正式工作台 |
+| PUT | `…/image-batch` | 保存整批制作 Draft |
+| POST | `…/image-batch/run` | 创建本次批次执行 |
+| POST | `…/image-batch/copy-task` | 系统组装完整任务 |
+| POST | `…/image-batch/units/{unit}/source-change` | 记录 keep / regenerate 决策 |
+
+### 19.8 Mock 隔离（R1）
+
+- DEV Mock 新增：`applyMockSaveDraft`（更新工作台制作补充并记录 draft）、`applyMockResolveSourceChange`（keep → 清除提示；regenerate → status=needs_revision）。
+- 正式模块（imageBatchCore / imageBatchApi / useImageBatch）0 引用 Mock；Mock 仅 DevPreviewApp 与 devMock 测试引用。
+- 正式链路：run / copy-task 前 dirty 自动 PUT → 成功后执行；source-change 决策 → POST → GET 刷新。
+
+### 19.9 测试基建（R1）
+
+- 新增 `tests/frontend/v2/imageBatch/useImageBatch.test.ts`（vue reactivity + fake client）：本地选择、reload 清空、dirty 追踪、run/copy-task 前自动保存、PUT 失败不执行、trial/partial 依赖勾选、keep/regenerate 调 API 后 GET。
+- `imageBatchCore.test.ts` / `imageBatchDevMock.test.ts` 同步更新（selected 移除、Draft 载荷白名单、Mock saveDraft / source-change）。
+- useImageBatch 的跨模块相对导入无扩展名（vite bundler 可解析），node 原生 ESM 需临时 loader：
+  `tests/frontend/v2/imageBatch/ts-extension-loader.mjs` + `register-loader.mjs`（测试基建，随本目录提交）。
+
+运行全部测试：
+
+```
+node --experimental-strip-types --import ./tests/frontend/v2/imageBatch/register-loader.mjs --test tests/frontend/v2/imageBatch/imageBatchCore.test.ts tests/frontend/v2/imageBatch/imageBatchDevMock.test.ts tests/frontend/v2/imageBatch/useImageBatch.test.ts
+```
+
+R1 结果：29 tests / 29 pass；`npm run typecheck` PASS；`npm run build` PASS（889 modules）；浏览器预览交互全链路通过（编辑 → dirty → 执行前自动保存 → 重新 GET 清选择；keep / regenerate → POST → GET 刷新；复制任务自动保存；轻量修正 → dirty）。
+
+### 19.10 R1 文件清单（相对 C05 原 16 文件）
+
+| 文件 | 变化 |
+|---|---|
+| `types/v2/imageBatch/imageBatch.ts` | 删除 selected；新增 ImageBatchRunPhase / ImageBatchSaveState / Draft / SourceChange 合同 |
+| `composables/v2/imageBatch/imageBatchCore.ts` | 选择函数改收 selectedUnitIds；新增 buildDraftPayload |
+| `composables/v2/imageBatch/imageBatchApi.ts` | 新增 saveDraft / resolveSourceChange；transport 增加 put |
+| `composables/v2/imageBatch/imageBatchDevMock.ts` | 新增 saveDraft / resolveSourceChange 内存模拟 |
+| `composables/v2/imageBatch/useImageBatch.ts` | 本地 selectedUnitIds、dirty / saveState、run/copy-task 自动保存、决策 API + GET 刷新 |
+| `components/V2/ImageBatch/ImageBatchWorkspaceBody.vue` | selectedUnitIds / dirty / saveState props；弱化保存提示 |
+| `components/V2/ImageBatch/ImageBatchUnitCard.vue` | selected 由 props 传入；update emit 只含 id + special_requirement |
+| `components/V2/ImageBatch/ImageBatchDevPreviewApp.vue` | devClient 增 saveDraft / resolveSourceChange；新 props |
+| `pages/V2/ImageBatch/ImageBatchEditor.vue` | 新 props（selectedUnitIds / dirty / saveState） |
+| `tests/frontend/v2/imageBatch/*` | 3 个测试 + 2 个 loader（R1） |
+| `docs/DEV-V2-P3-C05-IMAGE-BATCH-FRONTEND.md` | 本文档（R1 章节） |
+
+### 19.11 R1 边界
+
+- 未修改：routes / backend / Foundation / C01–C04 / main。
+- 真实生图后端、ChatGPT Work 调用、MediaBatch 不属于本任务。
+- 正式端点字段名以 WorkBuddy Phase 2 后端实现为准；差异由 Work 主程序集成时对齐记录。
+

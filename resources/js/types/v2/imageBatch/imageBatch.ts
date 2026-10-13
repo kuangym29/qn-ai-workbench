@@ -7,6 +7,13 @@
 //   3. 系统拆出来的每一页是否正确？
 //   4. 这次我要整批做、先试样，还是只做部分页面？
 //
+// R1 合同收口（V2-P3-C05-R1）：
+//   - ImageBatchUnit 不含 selected：勾选只是浏览器当前执行选择（前端本地状态），
+//     不属于服务端工作台正式数据，reload 后清空为正常行为。
+//   - 可编辑制作补充（batch_instruction / batch_note / 单页 special_requirement）
+//     通过 PUT Draft 保存；正式链路由后端持久化。
+//   - 来源变化决策（keep / regenerate）通过 source-change API 记录，成功后重新 GET。
+//
 // 本任务只实现 UI / typed contract / event，不开发真实生图后端。
 // 正式后端尚未完成：本类型为冻结展示合同；生产 API adapter 独立于 DEV Mock。
 import type { PageType } from '../../../api/types';
@@ -23,6 +30,15 @@ export type AssetCheckType = 'character' | 'scene';
 /** 资产状态：已有 / 缺失 / 本批新建。 */
 export type AssetCheckStatus = 'existing' | 'missing' | 'new_in_batch';
 
+/** 来源变化决策：继续沿用 / 重新生成。 */
+export type SourceChangeAction = 'keep' | 'regenerate';
+
+/** 执行动作子状态：idle → running → done / error。 */
+export type ImageBatchRunPhase = 'idle' | 'running' | 'done' | 'error';
+
+/** Draft 保存状态（弱化提示：已保存 / 有未保存修改 / 保存中… / 保存失败）。 */
+export type ImageBatchSaveState = 'saved' | 'dirty' | 'saving' | 'error';
+
 /** 批次资产检查条目（整批聚合一次，不做逐页重复提醒，不做复杂 DAM）。 */
 export interface AssetCheck {
   type: AssetCheckType;
@@ -30,21 +46,24 @@ export interface AssetCheck {
   status: AssetCheckStatus;
 }
 
-/** 页面单元：系统从内容结构自动得到，用户主要查看 / 轻量修正 / 选择是否参与本次生成。 */
+/**
+ * 页面单元：系统从内容结构自动得到，用户主要查看 / 轻量修正 / 选择是否参与本次生成。
+ * 注意：本类型不包含 selected —— 勾选由前端 composable 本地维护（selectedUnitIds），
+ * 不属于服务端正式数据。
+ */
 export interface ImageBatchUnit {
   id: number | string;
   page_id: number;
   page_no: number;
   page_type: PageType;
-  /** 最终文字（弱展示） */
+  /** 最终文字（弱展示，来源内容 / 系统继承，前端不可写） */
   final_copy: string | null;
-  /** 画面证据 */
+  /** 画面证据（来源内容 / 系统继承，前端不可写） */
   visual_evidence: string | null;
   characters: string[];
   scene: string | null;
+  /** 用户可编辑的制作补充（写入 Draft） */
   special_requirement: string | null;
-  /** 是否参与本次生成（整批生成忽略该标记） */
-  selected: boolean;
   status: ImageBatchUnitStatus;
   /** 来源页后来有修改（由系统检测，前端只展示） */
   source_changed?: boolean;
@@ -60,13 +79,13 @@ export interface BatchHistoryItem {
   instruction_summary: string | null;
 }
 
-/** 图片批次工作台。 */
+/** 图片批次工作台（服务端正式数据，不含选择状态）。 */
 export interface ImageBatchWorkspace {
   content_title: string;
   source_label: string;
-  /** 整批生图说明（一个大文本区，不拆字段） */
+  /** 整批生图说明（一个大文本区，不拆字段；用户可编辑 → Draft） */
   batch_instruction: string;
-  /** 整批备注（弱化文本区） */
+  /** 整批备注（弱化文本区；用户可编辑 → Draft） */
   batch_note: string | null;
   /** 批次资产检查摘要 */
   assets: AssetCheck[];
@@ -86,6 +105,24 @@ export interface ImageBatchRunResult {
   mode: ImageBatchExecutionMode;
   unit_ids: (number | string)[];
   status: string;
+}
+
+/** Draft 中单个单元的制作补充（只发送用户可编辑字段，不发送来源内容 / 系统继承字段）。 */
+export interface ImageBatchDraftUnitInput {
+  id: number | string;
+  special_requirement: string | null;
+}
+
+/** 保存整批制作 Draft（PUT image-batch）：只包含用户可编辑的制作补充。 */
+export interface ImageBatchDraftInput {
+  batch_instruction: string;
+  batch_note: string | null;
+  units: ImageBatchDraftUnitInput[];
+}
+
+/** 来源变化决策输入。 */
+export interface SourceChangeInput {
+  action: SourceChangeAction;
 }
 
 // ---------------------------------------------------------------------------

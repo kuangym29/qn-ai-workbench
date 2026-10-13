@@ -5,17 +5,21 @@
 //   这里只提供：
 //     1. 展示标签映射（执行方式 / 单页状态 / 资产状态）。
 //     2. 资产摘要分组（人物 / 场景，整批聚合一次）。
-//     3. 选择逻辑（全选 / 取消 / 执行目标推导）。
+//     3. 选择逻辑（全选 / 取消 / 执行目标推导）——基于前端本地 selectedUnitIds，
+//        不使用服务端字段（R1 合同：ImageBatchUnit 不含 selected）。
 //     4. 来源内容变化提示的判定与计数。
+//     5. Draft 载荷生成（只包含用户可编辑的制作补充）。
 //   DEV 预览 Mock 位于 imageBatchDevMock.ts（DEV ONLY），正式生产模块不引用。
 import type {
   AssetCheck,
   AssetCheckStatus,
   AssetCheckType,
+  ImageBatchDraftInput,
   ImageBatchExecutionMode,
   ImageBatchUnit,
   ImageBatchUnitStatus,
-} from '../../types/v2/imageBatch/imageBatch';
+  ImageBatchWorkspace,
+} from '../../../types/v2/imageBatch/imageBatch';
 
 /** 页面类型中文标签（与 Foundation api/types PAGE_TYPE_LABELS 一致，内联避免运行时导入）。 */
 const PAGE_TYPE_LABELS_LOCAL: Record<string, string> = {
@@ -70,23 +74,43 @@ export function groupAssets(assets: AssetCheck[]): { characters: AssetCheck[]; s
   };
 }
 
-/** 已选择页面（按 page_no 升序）。 */
-export function selectedUnits(units: ImageBatchUnit[]): ImageBatchUnit[] {
-  return units.filter((u) => u.selected).sort((a, b) => a.page_no - b.page_no);
+/** 已选择页面（按 page_no 升序）——selectedIds 为前端本地选择状态。 */
+export function selectedUnits(units: ImageBatchUnit[], selectedIds: ReadonlySet<number | string>): ImageBatchUnit[] {
+  return units.filter((u) => selectedIds.has(u.id)).sort((a, b) => a.page_no - b.page_no);
 }
 
-export function selectionSummary(units: ImageBatchUnit[]): { selected: number; total: number } {
-  return { selected: units.filter((u) => u.selected).length, total: units.length };
+export function selectionSummary(
+  units: ImageBatchUnit[],
+  selectedIds: ReadonlySet<number | string>,
+): { selected: number; total: number } {
+  return { selected: selectedIds.size, total: units.length };
 }
 
 /**
  * 执行目标推导：
- *   - full：整批生成，忽略勾选，返回全部页面；
+ *   - full：整批生成，忽略勾选，返回全部页面（unit_ids 可为空，由后端解释为整批）；
  *   - trial / partial：先做试样 / 选择部分页面生成，返回已勾选页面（可能为空，由 UI 提示）。
  */
-export function executionTargets(units: ImageBatchUnit[], mode: ImageBatchExecutionMode): ImageBatchUnit[] {
+export function executionTargets(
+  units: ImageBatchUnit[],
+  selectedIds: ReadonlySet<number | string>,
+  mode: ImageBatchExecutionMode,
+): ImageBatchUnit[] {
   if (mode === 'full') return [...units].sort((a, b) => a.page_no - b.page_no);
-  return selectedUnits(units);
+  return selectedUnits(units, selectedIds);
+}
+
+/**
+ * Draft 载荷生成（PUT image-batch）：
+ * 只发送用户可编辑的制作补充（batch_instruction / batch_note / 单页 special_requirement）。
+ * 不要把 final_copy / visual_evidence / characters / scene / page_type 作为前端可写字段。
+ */
+export function buildDraftPayload(workspace: ImageBatchWorkspace, units: ImageBatchUnit[]): ImageBatchDraftInput {
+  return {
+    batch_instruction: workspace.batch_instruction,
+    batch_note: workspace.batch_note,
+    units: units.map((u) => ({ id: u.id, special_requirement: u.special_requirement })),
+  };
 }
 
 /** 是否存在来源页后来有修改的页面。 */

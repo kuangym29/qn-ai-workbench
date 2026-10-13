@@ -4,19 +4,28 @@
 // 本文件只被：
 //   - ImageBatchDevPreviewApp.vue（浏览器开发预览）
 //   - imageBatchDevMock.test.ts（DEV 展示测试）
-// 引用。正式路径只能：工作台 / 执行动作全部由后端 API 提供。
+// 引用。正式路径只能：工作台 / Draft 保存 / 执行动作 / 来源变化决策全部由后端 API 提供。
+//
+// R1 合同（V2-P3-C05-R1）：
+//   - ImageBatchUnit 不含 selected（勾选为前端本地状态）；
+//   - Mock 支持 saveDraft / run / copyTask / resolveSourceChange；
+//   - 来源变化决策（keep / regenerate）内存模拟后重新 GET 返回更新后的工作台。
 import type {
   AssetCheck,
   BatchHistoryItem,
+  ImageBatchDraftInput,
   ImageBatchRunInput,
   ImageBatchRunResult,
   ImageBatchUnit,
   ImageBatchWorkspace,
-} from '../../types/v2/imageBatch/imageBatch';
+  SourceChangeAction,
+} from '../../../types/v2/imageBatch/imageBatch';
 
 interface MockState {
   workspace: ImageBatchWorkspace;
   history: BatchHistoryItem[];
+  /** 最近一次保存的 Draft（内存模拟，DEV ONLY）。 */
+  draft: ImageBatchDraftInput | null;
 }
 
 function iso(daysAgo: number, hour: number): string {
@@ -48,7 +57,6 @@ function buildMockUnits(): ImageBatchUnit[] {
     characters: p.page_no === 3 ? ['姐姐'] : ['妈妈', '姐姐'],
     scene: p.page_no <= 4 ? '客厅' : p.page_no <= 8 ? '玄关门口' : '小区楼下',
     special_requirement: p.page_no === 4 ? '表情特写，眼睛要亮' : p.page_no === 10 ? '黄昏暖光，逆光剪影' : null,
-    selected: p.page_no <= 6,
     status: p.page_no <= 2 ? ('generated' as const) : p.page_no === 3 ? ('needs_revision' as const) : ('pending' as const),
     source_changed: p.page_no === 4 || p.page_no === 5 ? true : false,
     source_change_summary: p.page_no === 4 ? '最终文字有更新：补充了“眼睛亮亮地”的表述。' : p.page_no === 5 ? '最终文字微调：把“等一等”提前到句首。' : null,
@@ -101,6 +109,7 @@ function buildWorkspaceData(): ImageBatchWorkspace {
 export const mockImageBatchStore: MockState = {
   workspace: buildWorkspaceData(),
   history: buildMockHistory(),
+  draft: null,
 };
 
 /** DEV ONLY MOCK —— 拉取批次工作台。 */
@@ -110,6 +119,21 @@ export async function buildMockWorkspace(): Promise<ImageBatchWorkspace> {
     units: mockImageBatchStore.workspace.units.map((u) => ({ ...u })),
     history: mockImageBatchStore.history.map((h) => ({ ...h })),
   };
+}
+
+/** DEV ONLY MOCK —— 保存整批制作 Draft（内存更新工作台并记录 draft）。 */
+export async function applyMockSaveDraft(input: ImageBatchDraftInput): Promise<{ ok: boolean }> {
+  mockImageBatchStore.workspace = {
+    ...mockImageBatchStore.workspace,
+    batch_instruction: input.batch_instruction,
+    batch_note: input.batch_note,
+    units: mockImageBatchStore.workspace.units.map((u) => {
+      const d = input.units.find((x) => String(x.id) === String(u.id));
+      return d ? { ...u, special_requirement: d.special_requirement } : u;
+    }),
+  };
+  mockImageBatchStore.draft = input;
+  return { ok: true };
 }
 
 /** DEV ONLY MOCK —— 提交执行动作并记录一条历史批次。 */
@@ -139,4 +163,20 @@ export async function applyMockRun(input: ImageBatchRunInput): Promise<ImageBatc
 /** DEV ONLY MOCK —— 复制整批生图任务（仅记录事件，不开发真实 AI 调用）。 */
 export async function applyMockCopyTask(): Promise<{ task: { copied: boolean } }> {
   return { task: { copied: true } };
+}
+
+/** DEV ONLY MOCK —— 记录来源变化决策（keep / regenerate），更新工作台后由前端重新 GET。 */
+export async function applyMockResolveSourceChange(
+  unitId: number | string,
+  action: SourceChangeAction,
+): Promise<{ ok: boolean }> {
+  mockImageBatchStore.workspace = {
+    ...mockImageBatchStore.workspace,
+    units: mockImageBatchStore.workspace.units.map((u) => {
+      if (String(u.id) !== String(unitId)) return u;
+      if (action === 'keep') return { ...u, source_changed: false, source_change_summary: null };
+      return { ...u, source_changed: false, source_change_summary: null, status: 'needs_revision' };
+    }),
+  };
+  return { ok: true };
 }

@@ -8,15 +8,21 @@
 //   → 页面单元列表（勾选 + 轻量修正 + 单页状态）
 //   → 执行动作区（整批生成 / 先做试样 / 选择部分页面生成 / 复制任务 / 查看历史）
 //   → 批次历史（轻量）
+//
+// R1 合同（V2-P3-C05-R1）：
+//   - 勾选为前端本地状态：selectedUnitIds（数组 props 传入），不属于服务端字段。
+//   - 制作补充（batch_instruction / batch_note / special_requirement）修改 → dirty；
+//     run / copy-task 前由 composable 自动保存 Draft；此处仅提供弱化保存状态提示。
 import { computed } from 'vue';
 import type {
   AssetCheck,
   BatchHistoryItem,
   ImageBatchExecutionMode,
   ImageBatchRunPhase,
+  ImageBatchSaveState,
   ImageBatchUnit,
 } from '../../../types/v2/imageBatch/imageBatch';
-import { executionLabel, selectionSummary } from '../../../composables/v2/imageBatch/imageBatchCore';
+import { executionLabel } from '../../../composables/v2/imageBatch/imageBatchCore';
 import LoadingState from '../../LoadingState.vue';
 import ErrorState from '../../ErrorState.vue';
 import ImageBatchAssetSummary from './ImageBatchAssetSummary.vue';
@@ -37,18 +43,20 @@ const props = defineProps<{
   runError: string;
   copied: boolean;
   historyOpen: boolean;
-  allSelected: boolean;
-  changedCount: number;
+  /** 前端本地勾选（不属于服务端正式数据） */
+  selectedUnitIds: readonly (number | string)[];
+  dirty: boolean;
+  saveState: ImageBatchSaveState;
   busy: boolean;
 }>();
 
 const emit = defineEmits<{
   'update:batchInstruction': [value: string];
   'update:batchNote': [value: string];
-  toggleUnit: [unit: ImageBatchUnit];
+  toggleUnit: [id: number | string];
   selectAll: [];
   clearSelection: [];
-  updateUnit: [unit: ImageBatchUnit];
+  updateUnit: [id: number | string, specialRequirement: string | null];
   run: [mode: ImageBatchExecutionMode];
   copyTask: [];
   toggleHistory: [];
@@ -58,8 +66,23 @@ const emit = defineEmits<{
   back: [];
 }>();
 
-const selection = computed(() => selectionSummary(props.units));
+const selectedCount = computed(() => props.selectedUnitIds.length);
+const allSelected = computed(() => props.units.length > 0 && props.units.every((u) => props.selectedUnitIds.includes(u.id)));
+const saveHint = computed(() => {
+  if (props.saveState === 'dirty') return '有未保存修改';
+  if (props.saveState === 'saving') return '保存中…';
+  if (props.saveState === 'error') return '保存失败';
+  return '已保存';
+});
+const saveHintTone = computed(() =>
+  props.saveState === 'error' ? 'text-rose-600' : props.saveState === 'dirty' ? 'text-amber-600' : 'text-slate-400',
+);
 const disabled = computed(() => props.loading || props.busy);
+
+function onToggleAll(): void {
+  if (allSelected.value) emit('clearSelection');
+  else emit('selectAll');
+}
 </script>
 
 <template>
@@ -129,25 +152,26 @@ const disabled = computed(() => props.loading || props.busy);
 
       <!-- 来源内容变化汇总（轻量） -->
       <div
-        v-if="changedCount > 0"
+        v-if="props.units.some((u) => u.source_changed === true)"
         class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
         role="status"
       >
-        ⚠ {{ changedCount }} 页的来源内容后来有修改，建议检查这些页面的图片是否受影响。
+        ⚠ {{ props.units.filter((u) => u.source_changed === true).length }} 页的来源内容后来有修改，建议检查这些页面的图片是否受影响。
       </div>
 
       <!-- 页面单元列表 -->
       <fieldset :disabled="disabled" aria-label="页面单元列表">
         <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h2 class="text-sm font-semibold text-slate-900">页面单元</h2>
-          <div class="flex items-center gap-3 text-xs text-slate-500">
-            <span>已选 {{ selection.selected }} / {{ selection.total }} 页</span>
+          <div class="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+            <span>已选 {{ selectedCount }} / {{ units.length }} 页</span>
+            <span class="text-xs" :class="saveHintTone">{{ saveHint }}</span>
             <label class="flex items-center gap-1">
               <input
                 type="checkbox"
                 class="h-4 w-4 rounded border-slate-300"
                 :checked="allSelected"
-                @change="emit(allSelected ? 'clearSelection' : 'selectAll')"
+                @change="onToggleAll"
               />
               全选
             </label>
@@ -159,9 +183,10 @@ const disabled = computed(() => props.loading || props.busy);
             v-for="unit in units"
             :key="String(unit.id)"
             :unit="unit"
+            :selected="selectedUnitIds.includes(unit.id)"
             :disabled="disabled"
-            @toggle="emit('toggleUnit', $event)"
-            @update="emit('updateUnit', $event)"
+            @toggle="emit('toggleUnit', $event.id)"
+            @update="(id, sr) => emit('updateUnit', id, sr)"
             @view-change="emit('viewChange', $event)"
             @keep-current="emit('keepCurrent', $event)"
             @regenerate="emit('regenerate', $event)"
@@ -213,7 +238,7 @@ const disabled = computed(() => props.loading || props.busy);
           </button>
         </div>
         <p class="mt-2 text-xs text-slate-400">
-          试样与部分生成使用上方勾选（当前已选 {{ selection.selected }} 页）；整批生成覆盖全部页面。
+          试样与部分生成使用上方勾选（当前已选 {{ selectedCount }} 页）；整批生成覆盖全部页面。有未保存修改时，执行 / 复制任务前会自动保存。
         </p>
         <p v-if="runError" role="status" class="mt-2 text-xs text-rose-700">{{ runError }}</p>
       </section>

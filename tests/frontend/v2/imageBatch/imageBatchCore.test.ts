@@ -1,11 +1,12 @@
-// V2-P3-C05 图片批次核心纯函数测试（node:test，无需 Vue / 浏览器）。
+// V2-P3-C05-R1 图片批次核心纯函数测试（node:test，无需 Vue / 浏览器）。
 // 运行：node --experimental-strip-types --test tests/frontend/v2/imageBatch/imageBatchCore.test.ts
 // 说明：DEV Mock 已隔离到 imageBatchDevMock.ts，其测试位于 imageBatchDevMock.test.ts；
-// 本文件只测正式生产核心纯函数（标签 / 资产分组 / 选择 / 执行目标 / 来源变化提示）。
+// 本文件只测正式生产核心纯函数（标签 / 资产分组 / 选择 / 执行目标 / Draft 载荷 / 来源变化）。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   assetStatusLabel,
+  buildDraftPayload,
   executionLabel,
   executionTargets,
   groupAssets,
@@ -22,6 +23,7 @@ import {
 import type {
   AssetCheck,
   ImageBatchUnit,
+  ImageBatchWorkspace,
 } from '../../../../resources/js/types/v2/imageBatch/imageBatch.ts';
 
 function makeUnit(overrides: Partial<ImageBatchUnit> = {}): ImageBatchUnit {
@@ -35,11 +37,17 @@ function makeUnit(overrides: Partial<ImageBatchUnit> = {}): ImageBatchUnit {
     characters: ['妈妈'],
     scene: '客厅',
     special_requirement: null,
-    selected: false,
     status: 'pending',
     ...overrides,
   };
 }
+
+test('R1：ImageBatchUnit 正式合同不含 selected（勾选为前端本地状态）', () => {
+  const unit = makeUnit();
+  // 运行时断言：工作台单元对象不得携带 selected 字段（类型层面已由 TS 保证）。
+  assert.ok(!('selected' in unit), 'ImageBatchUnit 不应包含 selected 字段');
+  assert.equal(unit.selected as unknown, undefined);
+});
 
 test('executionLabel：三种执行方式中文标签', () => {
   assert.equal(executionLabel('full'), '整批生成');
@@ -92,40 +100,74 @@ test('groupAssets：按人物 / 场景分组且保持顺序', () => {
   );
 });
 
-test('selectionSummary / selectedUnits：勾选统计与升序', () => {
+test('selectionSummary / selectedUnits：基于本地 selectedUnitIds，升序返回', () => {
   const units = [
-    makeUnit({ id: 'u3', page_no: 3, selected: true }),
-    makeUnit({ id: 'u1', page_no: 1, selected: false }),
-    makeUnit({ id: 'u2', page_no: 2, selected: true }),
+    makeUnit({ id: 'u3', page_no: 3 }),
+    makeUnit({ id: 'u1', page_no: 1 }),
+    makeUnit({ id: 'u2', page_no: 2 }),
   ];
-  assert.deepEqual(selectionSummary(units), { selected: 2, total: 3 });
+  const selectedIds = new Set(['u2', 'u3']);
+  assert.deepEqual(selectionSummary(units, selectedIds), { selected: 2, total: 3 });
   assert.deepEqual(
-    selectedUnits(units).map((u) => u.page_no),
+    selectedUnits(units, selectedIds).map((u) => u.page_no),
     [2, 3],
   );
+  assert.equal(selectionSummary(units, new Set()).selected, 0);
+  assert.equal(selectedUnits(units, new Set()).length, 0);
 });
 
-test('executionTargets：整批生成覆盖全部；试样 / 部分生成按勾选；无勾选返回空', () => {
+test('executionTargets：整批生成覆盖全部；试样 / 部分生成按本地勾选；无勾选返回空', () => {
   const units = [
-    makeUnit({ id: 'u1', page_no: 1, selected: true }),
-    makeUnit({ id: 'u2', page_no: 2, selected: false }),
-    makeUnit({ id: 'u3', page_no: 3, selected: true }),
+    makeUnit({ id: 'u1', page_no: 1 }),
+    makeUnit({ id: 'u2', page_no: 2 }),
+    makeUnit({ id: 'u3', page_no: 3 }),
   ];
+  const selectedIds = new Set(['u1', 'u3']);
   assert.deepEqual(
-    executionTargets(units, 'full').map((u) => u.page_no),
+    executionTargets(units, selectedIds, 'full').map((u) => u.page_no),
     [1, 2, 3],
   );
   assert.deepEqual(
-    executionTargets(units, 'trial').map((u) => u.page_no),
+    executionTargets(units, selectedIds, 'trial').map((u) => u.page_no),
     [1, 3],
   );
   assert.deepEqual(
-    executionTargets(units, 'partial').map((u) => u.page_no),
+    executionTargets(units, selectedIds, 'partial').map((u) => u.page_no),
     [1, 3],
   );
-  assert.equal(executionTargets(units, 'trial').length, 2);
-  const none = units.map((u) => ({ ...u, selected: false }));
-  assert.equal(executionTargets(none, 'trial').length, 0);
+  assert.equal(executionTargets(units, new Set(), 'trial').length, 0);
+  // full 不依赖勾选
+  assert.equal(executionTargets(units, new Set(), 'full').length, 3);
+});
+
+test('buildDraftPayload：只发送用户可编辑的制作补充，不发送来源内容 / 系统继承字段', () => {
+  const workspace: ImageBatchWorkspace = {
+    content_title: '测试篇目',
+    source_label: '栏目 › 来源',
+    batch_instruction: '整组说明',
+    batch_note: '备注',
+    assets: [],
+    units: [
+      makeUnit({ id: 'u1', page_no: 1, special_requirement: '表情特写' }),
+      makeUnit({ id: 'u2', page_no: 2, special_requirement: null }),
+    ],
+    history: [],
+  };
+  const draft = buildDraftPayload(workspace, workspace.units);
+  assert.equal(draft.batch_instruction, '整组说明');
+  assert.equal(draft.batch_note, '备注');
+  assert.deepEqual(draft.units, [
+    { id: 'u1', special_requirement: '表情特写' },
+    { id: 'u2', special_requirement: null },
+  ]);
+  // Draft 单元不得携带 final_copy / visual_evidence / characters / scene / page_type
+  for (const u of draft.units) {
+    assert.ok(!('final_copy' in u));
+    assert.ok(!('visual_evidence' in u));
+    assert.ok(!('characters' in u));
+    assert.ok(!('scene' in u));
+    assert.ok(!('page_type' in u));
+  }
 });
 
 test('hasSourceChange / sourceChangedUnits：来源变化提示', () => {

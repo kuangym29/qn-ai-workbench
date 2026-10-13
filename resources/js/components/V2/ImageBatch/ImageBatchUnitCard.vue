@@ -6,11 +6,12 @@ import { ref } from 'vue';
 import type { ImageBatchUnit } from '../../../types/v2/imageBatch/imageBatch';
 import { pageLabel, pageTypeLabel, unitStatusLabel } from '../../../composables/v2/imageBatch/imageBatchCore';
 
-const props = defineProps<{ unit: ImageBatchUnit; disabled?: boolean }>();
+// R1 合同：勾选（selected）由父级 composable 本地维护（selectedUnitIds），不属于服务端字段。
+const props = defineProps<{ unit: ImageBatchUnit; selected: boolean; disabled?: boolean }>();
 
 const emit = defineEmits<{
   toggle: [unit: ImageBatchUnit];
-  update: [unit: ImageBatchUnit];
+  update: [id: number | string, specialRequirement: string | null];
   viewChange: [unit: ImageBatchUnit];
   keepCurrent: [unit: ImageBatchUnit];
   regenerate: [unit: ImageBatchUnit];
@@ -31,7 +32,7 @@ function startEdit(): void {
   editing.value = true;
 }
 function saveEdit(): void {
-  emit('update', { ...props.unit, special_requirement: draft.value.trim() || null });
+  emit('update', props.unit.id, draft.value.trim() || null);
   editing.value = false;
 }
 function cancelEdit(): void {
@@ -50,7 +51,7 @@ function cancelEdit(): void {
           <input
             type="checkbox"
             class="h-4 w-4 rounded border-slate-300"
-            :checked="unit.selected"
+            :checked="selected"
             :disabled="disabled"
             @change="emit('toggle', unit)"
           />

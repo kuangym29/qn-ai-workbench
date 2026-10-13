@@ -3,7 +3,13 @@
 // 正式页面为 ImageBatchEditor.vue，数据由 WorkBuddy Phase 2 后端接线后提供。
 import { onMounted, shallowRef } from 'vue';
 import { useImageBatch } from '../../../composables/v2/imageBatch/useImageBatch';
-import { buildMockWorkspace, applyMockRun, applyMockCopyTask } from '../../../composables/v2/imageBatch/imageBatchDevMock';
+import {
+  buildMockWorkspace,
+  applyMockRun,
+  applyMockCopyTask,
+  applyMockSaveDraft,
+  applyMockResolveSourceChange,
+} from '../../../composables/v2/imageBatch/imageBatchDevMock';
 import ImageBatchWorkspaceBody from './ImageBatchWorkspaceBody.vue';
 
 // DEV ONLY Mock client（与生产 imageBatchApi 同形状，仅用于浏览器预览）。
@@ -11,11 +17,17 @@ const devClient = {
   async loadWorkspace() {
     return buildMockWorkspace();
   },
+  async saveDraft(_p: number | string, _i: number | string, _b: number | string, input: { batch_instruction: string; batch_note: string | null; units: { id: number | string; special_requirement: string | null }[] }) {
+    return applyMockSaveDraft(input);
+  },
   async run(_p: number | string, _i: number | string, _b: number | string, input: { mode: 'full' | 'trial' | 'partial'; unit_ids: (number | string)[] }) {
     return applyMockRun(input);
   },
   async copyTask() {
     return applyMockCopyTask();
+  },
+  async resolveSourceChange(_p: number | string, _i: number | string, _b: number | string, unitId: number | string, input: { action: 'keep' | 'regenerate' }) {
+    return applyMockResolveSourceChange(unitId, input.action);
   },
 };
 
@@ -29,7 +41,7 @@ onMounted(() => {
 <template>
   <div class="min-h-screen bg-slate-100 px-4 py-6">
     <p class="mb-4 text-xs text-slate-500">
-      DEV PREVIEW：固定示例数据，执行动作为内存 Mock（正式由后端 API 组装，POST 成功后刷新工作台）；正式页面为
+      DEV PREVIEW：固定示例数据，执行动作为内存 Mock（正式由后端 API 组装：Draft 保存成功后执行，来源变化决策记录后重新 GET）；正式页面为
       ImageBatchEditor.vue。
     </p>
     <ImageBatchWorkspaceBody
@@ -46,15 +58,16 @@ onMounted(() => {
       :run-error="editor.runError.value"
       :copied="editor.copied.value"
       :history-open="editor.historyOpen.value"
-      :all-selected="editor.allSelected.value"
-      :changed-count="editor.changedUnits.value.length"
+      :selected-unit-ids="editor.selectedIdList.value"
+      :dirty="editor.dirty.value"
+      :save-state="editor.saveState.value"
       :busy="editor.runPhase.value === 'running'"
       @update:batch-instruction="editor.updateBatchInstruction($event)"
       @update:batch-note="editor.updateBatchNote($event)"
-      @toggle-unit="editor.toggleUnit($event.id)"
+      @toggle-unit="editor.toggleUnit($event)"
       @select-all="editor.selectAll()"
       @clear-selection="editor.clearSelection()"
-      @update-unit="editor.updateUnit($event.id, { special_requirement: $event.special_requirement })"
+      @update-unit="(id, sr) => editor.updateUnit(id, { special_requirement: sr })"
       @run="editor.run($event)"
       @copy-task="editor.copyTask()"
       @toggle-history="editor.historyOpen.value = !editor.historyOpen.value"
