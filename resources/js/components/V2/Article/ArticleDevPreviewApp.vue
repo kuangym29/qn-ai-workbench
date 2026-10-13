@@ -1,9 +1,10 @@
 <script setup lang="ts">
 // V2-P2-C02 独立开发预览 App（DEV ONLY）—— 挂载图文文章编辑器主体。
 // 不依赖 Laravel / Inertia / 后端 API；AI 导入使用显式标注的 MOCK providers
-// （buildMockImportPreview + 内存 apply），正式路径由后端 preview / apply 提供。
+// （buildMockImportPreview + 内存 apply，MOCK 位于 articleDevMock.ts，正式生产模块不引用），
+// 正式路径由后端 preview / apply 提供。
 import { useArticleEditor, newImageDraft } from '../../../composables/v2/article/useArticleEditor';
-import { buildMockImportPreview } from '../../../composables/v2/article/articleCore';
+import { buildMockImportPreview } from '../../../composables/v2/article/articleDevMock';
 import type { ArticleFields } from '../../../types/v2/article/article';
 import ArticleEditorBody from './ArticleEditorBody.vue';
 import ToastHost from '../../ToastHost.vue';
@@ -12,7 +13,7 @@ const DEV_ITEM = {
   id: 1,
   project_id: 1,
   title: '示例：孩子说“我自己来”时，先别急着帮',
-  core_expression: '等待是给孩子练习的空间。',
+  core_message: '等待是给孩子练习的空间。',
   story_line: '孩子坚持自己来 → 家长忍住不帮 → 完成后获得底气。',
   column_name: '生活小能力',
   column_slug: 'life-skills',
@@ -36,7 +37,7 @@ const DEV_FIELDS: ArticleFields = {
   cover_suggestion: '孩子抬头笑着说“我系好了”，妈妈蹲在身后微笑。',
 };
 
-const editor = useArticleEditor(1, 1, {
+const editor = useArticleEditor(1, 1, 1, {
   providers: {
     preview: async (raw) => buildMockImportPreview(raw, editor.fields.value),
     apply: async (raw) => {

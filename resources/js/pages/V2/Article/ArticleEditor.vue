@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // V2 公众号图文文章编辑器 —— 正式 Inertia 页面。
-// 数据从 API 加载（articleApi）；AI 导入为后端 preview/apply 链路。
-// 页面只依赖 props（projectId / itemId），不根据 URL 自动选项目。
+// 数据从 API 加载（articleApi，R1 branch-aware）；AI 导入为后端 preview/apply 链路。
+// 页面只依赖 props（projectId / itemId / branchId），不根据 URL 自动选项目。
 //
 // 注意：本任务未修改 routes/web.php；此页面的正式路由由 Work 主程序集成时接线。
 import { onMounted } from 'vue';
@@ -17,9 +17,10 @@ import { toast } from '../../../ui/toast';
 const props = defineProps<{
   projectId: string | number;
   itemId: string | number;
+  branchId: string | number;
 }>();
 
-const editor = useArticleEditor(props.projectId, props.itemId);
+const editor = useArticleEditor(props.projectId, props.itemId, props.branchId);
 
 function handleScopeError(e: unknown): void {
   if (is404(e)) {
