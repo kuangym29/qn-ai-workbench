@@ -12,8 +12,9 @@ use App\Http\Controllers\ProductionTaskController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SourceReferenceController;
 use App\Http\Controllers\TopicController;
-use App\Http\Controllers\V2ContentController;
+use App\Http\Controllers\V2\ImageBatchController;
 use App\Http\Controllers\V2\ImagePostImportController;
+use App\Http\Controllers\V2ContentController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -184,5 +185,14 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/items/{item}/branches/{branch}/image-post/apply', [ImagePostImportController::class, 'apply']);
         Route::get('/items/{item}/branches/{branch}/image-post', [ImagePostImportController::class, 'show']);
         Route::put('/items/{item}/branches/{branch}/image-post', [ImagePostImportController::class, 'save']);
+
+        // B05：图片批次生产（image_post + wechat_official 分支）。
+        // GET 工作台 / PUT 整批草稿 / POST 执行（第一阶段只留执行记录，返回 queued）/
+        // POST 复制整批任务（服务端组装）/ POST 单页来源变化处理（keep / regenerate）。
+        Route::get('/items/{item}/branches/{branch}/image-batch', [ImageBatchController::class, 'show']);
+        Route::put('/items/{item}/branches/{branch}/image-batch', [ImageBatchController::class, 'save']);
+        Route::post('/items/{item}/branches/{branch}/image-batch/run', [ImageBatchController::class, 'run']);
+        Route::post('/items/{item}/branches/{branch}/image-batch/copy-task', [ImageBatchController::class, 'copyTask']);
+        Route::post('/items/{item}/branches/{branch}/image-batch/units/{unit}/source-change', [ImageBatchController::class, 'sourceChange']);
     });
 });
