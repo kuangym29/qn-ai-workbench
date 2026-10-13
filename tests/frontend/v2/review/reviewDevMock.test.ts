@@ -18,15 +18,28 @@ test('DEV Mock 列表：≥5 条且全部 pending', async () => {
     assert.ok(item.content_title.length > 0);
     assert.ok(item.review_target_label.length > 0);
     assert.ok(item.version_label.length > 0);
+    // 正式枚举：渠道只允许 wechat_official / wechat_channels / xiaohongshu
+    assert.ok(
+      ['wechat_official', 'wechat_channels', 'xiaohongshu'].includes(item.channel),
+      `非法渠道枚举：${item.channel}`,
+    );
+    assert.ok(
+      ['image_post', 'article', 'video'].includes(item.format),
+      `非法内容形式枚举：${item.format}`,
+    );
   }
 });
 
-test('DEV Mock 列表：覆盖小绿书 / 图文 / 视频审核对象', async () => {
+test('DEV Mock 列表：覆盖小绿书 / 图文 / 视频审核对象，且公众号与视频号渠道均出现', async () => {
   const items = await buildMockReviewList();
   const labels = new Set(items.map((i) => i.review_target_label));
   assert.ok(labels.has('小绿书内容'));
   assert.ok(labels.has('公众号图文'));
   assert.ok(labels.has('视频制作'));
+  const channels = new Set(items.map((i) => i.channel));
+  assert.ok(channels.has('wechat_official'));
+  assert.ok(channels.has('wechat_channels'));
+  assert.ok(!items.some((i) => i.channel === 'wechat' || i.channel === 'wechat_video'), '不得残留旧渠道别名');
 });
 
 test('DEV Mock 详情：可查询且含预览', async () => {

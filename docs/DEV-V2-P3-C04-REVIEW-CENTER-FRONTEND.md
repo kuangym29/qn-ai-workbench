@@ -1,6 +1,6 @@
 # DEV-V2-P3-C04｜「待我审核」轻量审核中心前端
 
-- 任务编号：V2-P3-C04-REVIEW-CENTER-FRONTEND
+- 任务编号：V2-P3-C04-REVIEW-CENTER-FRONTEND（含 R1 合同收口：正式渠道/内容形式枚举）
 - 执行 AI：豆包
 - 分支：`doubao/v2-review-center-frontend`（自 `codex/v2-foundation` @ `1fe589f8…` 独立建立）
 - 状态：UI_IMPLEMENTED，WAITING_FOR_BACKEND_API（正式后端未合入，REAL_API_INTEGRATED 未达成）
@@ -56,6 +56,16 @@
 
 ## 5. 数据合同（冻结展示合同，不自行扩展）
 
+正式渠道与内容形式枚举（R1 收口，与 Foundation 正式枚举一致；一个正式合同，不做历史 alias 池）：
+
+```ts
+type ReviewChannel = 'wechat_official' | 'wechat_channels' | 'xiaohongshu';
+// wechat_official → 公众号，wechat_channels → 视频号，xiaohongshu → 小红书
+
+type ReviewFormat = 'image_post' | 'article' | 'video';
+// image_post → 图片文章，article → 图文文章，video → 视频制作
+```
+
 ```ts
 ReviewItem {
   id: number;
@@ -63,8 +73,8 @@ ReviewItem {
   branch_id: number;
   status: 'pending' | 'approved' | 'changes_requested';
   content_title: string;
-  channel: string;
-  format: string;
+  channel: ReviewChannel;   // 正式枚举，不使用自由 string
+  format: ReviewFormat;     // 正式枚举，不使用自由 string
   review_target_type: string;
   review_target_label: string;
   version_label: string;
