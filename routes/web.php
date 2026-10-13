@@ -177,8 +177,11 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/items/{item}/branches/{branch}/stop', [$controller, 'stopBranch']);
         Route::get('/in-progress', [$controller, 'inProgress']);
 
-        // B01：小绿书 AI 结构化导入（仅 image_post 分支）。preview 只读，apply 落库。
+        // B01：小绿书（image_post 分支）。
+        // AI 导入：preview 只读，apply 落库。人工编辑：GET 读取，PUT 保存（变化才补版本）。
         Route::post('/items/{item}/branches/{branch}/image-post/preview', [ImagePostImportController::class, 'preview']);
         Route::post('/items/{item}/branches/{branch}/image-post/apply', [ImagePostImportController::class, 'apply']);
+        Route::get('/items/{item}/branches/{branch}/image-post', [ImagePostImportController::class, 'show']);
+        Route::put('/items/{item}/branches/{branch}/image-post', [ImagePostImportController::class, 'save']);
     });
 });

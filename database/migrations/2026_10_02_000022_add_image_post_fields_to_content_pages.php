@@ -9,9 +9,8 @@ use Illuminate\Support\Facades\Schema;
  * page_no / page_type 已存在，这里补齐其余 6 个。
  * 不做任何"万能扩展"字段。
  *
- * 时间戳置于 content_page_versions（2026_10_02_000011）之后、V2 基础迁移
- * （2026_10_12_*）之前，是为了不干扰既有 V2MigrationRollbackTest 的
- * --step=4 窗口（该测试断言 V2 四个基础迁移是最后一批）。
+ * 逻辑上置于 content_page_versions（2026_10_02_000011）之后；
+ * 回滚测试已改为"持续回滚直到标志列消失"的顺序无关写法，不再依赖 --step=N。
  */
 return new class extends Migration
 {

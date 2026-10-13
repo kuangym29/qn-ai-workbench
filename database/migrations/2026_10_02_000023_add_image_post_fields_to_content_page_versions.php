@@ -6,10 +6,10 @@ use Illuminate\Support\Facades\Schema;
 
 /**
  * B01（2026-10-13 开发）：content_page_versions 快照同步补齐 6 个内容字段，
- * 使每次 apply 后保留的版本快照包含完整的页面内容（版本保留）。
+ * 使每次 apply / 人工保存后保留的版本快照包含完整的页面内容（版本保留）。
  *
- * 时间戳置于 content_page_versions（2026_10_02_000011）之后、V2 基础迁移
- * （2026_10_12_*）之前，不干扰既有 V2MigrationRollbackTest 的 --step=4 窗口。
+ * 逻辑上置于 content_page_versions（2026_10_02_000011）之后；
+ * 回滚测试已改为"持续回滚直到标志列消失"的顺序无关写法，不再依赖 --step=N。
  */
 return new class extends Migration
 {

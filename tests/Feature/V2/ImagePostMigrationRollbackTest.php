@@ -38,26 +38,30 @@ class ImagePostMigrationRollbackTest extends TestCase
         $item = ContentItem::factory()->create();
         $this->assertDatabaseHas('content_items', ['id' => $item->id]);
 
-        // B01 迁移置于 2026_10_02_000022/023，紧随其后的是 4 个 V2 基础迁移，
-        // 因此回滚 6 步才能覆盖到 B01 的两条（验证 down 正确回收字段）。
-        $this->artisan('migrate:rollback', ['--step' => 6, '--force' => true])->assertExitCode(0);
+        // 顺序无关：持续回滚直到 B01 标志列消失（不依赖"最后 N 个 migration"）。
+        $steps = 0;
+        while (Schema::hasColumn('content_pages', 'narrative_role') && $steps < 80) {
+            $this->artisan('migrate:rollback', ['--force' => true])->assertExitCode(0);
+            $steps++;
+        }
 
         foreach (self::PAGE_FIELDS as $field) {
             $this->assertFalse(
                 Schema::hasColumn('content_pages', $field),
-                "content_pages.{$field} 应在 rollback 后移除"
+                "content_pages.{$field} 应在 rollback 后移除（down 正确）"
             );
             $this->assertFalse(
                 Schema::hasColumn('content_page_versions', $field),
-                "content_page_versions.{$field} 应在 rollback 后移除"
+                "content_page_versions.{$field} 应在 rollback 后移除（down 正确）"
             );
         }
 
-        $this->artisan('migrate', ['--force' => true])->assertExitCode(0);
+        // 明确验证 migrate:fresh 能重建正确的 B01 schema（顺序无关）。
+        $this->artisan('migrate:fresh', ['--force' => true])->assertExitCode(0);
 
         foreach (self::PAGE_FIELDS as $field) {
-            $this->assertTrue(Schema::hasColumn('content_pages', $field));
-            $this->assertTrue(Schema::hasColumn('content_page_versions', $field));
+            $this->assertTrue(Schema::hasColumn('content_pages', $field), "content_pages.{$field} 应在 fresh 后存在");
+            $this->assertTrue(Schema::hasColumn('content_page_versions', $field), "content_page_versions.{$field} 应在 fresh 后存在");
         }
     }
 }
