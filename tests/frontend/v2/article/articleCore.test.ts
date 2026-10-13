@@ -1,5 +1,7 @@
 // V2-P2-C02 图文文章核心纯函数测试（node:test，无需 Vue / 浏览器）。
 // 运行：node --experimental-strip-types --test tests/frontend/v2/article/articleCore.test.ts
+// 说明：DEV Mock（buildMockImportPreview）已隔离到 articleDevMock.ts，
+// 其测试位于 articleDevMock.test.ts；本文件只测正式生产核心纯函数。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -7,7 +9,6 @@ import {
   addImageSuggestion,
   removeImageSuggestion,
   updateImageSuggestion,
-  buildMockImportPreview,
   ARTICLE_FIELD_LABELS,
 } from '../../../../resources/js/composables/v2/article/articleCore.ts';
 import type { ArticleFields } from '../../../../resources/js/types/v2/article/article.ts';
@@ -57,40 +58,6 @@ test('addImageSuggestion / removeImageSuggestion / updateImageSuggestion', () =>
   assert.equal(list, null);
   // 越界保护
   assert.equal(removeImageSuggestion(list, 5), null);
-});
-
-test('buildMockImportPreview：字段行 → modified（DEV MOCK）', () => {
-  const current = normalizeArticleFields(null);
-  const p = buildMockImportPreview('标题：新的标题\n摘要：新的摘要', current);
-  assert.equal(p.modified.length, 2);
-  assert.equal(p.modified[0].field, 'headline');
-  assert.equal(p.modified[0].after, '新的标题');
-  assert.equal(p.modified[1].field, 'summary');
-  // 其余字段未变化
-  assert.ok(p.unchanged.includes('正文'));
-  assert.ok(p.unchanged.includes('封面建议'));
-  assert.ok(p.warnings.some((w) => w.includes('DEV')));
-});
-
-test('buildMockImportPreview：配图行 → added（DEV MOCK）', () => {
-  const current = normalizeArticleFields(null);
-  const p = buildMockImportPreview('配图：妈妈蹲下微笑，孩子抬头。', current);
-  assert.equal(p.added.length, 1);
-  assert.equal(p.added[0].label, '新增配图建议');
-  assert.equal(p.added[0].detail, '妈妈蹲下微笑，孩子抬头。');
-});
-
-test('buildMockImportPreview：空输入 → 仅 warnings', () => {
-  const p = buildMockImportPreview('   ', normalizeArticleFields(null));
-  assert.equal(p.added.length, 0);
-  assert.equal(p.modified.length, 0);
-  assert.equal(p.unchanged.length, 0);
-  assert.ok(p.warnings.some((w) => w.includes('空')));
-});
-
-test('buildMockImportPreview：无法识别行进入 warnings（DEV MOCK）', () => {
-  const p = buildMockImportPreview('这行没有字段标记', normalizeArticleFields(null));
-  assert.ok(p.warnings.some((w) => w.includes('未识别行')));
 });
 
 test('ARTICLE_FIELD_LABELS 覆盖全部字段键', () => {
