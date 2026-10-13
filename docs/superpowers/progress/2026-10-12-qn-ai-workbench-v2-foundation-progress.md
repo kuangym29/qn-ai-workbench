@@ -97,3 +97,15 @@
 - 原生停止确认框造成浏览器输入阻塞；停止/恢复、项目隔离及返回完整手验未完成，状态V2-P2-A01_BLOCKED。
 - 保存后灵感query残留刷新重填已复现，Topics/Pool.vue小型热修typecheck/build通过，浏览器复验待解除阻塞。
 - 本轮PHP294/3471 PASS；重新执行MySQL8.4 gate307/3543 PASS（job114961218151）。未修改PHP/schema或Phase2新功能。
+
+## V2-P2-A01 最终恢复验收（2026-10-13）
+
+- 状态更新为V2-P2-A01_DONE。原阻塞记录保留为历史，不再作为当前结论。
+- 用户未看到原生确认框；重新连接时发现本地服务不可访问，恢复服务登录后可继续。此前将全部阻塞归因于可见确认框证据不足，已纠正。
+- 仅增加ContentLibrary/Show.vue页面内停止确认，取消/确认两条路径真实浏览器通过。停止时仅Branch1有停止时间，恢复后仍ID1且总数3，Item仍ID1。
+- 补齐内容库返回、浏览器前进后退、真实来源展开、直接选题无来源、备用筛选、跨Project数据为空、两种跨Project URL404和切回原项目。
+- Topics/Pool.vue清理一次性灵感query修复已浏览器GREEN：保存后无query，刷新空白创建表单，原记录保留，无额外创建。
+- 本轮追加Topic2/3仅用于刷新与直建来源回归；原Topic1仍只有Item1、Branch1/2/3，无重复内容或重复分支。
+- Typecheck/build在最终确认框小修后PASS（862modules）。MySQL8.4 gate本任务已实际重跑307tests/3543assertions PASS（114961218151），PHP/schema未改。
+- 浏览器与自审通过后提交并推送work/v2-foundation-browser-acceptance；不merge main、不合并其他AI分支、不继续下一任务。最终提交见git log。
+- 最终PHP全量复跑294tests/3471assertions PASS，日志acceptance-final-php.log。
