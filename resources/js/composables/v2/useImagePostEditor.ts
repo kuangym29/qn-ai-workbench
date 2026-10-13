@@ -9,52 +9,58 @@
 //   - AI 导入在确认前只产生预览，绝不覆盖 pages；
 //   - 局部更新：只粘贴某页内容时，预览只显示受影响的页面，不要求整篇重导；
 //   - 保存走 imagePostApi，成功后以服务端返回刷新本地状态。
-import { computed, reactive, ref } from 'vue';
+import { computed, ref } from 'vue';
 import type {
   ImagePostContentItem,
   ImagePostImportPreview,
   ImagePostPage,
 } from '../../types/v2/imagePost';
-import { buildImportPreview, parseAiPaste, previewHasChanges } from './imagePostCore';
+import { previewHasChanges } from './imagePostCore';
 import { imagePostApi } from './imagePostApi';
 import { firstErrorMessage } from '../../api/errors';
 import { toast } from '../../ui/toast';
 
 export type ImportPhase = 'idle' | 'parsing' | 'preview' | 'error';
 
-export function useImagePostEditor(projectId: number | string, itemId: number | string) {
+export function useImagePostEditor(projectId: number | string, itemId: number | string, branchId: number | string, client = imagePostApi) {
   const item = ref<ImagePostContentItem | null>(null);
   const pages = ref<ImagePostPage[]>([]);
   const loading = ref(true);
   const loadError = ref('');
   const saving = ref(false);
+  let loadedSnapshot = '';
+  const manualSnapshot = () => JSON.stringify({ item: item.value, pages: pages.value });
 
   // ---- AI 导入子状态 ----
   const phase = ref<ImportPhase>('idle');
   const pasteText = ref('');
   const parseError = ref('');
   const preview = ref<ImagePostImportPreview | null>(null);
+  const previewRaw = ref('');
   /** 已确认并合入 pages 的预览快照；用于导入后提示。 */
   const lastApplied = ref<ImagePostImportPreview | null>(null);
 
   const appliedCount = computed(() => {
     if (!lastApplied.value) return 0;
-    return lastApplied.value.added.length + lastApplied.value.modified.length;
+    return lastApplied.value.pages.added.length + lastApplied.value.pages.modified.length + lastApplied.value.item.fields.length;
   });
 
   const hasUnconfirmedChanges = computed(
     () => (preview.value !== null && previewHasChanges(preview.value)) || false,
   );
 
-  async function load(): Promise<void> {
+  async function load(): Promise<boolean> {
     loading.value = true;
     loadError.value = '';
     try {
-      const ws = await imagePostApi.loadWorkspace(projectId, itemId);
+      const ws = await client.loadWorkspace(projectId, itemId, branchId);
       item.value = ws.item;
       pages.value = ws.pages;
+      loadedSnapshot = manualSnapshot();
+      return true;
     } catch (e) {
       loadError.value = firstErrorMessage(e) ?? '加载失败';
+      return false;
     } finally {
       loading.value = false;
     }
@@ -66,6 +72,7 @@ export function useImagePostEditor(projectId: number | string, itemId: number | 
     pasteText.value = '';
     parseError.value = '';
     preview.value = null;
+    previewRaw.value = '';
   }
 
   function closeImport(): void {
@@ -77,24 +84,23 @@ export function useImagePostEditor(projectId: number | string, itemId: number | 
 
   /** 解析粘贴内容，进入 preview 阶段；失败进入 error 阶段。 */
   async function runParse(): Promise<void> {
+    if (loadedSnapshot && manualSnapshot() !== loadedSnapshot) {
+      parseError.value = '请先保存手动修改，再导入 AI 内容。';
+      phase.value = 'error';
+      return;
+    }
     if (!pasteText.value.trim()) {
       parseError.value = '请先粘贴 AI 内容。';
       phase.value = 'error';
       return;
     }
+    if (saving.value || applying.value) return;
     phase.value = 'parsing';
     parseError.value = '';
-    // 解析是纯前端纯函数，保留微任务边界以统一 loading 表现。
-    await new Promise((resolve) => setTimeout(resolve, 120));
     try {
-      const result = parseAiPaste(pasteText.value);
-      if (result.pages.length === 0) {
-        parseError.value = result.warnings.join('；') || '未能解析出任何页面。';
-        phase.value = 'error';
-        return;
-      }
-      preview.value = buildImportPreview(pages.value, result.pages);
-      // 无任何变更时也进入 preview，让用户看到「无变化」的明确反馈。
+      const raw = pasteText.value;
+      preview.value = await client.preview(projectId, itemId, branchId, raw);
+      previewRaw.value = raw;
       phase.value = 'preview';
     } catch (e) {
       parseError.value = firstErrorMessage(e) ?? '解析失败';
@@ -102,52 +108,45 @@ export function useImagePostEditor(projectId: number | string, itemId: number | 
     }
   }
 
-  /**
-   * 确认导入：把预览中的新增/修改合入 pages。
-   * 这里只更新本地内存状态；持久化由用户在编辑页点击「保存」统一提交，
-   * 避免多次小请求。fixed_back_cover 等保护性处理由页面/组件层负责。
-   */
-  function confirmImport(): void {
-    if (!preview.value) return;
-    const next = new Map<number, ImagePostPage>();
-    for (const p of pages.value) next.set(p.page_no, p);
-    for (const p of preview.value.added) next.set(p.page_no, { ...p });
-    for (const m of preview.value.modified) {
-      const target = next.get(m.page_no);
-      if (target) {
-        next.set(m.page_no, { ...target, [m.field]: m.after });
-      }
-    }
-    pages.value = [...next.values()].sort((a, b) => a.page_no - b.page_no);
-    lastApplied.value = preview.value;
-    closeImport();
+  const applying = ref(false);
+  const applyError = ref('');
+  const warnings = ref<import('../../types/v2/imagePost').ImagePostWarning[]>([]);
+  async function confirmImport(): Promise<void> {
+    if (!preview.value || applying.value || !previewHasChanges(preview.value)) return;
+    applying.value = true; applyError.value = '';
+    try {
+      await client.apply(projectId, itemId, branchId, previewRaw.value);
+      lastApplied.value = preview.value;
+      closeImport();
+      if (await load()) toast.success('AI 导入已保存');
+      else toast.error('AI 导入已保存，但重新加载失败，请刷新页面。');
+    } catch (e) { applyError.value = firstErrorMessage(e) ?? '导入失败'; }
+    finally { applying.value = false; }
   }
 
   // ---- 手动编辑 ----
   function updatePage(updated: ImagePostPage): void {
+    if (loading.value || saving.value || applying.value || phase.value === 'parsing' || phase.value === 'preview') return;
+    if (updated.page_type === 'fixed_back_cover' || pages.value.some(p => p.page_no === updated.page_no && p.page_type === 'fixed_back_cover')) return;
     const idx = pages.value.findIndex((p) => p.page_no === updated.page_no);
     if (idx === -1) pages.value.push(updated);
     else pages.value[idx] = updated;
     pages.value = [...pages.value].sort((a, b) => a.page_no - b.page_no);
   }
 
-  function removePage(pageNo: number): void {
-    pages.value = pages.value.filter((p) => p.page_no !== pageNo);
-  }
-
   // ---- 保存 ----
   async function save(): Promise<boolean> {
-    if (!item.value) return false;
+    if (!item.value || saving.value || applying.value || phase.value === 'preview' || phase.value === 'parsing') return false;
     saving.value = true;
     try {
-      const ws = await imagePostApi.save(projectId, itemId, {
-        core_expression: item.value.core_expression,
+      const result = await client.save(projectId, itemId, branchId, {
+        core_message: item.value.core_message,
         story_line: item.value.story_line,
-        pages: pages.value,
+        pages: pages.value.filter(p => p.page_type !== 'fixed_back_cover'),
       });
-      item.value = ws.item;
-      pages.value = ws.pages;
-      toast.success('已保存整篇图片文章');
+      warnings.value = result.warnings;
+      if (await load()) toast.success('已保存整篇图片文章');
+      else toast.error('保存已完成，但重新加载失败，请刷新页面。');
       return true;
     } catch (e) {
       toast.error(firstErrorMessage(e) ?? '保存失败');
@@ -176,21 +175,9 @@ export function useImagePostEditor(projectId: number | string, itemId: number | 
     runParse,
     confirmImport,
     updatePage,
-    removePage,
+    applying,
+    applyError,
+    warnings,
     save,
-  };
-}
-
-/** 单页本地编辑状态（由页面卡使用）。 */
-export function emptyPageDraft(pageNo: number, pageType: ImagePostPage['page_type'] = 'content') {
-  return {
-    page_no: pageNo,
-    page_type: pageType,
-    narrative_role: '',
-    new_fact: '',
-    final_copy: '',
-    visual_evidence: '',
-    continuity: '',
-    production_note: '',
   };
 }

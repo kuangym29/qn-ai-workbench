@@ -38,6 +38,23 @@ class V2ContentController extends Controller
         return Inertia::render('ContentLibrary/Show', ['projectId' => $project->id, 'itemId' => $model->id]);
     }
 
+    public function imagePostPage(Request $request, Project $project, int $item, int $branch): Response
+    {
+        $this->scope($request, $project);
+        $model = $project->contentItems()->with(['contentColumn', 'topic.inspiration'])->findOrFail($item);
+        $contentBranch = $model->contentBranches()->where('project_id', $project->id)->findOrFail($branch);
+        abort_unless($contentBranch->format === \App\Enums\ContentFormat::ImagePost, 422, '仅图片文章分支支持此编辑器。');
+
+        return Inertia::render('V2/ImagePostEditor', [
+            'projectId' => $project->id, 'itemId' => $model->id, 'branchId' => $contentBranch->id,
+            'columnName' => $model->contentColumn->name,
+            'source' => [
+                'topic' => $model->topic?->only(['id', 'title']),
+                'inspiration' => $model->topic?->inspiration?->only(['id', 'body']),
+            ],
+        ]);
+    }
+
     public function inspirations(Request $request, Project $project): JsonResponse
     {
         $this->scope($request, $project);

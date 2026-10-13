@@ -1,9 +1,3 @@
-// V2 公众号图片文章（小绿书）内容编辑器 —— 数据合同类型
-//
-// 字段名以任务书（V2-P2-C01）为准，不在前端擅自扩展业务字段。
-// 注意与 V2 foundation api/v2.ts 的差异：该处 ContentItem 使用 core_message，
-// 本模块按任务书使用 core_expression；映射差异在最终报告中列明，交由
-// Work 主程序集成时统一。
 import type { PageType } from '../../api/types';
 
 // ---------------------------------------------------------------------------
@@ -13,16 +7,12 @@ import type { PageType } from '../../api/types';
 /** 图片文章篇目编辑视图。project_id / topic_id 等归属字段由服务端持有，前端只读。 */
 export interface ImagePostContentItem {
   id: number;
-  project_id: number;
   title: string;
-  /** 核心表达（任务书字段；后端若为 core_message 由 adapter 归一化） */
-  core_expression: string | null;
+  /** 核心表达 */
+  core_message: string | null;
   /** 整篇故事线 */
   story_line: string | null;
-  /** 来源展示：栏目名称（来自 ContentColumn） */
-  column_name?: string | null;
-  /** 来源展示：栏目 slug（用于溯源链接） */
-  column_slug?: string | null;
+
 }
 
 // ---------------------------------------------------------------------------
@@ -84,45 +74,13 @@ export const IMAGE_POST_FIELD_ORDER: ImagePostPageField[] = [
 // AI 导入预览（Import Preview）
 // ---------------------------------------------------------------------------
 
-/** 单处修改：某页某字段 before → after。 */
-export interface ImagePostImportModified {
-  page_no: number;
-  field: ImagePostPageField;
-  before: string | null;
-  after: string | null;
-}
-
-/** AI 粘贴解析后的变更预览。确认前不得覆盖正式内容。 */
+export interface ImagePostChange { field: string; before: string | null; after: string | null }
+export interface ImagePostWarning { code: string; message: string; page_no?: number }
 export interface ImagePostImportPreview {
-  /** 新增页面（当前不存在该页码） */
-  added: ImagePostPage[];
-  /** 修改项（逐页逐字段） */
-  modified: ImagePostImportModified[];
-  /** 未变化页码（便于视觉表达"未变化 P1 / P2 / P5"） */
-  unchanged: number[];
-  /** 解析警告（无法识别的内容、被忽略的部分等），不阻断导入 */
-  warnings: string[];
+ item: { changed: boolean; fields: ImagePostChange[] };
+ pages: { added: ImagePostPage[]; modified: { page_no: number; page_type: PageType; changes: ImagePostChange[] }[]; unchanged: { page_no: number; page_type: PageType }[] };
+ warnings: ImagePostWarning[];
 }
-
-/** AI 粘贴解析结果：页面列表 + 警告。 */
-export interface ImagePostParseResult {
-  pages: ImagePostPage[];
-  warnings: string[];
-}
-
-// ---------------------------------------------------------------------------
-// API（V2-P2-C01 前端约定端点；正式端点由 WorkBuddy Phase 2 后端对齐后替换）
-// ---------------------------------------------------------------------------
-
-/** 编辑器整篇工作负载：篇目概要 + 页面列表。 */
-export interface ImagePostEditorWorkspace {
-  item: ImagePostContentItem;
-  pages: ImagePostPage[];
-}
-
-/** 保存页面：整篇覆盖（前端在确认导入 / 手动保存时提交完整 pages）。 */
-export type ImagePostSaveInput = {
-  core_expression?: string | null;
-  story_line?: string | null;
-  pages: ImagePostPage[];
-};
+export interface ImagePostEditorWorkspace { item: ImagePostContentItem; branch: { id: number; channel: string; format: string }; pages: ImagePostPage[] }
+export interface ImagePostSaveInput { title?: string; core_message?: string | null; story_line?: string | null; pages: ImagePostPage[] }
+export interface ImagePostSource { topic: { id: number; title: string } | null; inspiration: { id: number; body: string } | null }

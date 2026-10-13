@@ -4,7 +4,7 @@
 //   - 常用信息（最终文字 / 画面证据 / 新事实）优先展示；
 //   - 制作备注弱化（小字、默认折叠）；
 //   - fixed_back_cover 明确为固定内容，字段只读保护。
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import type { ImagePostPage } from '../../types/v2/imagePost';
 import { IMAGE_POST_FIELD_LABELS, IMAGE_POST_FIELD_ORDER } from '../../types/v2/imagePost';
 import { PAGE_TYPE_LABELS } from '../../api/types';
@@ -18,11 +18,12 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [pageNo: number];
   update: [page: ImagePostPage];
-  remove: [pageNo: number];
 }>();
 
 const editing = ref(false);
 const draft = ref<ImagePostPage>({ ...props.page });
+
+watch(() => props.page, page => { draft.value = { ...page }; editing.value = false; });
 
 const isFixedBackCover = computed(() => props.page.page_type === 'fixed_back_cover');
 
@@ -51,12 +52,6 @@ function saveEdit(): void {
   editing.value = false;
 }
 
-function removePage(): void {
-  if (isFixedBackCover.value) return;
-  if (window.confirm(`确认移除第 ${props.page.page_no} 页？该操作仅在本次编辑会话内生效，保存后写入。`)) {
-    emit('remove', props.page.page_no);
-  }
-}
 </script>
 
 <template>
@@ -84,14 +79,7 @@ function removePage(): void {
           >
             编辑
           </button>
-          <button
-            v-if="!isFixedBackCover"
-            type="button"
-            class="text-xs text-slate-400 underline hover:text-rose-600"
-            @click="removePage"
-          >
-            移除
-          </button>
+
         </template>
         <template v-else>
           <button
@@ -106,7 +94,7 @@ function removePage(): void {
             class="rounded bg-slate-900 px-2 py-1 text-xs font-medium text-white hover:bg-slate-800"
             @click="saveEdit"
           >
-            保存本页
+            完成编辑
           </button>
         </template>
       </div>
