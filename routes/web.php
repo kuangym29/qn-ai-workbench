@@ -13,6 +13,7 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SourceReferenceController;
 use App\Http\Controllers\TopicController;
 use App\Http\Controllers\V2ContentController;
+use App\Http\Controllers\V2\ArticleImportController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -175,5 +176,13 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/items/{item}/branches', [$controller, 'addBranch']);
         Route::post('/items/{item}/branches/{branch}/stop', [$controller, 'stopBranch']);
         Route::get('/in-progress', [$controller, 'inProgress']);
+    });
+
+    // B02：公众号 · 图文文章（article）后端。GET 读 / PUT 人工保存 / preview 只读预览 / apply 确认落库。
+    Route::prefix('api/projects/{project}')->group(function (): void {
+        Route::get('/items/{item}/branches/{branch}/article', [ArticleImportController::class, 'show']);
+        Route::put('/items/{item}/branches/{branch}/article', [ArticleImportController::class, 'save']);
+        Route::post('/items/{item}/branches/{branch}/article/preview', [ArticleImportController::class, 'preview']);
+        Route::post('/items/{item}/branches/{branch}/article/apply', [ArticleImportController::class, 'apply']);
     });
 });
