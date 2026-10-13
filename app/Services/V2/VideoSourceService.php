@@ -115,12 +115,12 @@ class VideoSourceService
     /**
      * 轻量来源变化说明。不含 Revision ID / Hash / 技术版本号。
      *
-     * @return array<string, mixed>
+     * @return array<string, mixed>|null
      */
-    public function changeSummary(?VideoContent $video, ContentItem $item): array
+    public function changeSummary(?VideoContent $video, ContentItem $item): ?array
     {
         if (! $this->sourceChanged($video, $item)) {
-            return [];
+            return null;
         }
 
         $pageCount = $this->sourcePages($item)->count();

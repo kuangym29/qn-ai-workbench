@@ -42,6 +42,7 @@ onMounted(async () => {
 </script>
 
 <template>
+  <div class="v2-video-workspace">
   <AdminLayout>
     <Breadcrumb
       :items="[
@@ -71,6 +72,9 @@ onMounted(async () => {
       :resolving-source="editor.resolvingSource.value"
       :timeline-open="editor.timelineOpen.value"
       :total-duration="editor.totalDuration.value"
+      :duration-preview="editor.durationPreview.value"
+      :narration-note="editor.narrationNote.value"
+      :dirty="editor.dirty.value"
       :timeline="editor.timeline.value"
       @back="router.visit(`/projects/${projectId}/content`)"
       @save="editor.save()"
@@ -83,8 +87,18 @@ onMounted(async () => {
       @copy-batch="toast.info('复制整批视频任务：待后端提供')"
       @sample-first="toast.info('先做试样：待后端提供')"
       @select-segments="toast.info('选择片段生成：待后端提供')"
-      @view-source-changes="toast.info('查看修改：来源内容修改对比待后端提供')"
+      @view-source-changes="toast.info(editor.video.value?.source_change_summary?.message ?? '来源内容已更新，请返回篇目查看当前内容。')"
       @keep-source-changes="editor.keepSourceChanges()"
     />
   </AdminLayout>
+  </div>
 </template>
+
+<style scoped>
+@media (max-width: 639px) {
+  .v2-video-workspace :deep(aside) { display: none; }
+  .v2-video-workspace :deep(header) { flex-wrap: wrap; gap: 0.5rem; padding-left: 0.75rem; padding-right: 0.75rem; }
+  .v2-video-workspace :deep(header > div) { flex-wrap: wrap; min-width: 0; max-width: 100%; }
+  .v2-video-workspace :deep(main) { min-width: 0; padding: 0.75rem; }
+}
+</style>

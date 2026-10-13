@@ -78,7 +78,7 @@ class VideoManualService
             $before = $video === null ? null : [
                 'batch_instruction' => (string) $video->batch_instruction,
                 'narration' => (string) $video->narration,
-                'units' => $this->normalizeUnits($item, $data['units'] ?? [], $video),
+                'units' => $this->normalizeUnits($item, [], $video),
             ];
 
             if ($video === null) {
@@ -111,7 +111,7 @@ class VideoManualService
                     : (string) $video->narration,
                 'units' => array_key_exists('units', $data)
                     ? $this->normalizeUnits($item, $data['units'], $video)
-                    : $this->normalizeUnits($item, $video->units ?? [], $video),
+                    : $this->normalizeUnits($item, [], $video),
             ];
 
             if ($before === $after) {

@@ -24,6 +24,9 @@ const props = defineProps<{
   resolvingSource: boolean;
   timelineOpen: boolean;
   totalDuration: number;
+  durationPreview: boolean;
+  narrationNote: string;
+  dirty: boolean;
   timeline: VideoTimelineItem[];
 }>();
 const emit = defineEmits<{
@@ -68,7 +71,7 @@ const emit = defineEmits<{
         data-v2-video-source-changed
       >
         <span class="text-sm text-amber-800">
-          ⚠ {{ video.source_change_summary ?? '来源内容后来有修改，建议检查本视频是否受影响。' }}
+          ⚠ {{ video.source_change_summary?.message ?? '来源内容后来有修改，建议检查本视频是否受影响。' }}
         </span>
         <span class="flex gap-2">
           <button
@@ -80,7 +83,7 @@ const emit = defineEmits<{
           </button>
           <button
             type="button"
-            :disabled="resolvingSource"
+            :disabled="saving || resolvingSource"
             class="rounded-md border border-amber-300 px-3 py-1.5 text-xs text-amber-800 hover:bg-amber-100 disabled:opacity-50"
             @click="emit('keepSourceChanges')"
           >
@@ -105,6 +108,7 @@ const emit = defineEmits<{
     </ErrorState>
 
     <template v-else-if="video">
+      <fieldset :disabled="saving || resolvingSource" class="min-w-0 space-y-6">
       <!-- 一、整批视频制作说明 -->
       <section class="rounded-lg border border-slate-200 bg-white p-5">
         <h2 class="text-sm font-semibold text-slate-900">整批视频制作说明</h2>
@@ -148,6 +152,7 @@ const emit = defineEmits<{
         </div>
 
         <VideoTimeline v-if="timelineOpen" :timeline="timeline" />
+        <p v-if="timelineOpen && narrationNote" class="text-xs text-slate-500">{{ narrationNote }}</p>
 
         <VideoUnits
           :units="video.units"
@@ -161,12 +166,13 @@ const emit = defineEmits<{
       <footer class="rounded-lg border border-slate-200 bg-white px-5 py-4">
         <div class="flex flex-wrap items-center justify-between gap-3">
           <p class="text-sm text-slate-500">
-            预计总时长：
+            {{ durationPreview ? '未保存时长预览：' : '预计总时长：' }}
             <span class="font-semibold text-slate-800">{{ formatDuration(totalDuration) }}</span>
           </p>
           <div class="flex flex-wrap gap-2">
             <button
               type="button"
+              disabled title="尚未接通"
               class="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
               @click="emit('copyBatch')"
             >
@@ -174,6 +180,7 @@ const emit = defineEmits<{
             </button>
             <button
               type="button"
+              disabled title="尚未接通"
               class="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
               @click="emit('sampleFirst')"
             >
@@ -181,6 +188,7 @@ const emit = defineEmits<{
             </button>
             <button
               type="button"
+              disabled title="尚未接通"
               class="rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white hover:bg-slate-800"
               @click="emit('selectSegments')"
             >
@@ -196,7 +204,10 @@ const emit = defineEmits<{
             </button>
           </div>
         </div>
+        <p class="mt-2 text-xs text-slate-400">复制任务、试样与片段生成尚未接通。</p>
+        <p class="mt-2 text-xs text-slate-500" role="status">{{ dirty ? '有未保存修改' : '已保存' }}</p>
       </footer>
+      </fieldset>
     </template>
   </div>
 </template>

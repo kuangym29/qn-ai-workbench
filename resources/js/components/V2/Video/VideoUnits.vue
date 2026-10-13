@@ -15,7 +15,7 @@ const emit = defineEmits<{
   <div class="space-y-3" data-v2-video-units>
     <VideoUnitRow
       v-for="(u, i) in units"
-      :key="u.id"
+      :key="u.source_page_id"
       :unit="u"
       :index="i"
       @update:dynamic="(id, value) => emit('update:dynamic', id, value)"

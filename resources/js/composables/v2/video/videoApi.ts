@@ -35,7 +35,7 @@ export function createVideoClient(transport: VideoTransport) {
     /** 加载视频制作工作负载（含系统计算：总时长 / 时间轴）。 */
     async loadWorkspace(projectId: Id, itemId: Id, branchId: Id): Promise<VideoEditorWorkspace> {
       const res = await transport.get(base(projectId, itemId, branchId));
-      return (res.data as { data: VideoEditorWorkspace }).data;
+      return res.data as VideoEditorWorkspace;
     },
 
     /** 保存用户可编辑字段（白名单 VideoSaveInput；成功后调用方重新 GET）。 */

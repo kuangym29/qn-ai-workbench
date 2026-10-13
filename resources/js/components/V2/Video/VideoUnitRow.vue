@@ -12,7 +12,7 @@ const emit = defineEmits<{
 
 function toSeconds(v: string): number {
   const n = Number(v);
-  return Number.isInteger(n) && n >= 0 ? n : NaN;
+  return Number.isFinite(n) && n >= 0 ? n : NaN;
 }
 </script>
 
@@ -36,7 +36,7 @@ function toSeconds(v: string): number {
           rows="2"
           class="mt-1 w-full resize-y rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
           placeholder="这张图怎么动…"
-          @input="emit('update:dynamic', unit.id, ($event.target as HTMLTextAreaElement).value)"
+          @input="emit('update:dynamic', unit.source_page_id, ($event.target as HTMLTextAreaElement).value)"
         />
       </div>
       <div class="min-w-0">
@@ -45,12 +45,12 @@ function toSeconds(v: string): number {
           <input
             :value="unit.duration_seconds"
             type="text"
-            inputmode="numeric"
+            inputmode="decimal"
             class="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
-            @input="
+            @change="
               (e) => {
                 const v = toSeconds((e.target as HTMLInputElement).value);
-                if (!Number.isNaN(v)) emit('update:duration', unit.id, v);
+                if (!Number.isNaN(v)) emit('update:duration', unit.source_page_id, v);
               }
             "
           />
@@ -64,7 +64,7 @@ function toSeconds(v: string): number {
           type="text"
           class="mt-1 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-slate-400 focus:outline-none"
           placeholder="特殊注意…"
-          @input="emit('update:note', unit.id, ($event.target as HTMLInputElement).value)"
+          @input="emit('update:note', unit.source_page_id, ($event.target as HTMLInputElement).value)"
         />
       </div>
     </div>

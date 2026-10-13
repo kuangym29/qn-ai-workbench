@@ -21,8 +21,14 @@
 //   - 来源变化「继续沿用」：POST source-change {action:'keep'} 成功后重新 GET；
 //     禁止前端本地直接清掉 source_changed 假装保存成功。
 
+export interface VideoSourceChangeSummary {
+  changed: true;
+  message: string;
+  source_page_count: number;
+}
+
 export interface VideoProduction {
-  id: number;
+  id: number | null;
   project_id: number;
   content_item_id: number;
   /** 内容名称（来自 Content Item，不做成「视频名称」新字段） */
@@ -38,16 +44,14 @@ export interface VideoProduction {
   /** 来源内容后来是否有修改（系统检测，前端只读，不本地伪造） */
   source_changed: boolean;
   /** 来源修改提示摘要（不显示 Content Revision V3 等技术术语） */
-  source_change_summary: string | null;
+  source_change_summary: VideoSourceChangeSummary | null;
 }
 
 export interface VideoUnit {
-  /** 前端行内定位用 id（不提交保存） */
-  id: number;
   /** 片段顺序（来源页顺序，系统 / 继承，只读，不提交） */
   order: number;
   /** 来源页 id（保存时以此定位单元） */
-  source_page_id: number | null;
+  source_page_id: number;
   /** 来源页弱展示标签，如「封面」「P2」（只读，不提交） */
   source_label: string | null;
   /** 动态说明：这张图怎么动 */
@@ -64,12 +68,12 @@ export interface VideoUnit {
 
 export interface VideoTimelineItem {
   order: number;
+  source_page_id: number;
   source_label: string | null;
+  duration_seconds: number;
   /** 片段起止时间（秒，累积计算） */
   start_seconds: number;
   end_seconds: number;
-  /** 旁白对应关系（系统未来自动分配；当前展示占位说明） */
-  narration_note: string;
 }
 
 export interface VideoEditorWorkspace {
@@ -78,6 +82,7 @@ export interface VideoEditorWorkspace {
   total_duration: number;
   /** 系统计算：只读时间轴（只读，不提交） */
   timeline: VideoTimelineItem[];
+  narration_note: string;
 }
 
 /**
@@ -89,7 +94,7 @@ export interface VideoSaveInput {
   batch_instruction: string;
   narration: string;
   units: {
-    source_page_id: number | null;
+    source_page_id: number;
     dynamic_instruction: string;
     duration_seconds: number;
     note: string | null;

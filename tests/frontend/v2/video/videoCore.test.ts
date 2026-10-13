@@ -10,10 +10,15 @@ import {
   buildSaveInput,
   normalizeDurationSeconds,
 } from '../../../../resources/js/composables/v2/video/videoCore.ts';
+
+test('formatDuration preserves backend decimal precision', () => {
+  assert.equal(formatDuration(3.5), '3.5s');
+  assert.equal(formatDuration(0.1 + 0.2), '0.3s');
+});
 import type { VideoProduction } from '../../../../resources/js/types/v2/video/video.ts';
 
 function unit(id: number, order: number, duration_seconds: number, source_label: string | null = null): VideoProduction['units'][number] {
-  return { id, order, source_page_id: id, source_label, dynamic_instruction: '动', duration_seconds, note: null };
+  return { order, source_page_id: id, source_label, dynamic_instruction: '动', duration_seconds, note: null };
 }
 
 test('computeTotalDuration：正常求和 / 非法值忽略 / 空列表为 0', () => {
@@ -26,7 +31,7 @@ test('formatDuration：秒 → Xs，负数收敛为 0s', () => {
   assert.equal(formatDuration(24), '24s');
   assert.equal(formatDuration(0), '0s');
   assert.equal(formatDuration(-3), '0s');
-  assert.equal(formatDuration(2.4), '2s');
+  assert.equal(formatDuration(2.4), '2.4s');
 });
 
 test('buildTimeline：按 order 累积起止，时长未设置给出提示', () => {
@@ -38,7 +43,8 @@ test('buildTimeline：按 order 累积起止，时长未设置给出提示', () 
   assert.equal(tl[0].end_seconds, 3);
   assert.equal(tl[1].start_seconds, 3);
   assert.equal(tl[1].end_seconds, 7);
-  assert.equal(tl[2].narration_note, '时长未设置');
+  assert.equal(tl[2].duration_seconds, 0);
+  assert.ok(!('narration_note' in tl[2]));
 });
 
 test('sortUnitsByOrder：稳定排序，无 order 排最后', () => {
@@ -72,9 +78,9 @@ test('buildSaveInput：只收敛 R1 白名单字段，units 以 source_page_id �
   assert.ok(!('source_label' in input.units[0]));
 });
 
-test('normalizeDurationSeconds：非负整数保留，非法回退原值', () => {
+test('normalizeDurationSeconds：非负小数保留，非法回退原值', () => {
   assert.equal(normalizeDurationSeconds('4', 3), 4);
   assert.equal(normalizeDurationSeconds(-2, 3), 3);
   assert.equal(normalizeDurationSeconds('abc', 5), 5);
-  assert.equal(normalizeDurationSeconds(2.7, 5), 5);
+  assert.equal(normalizeDurationSeconds(2.7, 5), 2.7);
 });

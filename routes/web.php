@@ -164,6 +164,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/projects/{project}/{page}', [$controller, 'workspace'])->whereIn('page', ['in-progress', 'inspirations', 'topics', 'content', 'review']);
     Route::get('/projects/{project}/content/{item}', [$controller, 'detailPage']);
     Route::get('/projects/{project}/content/{item}/branches/{branch}/image-post', [$controller, 'imagePostPage']);
+    Route::get('/projects/{project}/content/{item}/branches/{branch}/video', [\App\Http\Controllers\V2\VideoController::class, 'page']);
     Route::prefix('api/projects/{project}')->group(function () use ($controller): void {
         Route::get('/inspirations', [$controller, 'inspirations']);
         Route::post('/inspirations', [$controller, 'saveInspiration']);

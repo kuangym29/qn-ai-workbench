@@ -13,14 +13,14 @@
 import {
   buildTimeline,
   computeTotalDuration,
-} from './videoCore';
-import { createVideoClient, type VideoClient, type VideoTransport } from './videoApi';
+} from '../../../../resources/js/composables/v2/video/videoCore';
+import { createVideoClient, type VideoClient, type VideoTransport } from '../../../../resources/js/composables/v2/video/videoApi';
 import type {
   VideoEditorWorkspace,
   VideoProduction,
   VideoSaveInput,
   VideoSourceChangeInput,
-} from '../../../types/v2/video/video';
+} from '../../../../resources/js/types/v2/video/video';
 
 function buildMockVideo(): VideoProduction {
   return {
@@ -34,15 +34,15 @@ function buildMockVideo(): VideoProduction {
     narration:
       '出门前，孩子总有自己的节奏。\n\n他把鞋带绕了一圈又一圈，小手笨拙却很认真。\n\n妈妈站在门口，看着时间一分一秒过去，忍住没有蹲下去。\n\n“你自己来。”她说。\n\n几分钟后，孩子抬起头，眼睛亮亮的：“我系好了！”\n\n那一句“我自己来”，要的不是立刻被满足，而是被允许练习。\n\n你在身边，“我自己来”更有底气。',
     units: [
-      { id: 1, order: 1, source_page_id: 101, source_label: '封面', dynamic_instruction: '封面缓慢推近，孩子系鞋带的背影，光线柔和。', duration_seconds: 3, note: null },
-      { id: 2, order: 2, source_page_id: 102, source_label: 'P2', dynamic_instruction: '鞋带绕圈的微距特写，轻微旋转。', duration_seconds: 4, note: '注意手部动作连贯' },
-      { id: 3, order: 3, source_page_id: 103, source_label: 'P3', dynamic_instruction: '妈妈站在门口看表，镜头缓慢横移。', duration_seconds: 4, note: null },
-      { id: 4, order: 4, source_page_id: 104, source_label: 'P4', dynamic_instruction: '孩子抬头说话瞬间定格半秒，再继续。', duration_seconds: 3, note: '眼神特写' },
-      { id: 5, order: 5, source_page_id: 105, source_label: 'P5', dynamic_instruction: '孩子眼睛亮起来，镜头快推至面部。', duration_seconds: 3, note: null },
-      { id: 6, order: 6, source_page_id: 106, source_label: 'P6', dynamic_instruction: '结尾定格：孩子在前面走，妈妈在后面微笑跟。', duration_seconds: 5, note: '收尾点题' },
+      { order: 1, source_page_id: 101, source_label: '封面', dynamic_instruction: '封面缓慢推近，孩子系鞋带的背影，光线柔和。', duration_seconds: 3, note: null },
+      { order: 2, source_page_id: 102, source_label: 'P2', dynamic_instruction: '鞋带绕圈的微距特写，轻微旋转。', duration_seconds: 4, note: '注意手部动作连贯' },
+      { order: 3, source_page_id: 103, source_label: 'P3', dynamic_instruction: '妈妈站在门口看表，镜头缓慢横移。', duration_seconds: 4, note: null },
+      { order: 4, source_page_id: 104, source_label: 'P4', dynamic_instruction: '孩子抬头说话瞬间定格半秒，再继续。', duration_seconds: 3, note: '眼神特写' },
+      { order: 5, source_page_id: 105, source_label: 'P5', dynamic_instruction: '孩子眼睛亮起来，镜头快推至面部。', duration_seconds: 3, note: null },
+      { order: 6, source_page_id: 106, source_label: 'P6', dynamic_instruction: '结尾定格：孩子在前面走，妈妈在后面微笑跟。', duration_seconds: 5, note: '收尾点题' },
     ],
     source_changed: true,
-    source_change_summary: '来源内容后来有修改，建议检查本视频是否受影响。',
+    source_change_summary: { changed: true, message: '来源内容后来有修改，建议检查本视频是否受影响。', source_page_count: 6 },
   };
 }
 
@@ -52,6 +52,7 @@ export function buildMockVideoWorkspace(): VideoEditorWorkspace {
     video,
     total_duration: computeTotalDuration(video.units),
     timeline: buildTimeline(video.units),
+    narration_note: '完整旁白对应整条视频；各视频单元的画面动效与时长独立维护。',
   };
 }
 
@@ -100,7 +101,7 @@ export function createMockVideoClient(initial?: VideoEditorWorkspace): MockVideo
   const transport: VideoTransport = {
     async get(url: string) {
       calls.push({ method: 'GET', url });
-      return { data: { data: clone(workspace) } };
+      return { data: clone(workspace) };
     },
     async put(url: string, input: unknown) {
       calls.push({ method: 'PUT', url, input });

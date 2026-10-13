@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import {
   buildMockVideoWorkspace,
   createMockVideoClient,
-} from '../../../../resources/js/composables/v2/video/videoDevMock.ts';
+} from './fixtures.ts';
 import type { VideoSaveInput } from '../../../../resources/js/types/v2/video/video.ts';
 
 test('Mock 初始工作负载：6 个单元、总时长 22s、存在来源变化提醒', async () => {

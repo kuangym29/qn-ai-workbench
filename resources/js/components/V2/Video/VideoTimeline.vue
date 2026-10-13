@@ -27,7 +27,7 @@ function range(item: VideoTimelineItem): string {
       <div
         v-for="(item, i) in timeline"
         :key="`tl-${item.order}-${i}`"
-        class="flex items-baseline gap-3 px-4 py-2 text-sm"
+        class="flex flex-wrap items-baseline gap-3 px-4 py-2 text-sm"
       >
         <span class="w-8 shrink-0 font-medium text-slate-600">
           {{ String(i + 1).padStart(2, '0') }}
@@ -36,7 +36,6 @@ function range(item: VideoTimelineItem): string {
           {{ item.source_label ?? `来源第 ${item.order} 片段` }}
         </span>
         <span class="w-28 shrink-0 font-mono text-xs text-slate-500">{{ range(item) }}</span>
-        <span class="min-w-0 flex-1 text-xs text-slate-400">{{ item.narration_note }}</span>
       </div>
     </div>
   </div>

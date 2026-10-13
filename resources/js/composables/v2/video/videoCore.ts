@@ -25,7 +25,7 @@ export function computeTotalDuration(units: VideoUnit[]): number {
 
 /** 秒 → 展示文本（V1 单位秒；60s+ 也按秒展示，避免过度设计）。 */
 export function formatDuration(seconds: number): string {
-  const n = Math.max(0, Math.round(seconds));
+  const n = Math.max(0, Math.round(seconds * 100) / 100);
   return `${n}s`;
 }
 
@@ -39,10 +39,11 @@ export function buildTimeline(units: VideoUnit[]): VideoTimelineItem[] {
     const d = Number.isFinite(dur) && dur > 0 ? dur : 0;
     timeline.push({
       order: u.order,
+      source_page_id: u.source_page_id,
       source_label: u.source_label,
+      duration_seconds: d,
       start_seconds: cursor,
       end_seconds: cursor + d,
-      narration_note: d > 0 ? '旁白自动分配到本片段' : '时长未设置',
     });
     cursor += d;
   }
@@ -78,8 +79,8 @@ export function buildSaveInput(video: VideoProduction): VideoSaveInput {
   };
 }
 
-/** 时长输入：非负整数秒；非法输入 → 保持原值。 */
+/** 时长输入：有限非负秒数；非法输入 → 保持原值。 */
 export function normalizeDurationSeconds(v: unknown, fallback: number): number {
   const n = Number(v);
-  return Number.isInteger(n) && n >= 0 ? n : fallback;
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : fallback;
 }

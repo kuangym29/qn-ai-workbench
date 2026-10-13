@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { useVideoEditor } from '../../../../resources/js/composables/v2/video/useVideoEditor.ts';
 import { createVideoClient, type VideoTransport } from '../../../../resources/js/composables/v2/video/videoApi.ts';
-import { buildMockVideoWorkspace } from '../../../../resources/js/composables/v2/video/videoDevMock.ts';
+import { buildMockVideoWorkspace } from './fixtures.ts';
 import type {
   VideoEditorWorkspace,
   VideoSaveInput,
@@ -39,7 +39,7 @@ function makeHarness() {
   const transport: VideoTransport = {
     async get(url: string) {
       calls.push({ method: 'GET', url });
-      return { data: { data: structuredClone(ws) } };
+      return { data: structuredClone(ws) };
     },
     async put(url: string, input: unknown) {
       calls.push({ method: 'PUT', url, input });
@@ -178,11 +178,11 @@ test('duration 合同：非法输入回退原值；本地预计总时长仅作�
   assert.equal(editor.totalDuration.value, 22);
 
   const firstUnit = editor.video.value!.units[0];
-  editor.updateUnit(firstUnit.id, { duration_seconds: 6 });
+  editor.updateUnit(firstUnit.source_page_id, { duration_seconds: 6 });
   assert.equal(editor.totalDuration.value, 25);
-  // 非法输入（小数 / 负数 / 非数字）回退该单元原值
-  editor.updateUnit(firstUnit.id, { duration_seconds: 2.4 as unknown as number });
-  assert.equal(editor.totalDuration.value, 25);
+  // 小数与后端支持的精度一致
+  editor.updateUnit(firstUnit.source_page_id, { duration_seconds: 2.4 as unknown as number });
+  assert.equal(editor.totalDuration.value, 21.4);
   // 时间轴为只读系统计算（长度与单元一致）
   assert.equal(editor.timeline.value.length, 6);
 });

@@ -18,6 +18,7 @@ import type {
   VideoEditorWorkspace,
   VideoProduction,
   VideoUnit,
+  VideoTimelineItem,
 } from '../../../types/v2/video/video';
 import {
   buildSaveInput,
@@ -44,12 +45,18 @@ export function useVideoEditor(
   const saving = ref(false);
   const resolvingSource = ref(false);
   const timelineOpen = ref(false);
+  const durationPreview = ref(false);
+  const serverDuration = ref(0);
+  const serverTimeline = ref<VideoTimelineItem[]>([]);
+  const narrationNote = ref('');
+  const savedInput = ref('');
+  const dirty = computed(() => video.value !== null && JSON.stringify(buildSaveInput(video.value)) !== savedInput.value);
 
   const totalDuration = computed(() =>
-    video.value ? computeTotalDuration(video.value.units) : 0,
+    durationPreview.value && video.value ? computeTotalDuration(video.value.units) : serverDuration.value,
   );
   const timeline = computed(() =>
-    video.value ? buildTimeline(video.value.units) : [],
+    durationPreview.value && video.value ? buildTimeline(video.value.units) : serverTimeline.value,
   );
   const sortedUnits = computed(() =>
     video.value ? sortUnitsByOrder(video.value.units) : [],
@@ -57,6 +64,11 @@ export function useVideoEditor(
 
   function applyWorkspace(ws: VideoEditorWorkspace): void {
     video.value = ws.video;
+    serverDuration.value = ws.total_duration;
+    serverTimeline.value = ws.timeline;
+    narrationNote.value = ws.narration_note;
+    durationPreview.value = false;
+    savedInput.value = JSON.stringify(buildSaveInput(ws.video));
   }
 
   /** 加载正式工作负载；silent=true 用于保存 / 来源决策后的后台刷新（不闪整页加载态）。 */
@@ -100,11 +112,22 @@ export function useVideoEditor(
     if (!video.value) return false;
     if (saving.value || resolvingSource.value) return false;
     if (!video.value.source_changed) return true;
+    const draft = dirty.value ? buildSaveInput(video.value) : null;
     resolvingSource.value = true;
     try {
       await client.resolveSourceChange(projectId, itemId, branchId, { action: 'keep' });
       await load(true); // 决策由服务端记录，重新 GET 确认
-      toast.success('已继续沿用当前视频制作');
+      if (draft && video.value) {
+        const drafts = new Map(draft.units.map(unit => [unit.source_page_id, unit]));
+        const units = video.value.units.map(unit => {
+          const editable = drafts.get(unit.source_page_id);
+          if (!editable) return unit;
+          if (editable.duration_seconds !== unit.duration_seconds) durationPreview.value = true;
+          return { ...unit, ...editable };
+        });
+        video.value = { ...video.value, batch_instruction: draft.batch_instruction, narration: draft.narration, units };
+      }
+      toast.success(draft ? '已继续沿用来源，制作修改仍待保存' : '已继续沿用当前视频制作');
       return true;
     } catch (e) {
       toast.error(firstErrorMessage(e) ?? '操作失败，请重试');
@@ -115,27 +138,28 @@ export function useVideoEditor(
   }
 
   function updateBatchInstruction(value: string): void {
-    if (!video.value) return;
+    if (!video.value || saving.value || resolvingSource.value) return;
     video.value = { ...video.value, batch_instruction: value };
   }
 
   function updateNarration(value: string): void {
-    if (!video.value) return;
+    if (!video.value || saving.value || resolvingSource.value) return;
     video.value = { ...video.value, narration: value };
   }
 
   function updateUnit(
-    unitId: number,
+    sourcePageId: number,
     patch: Partial<Pick<VideoUnit, 'dynamic_instruction' | 'duration_seconds' | 'note'>>,
   ): void {
-    if (!video.value) return;
+    if (!video.value || saving.value || resolvingSource.value) return;
     video.value = {
       ...video.value,
       units: video.value.units.map((u) => {
-        if (u.id !== unitId) return u;
+        if (u.source_page_id !== sourcePageId) return u;
         const next = { ...u, ...patch };
         if (patch.duration_seconds !== undefined) {
           next.duration_seconds = normalizeDurationSeconds(patch.duration_seconds, u.duration_seconds);
+          durationPreview.value = true;
         }
         if (patch.note !== undefined) {
           next.note = patch.note === null ? null : patch.note.trim() === '' ? null : patch.note;
@@ -152,6 +176,9 @@ export function useVideoEditor(
     saving,
     resolvingSource,
     timelineOpen,
+    durationPreview,
+    narrationNote,
+    dirty,
     totalDuration,
     timeline,
     sortedUnits,

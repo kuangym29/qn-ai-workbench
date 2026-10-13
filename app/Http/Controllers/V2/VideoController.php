@@ -12,6 +12,8 @@ use App\Support\ProjectContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
+use Inertia\Inertia;
+use Inertia\Response;
 
 /**
  * V2 视频号视频制作（video branch）HTTP 入口。
@@ -28,6 +30,16 @@ use InvalidArgumentException;
  */
 class VideoController extends Controller
 {
+    public function page(Request $request, Project $project, int $item, int $branch): Response
+    {
+        app(ProjectContext::class)->assertCurrent($request, $project);
+        $model = $this->resolveBranch($project, $item, $branch);
+
+        return Inertia::render('V2/Video/VideoEditor', [
+            'projectId' => $project->id, 'itemId' => $item, 'branchId' => $model->id,
+        ]);
+    }
+
     public function show(Request $request, Project $project, int $item, int $branch): JsonResponse
     {
         app(ProjectContext::class)->assertCurrent($request, $project);
@@ -51,10 +63,15 @@ class VideoController extends Controller
         app(ProjectContext::class)->assertCurrent($request, $project);
         $branchModel = $this->resolveBranch($project, $item, $branch);
 
+        if (array_diff(array_keys($request->all()), ['batch_instruction', 'narration', 'units']) !== []) {
+            return response()->json(['message' => '仅允许保存整批说明、旁白和片段制作信息。'], 422);
+        }
+
         $data = $request->validate([
             'batch_instruction' => ['sometimes', 'nullable', 'string'],
             'narration' => ['sometimes', 'nullable', 'string'],
             'units' => ['sometimes', 'array'],
+            'units.*' => ['array:source_page_id,dynamic_instruction,duration_seconds,note'],
             'units.*.source_page_id' => ['required', 'integer'],
             'units.*.dynamic_instruction' => ['sometimes', 'nullable', 'string'],
             'units.*.duration_seconds' => ['sometimes', 'nullable', 'numeric', 'min:0', 'max:600'],

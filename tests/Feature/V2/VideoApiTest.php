@@ -77,6 +77,7 @@ class VideoApiTest extends TestCase
             ->assertJsonPath('video.batch_instruction', '')
             ->assertJsonPath('video.narration', '')
             ->assertJsonPath('video.source_changed', false)
+            ->assertJsonPath('video.source_change_summary', null)
             ->assertJsonCount(2, 'video.units')
             // 尚未正式保存 → source_changed 恒 false
             ->assertJsonPath('video.units.0.dynamic_instruction', '')
@@ -168,6 +169,48 @@ class VideoApiTest extends TestCase
         $this->assertSame('v2 旁白', $video->narration);
         $this->assertSame(2, $video->versions()->count());
         $this->assertSame(2, (int) $video->versions()->max('version_no'));
+    }
+
+    public function test_unit_only_changes_persist_and_append_version(): void
+    {
+        $item = ContentItem::factory()->create();
+        $branch = $this->videoBranch($item);
+        $page = ContentPage::factory()->for($item)->create();
+        $this->acting($item);
+        $url = "/api/projects/{$item->project_id}/items/{$item->id}/branches/{$branch->id}/video";
+        $this->putJson($url, ['units' => [$this->unitPayload($page->id, '原动态', 3)]])->assertOk();
+        $this->putJson($url, ['units' => [$this->unitPayload($page->id, '新动态', 8, '停顿')]])
+            ->assertOk()->assertJsonPath('data.changed', true);
+        $this->getJson($url)->assertOk()->assertJsonPath('video.units.0.dynamic_instruction', '新动态')
+            ->assertJsonPath('video.units.0.duration_seconds', 8)->assertJsonPath('video.units.0.note', '停顿');
+        $this->assertSame(2, VideoContent::where('content_branch_id', $branch->id)->first()->versions()->count());
+    }
+
+    public function test_removed_source_page_does_not_block_future_saves(): void
+    {
+        $item = ContentItem::factory()->create();
+        $branch = $this->videoBranch($item);
+        $page = ContentPage::factory()->for($item)->create(['page_no' => 1]);
+        $remaining = ContentPage::factory()->for($item)->create(['page_no' => 2]);
+        $this->acting($item);
+        $url = "/api/projects/{$item->project_id}/items/{$item->id}/branches/{$branch->id}/video";
+        $this->putJson($url, ['units' => [$this->unitPayload($page->id, '旧动态', 3)]])->assertOk();
+        $page->delete();
+        $this->getJson($url)->assertOk()->assertJsonCount(1, 'video.units');
+        $this->putJson($url, ['units' => [$this->unitPayload($remaining->id, '继续制作', 8)]])->assertOk();
+        $this->getJson($url)->assertJsonPath('video.units.0.dynamic_instruction', '继续制作');
+        $this->putJson($url, ['units' => [$this->unitPayload($page->id, '非法来源', 3)]])->assertUnprocessable();
+    }
+
+    public function test_put_rejects_unknown_fields_and_invented_unit_ids(): void
+    {
+        $item = ContentItem::factory()->create();
+        $branch = $this->videoBranch($item);
+        $page = ContentPage::factory()->for($item)->create();
+        $this->acting($item);
+        $url = "/api/projects/{$item->project_id}/items/{$item->id}/branches/{$branch->id}/video";
+        $this->putJson($url, ['unknown' => 'x'])->assertUnprocessable();
+        $this->putJson($url, ['units' => [['id' => 999, ...$this->unitPayload($page->id, '动态', 3)]]])->assertUnprocessable();
     }
 
     public function test_put_unchanged_creates_no_extra_version(): void
