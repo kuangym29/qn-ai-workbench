@@ -12,8 +12,9 @@ use App\Http\Controllers\ProductionTaskController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SourceReferenceController;
 use App\Http\Controllers\TopicController;
-use App\Http\Controllers\V2ContentController;
 use App\Http\Controllers\V2\ImagePostImportController;
+use App\Http\Controllers\V2\VideoController;
+use App\Http\Controllers\V2ContentController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -184,5 +185,12 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/items/{item}/branches/{branch}/image-post/apply', [ImagePostImportController::class, 'apply']);
         Route::get('/items/{item}/branches/{branch}/image-post', [ImagePostImportController::class, 'show']);
         Route::put('/items/{item}/branches/{branch}/image-post', [ImagePostImportController::class, 'save']);
+
+        // B04：视频号视频制作（video 分支）。
+        // GET 读取（系统补 order/source_page_id/source_label + timeline/total_duration）；
+        // PUT 白名单保存（变化才补版本）；source-change 仅 keep（只更新来源 fingerprint）。
+        Route::get('/items/{item}/branches/{branch}/video', [VideoController::class, 'show']);
+        Route::put('/items/{item}/branches/{branch}/video', [VideoController::class, 'save']);
+        Route::post('/items/{item}/branches/{branch}/video/source-change', [VideoController::class, 'sourceChange']);
     });
 });
