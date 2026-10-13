@@ -43,8 +43,6 @@ export interface ImageBatchUnit {
   characters: string[];
   scene: string | null;
   special_requirement: string | null;
-  /** 是否参与本次生成（整批生成忽略该标记） */
-  selected: boolean;
   status: ImageBatchUnitStatus;
   /** 来源页后来有修改（由系统检测，前端只展示） */
   source_changed?: boolean;
@@ -79,6 +77,15 @@ export interface ImageBatchRunInput {
   mode: ImageBatchExecutionMode;
   unit_ids: (number | string)[];
 }
+
+export interface ImageBatchDraftInput {
+  batch_instruction: string;
+  batch_note: string | null;
+  units: { id: number | string; special_requirement: string | null }[];
+}
+export type ImageBatchSourceChangeInput = { action: 'keep' | 'regenerate' };
+export type ImageBatchCopyResult = { task: string };
+export type ImageBatchRunPhase = 'idle' | 'running' | 'done' | 'error';
 
 /** 执行动作结果（状态以后端为准）。 */
 export interface ImageBatchRunResult {

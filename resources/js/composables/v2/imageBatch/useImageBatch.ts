@@ -1,202 +1,124 @@
-// V2 图片批次生产 —— 状态机 composable。
-//
-// 状态：
-//   - 工作台（content_title / source_label / batch_instruction / batch_note /
-//     assets / units / history）
-//   - 加载 / 错误
-//   - 选择（全选 / 取消 / 单页勾选）
-//   - 执行动作子状态：idle → running → done / error
-//
-// 规则：
-//   - 生产 composable 只负责 API transport / UI state；
-//   - 生图任务由后端组装，前端不自己整理 Prompt；
-//   - 执行成功后以服务端返回刷新工作台，不乐观伪造服务端状态。
 import { computed, ref } from 'vue';
 import { http } from '../../../api/http';
-import type {
-  ImageBatchExecutionMode,
-  ImageBatchUnit,
-  ImageBatchWorkspace,
-} from '../../types/v2/imageBatch/imageBatch';
-import { executionTargets, hasSourceChange, selectedUnits, sourceChangedUnits } from './imageBatchCore';
+import type { ImageBatchExecutionMode, ImageBatchUnit, ImageBatchWorkspace, ImageBatchDraftInput, ImageBatchRunPhase } from '../../../types/v2/imageBatch/imageBatch';
+import { executionTargets, selectionSummary, sourceChangedUnits } from './imageBatchCore';
 import { createImageBatchClient, type ImageBatchClient } from './imageBatchApi';
 import { firstErrorMessage } from '../../../api/errors';
-import { toast } from '../../../ui/toast';
-
-export type ImageBatchRunPhase = 'idle' | 'running' | 'done' | 'error';
 
 export function useImageBatch(
-  projectId: number | string,
-  itemId: number | string,
-  branchId: number | string,
+  projectId: number | string, itemId: number | string, branchId: number | string,
   client: ImageBatchClient = createImageBatchClient(http),
+  copyText: (text: string) => Promise<void> = text => navigator.clipboard.writeText(text),
 ) {
   const workspace = ref<ImageBatchWorkspace | null>(null);
-  const loading = ref(true);
+  const selectedUnitIds = ref<Set<number | string>>(new Set());
+  const dirty = ref(false);
+  const loading = ref(false);
+  const saving = ref(false);
+  const copying = ref(false);
+  const resolving = ref(false);
   const loadError = ref('');
-  const runPhase = ref<ImageBatchRunPhase>('idle');
   const runError = ref('');
+  const runPhase = ref<ImageBatchRunPhase>('idle');
   const copied = ref(false);
   const historyOpen = ref(false);
-
-  const units = computed<ImageBatchUnit[]>(() => workspace.value?.units ?? []);
-
-  const selection = computed(() => {
-    const list = units.value;
-    return {
-      selected: list.filter((u) => u.selected).length,
-      total: list.length,
-    };
-  });
-
-  const allSelected = computed(() => units.value.length > 0 && units.value.every((u) => u.selected));
-
+  const busy = computed(() => loading.value || saving.value || copying.value || resolving.value || runPhase.value === 'running');
+  const units = computed(() => workspace.value?.units ?? []);
+  const selection = computed(() => selectionSummary(units.value, selectedUnitIds.value));
+  const allSelected = computed(() => units.value.length > 0 && selection.value.selected === units.value.length);
   const changedUnits = computed(() => sourceChangedUnits(units.value));
-  const anySourceChange = computed(() => hasSourceChange(units.value));
+  const anySourceChange = computed(() => changedUnits.value.length > 0);
 
-  async function load(): Promise<boolean> {
-    loading.value = true;
-    loadError.value = '';
+  // Internal GET stays under the enclosing action lock; public reload cannot race actions.
+  async function fetchWorkspace(): Promise<boolean> {
+    loading.value = true; loadError.value = '';
     try {
       workspace.value = await client.loadWorkspace(projectId, itemId, branchId);
+      selectedUnitIds.value = new Set(); dirty.value = false;
       return true;
-    } catch (e) {
-      loadError.value = firstErrorMessage(e) ?? '加载失败';
-      return false;
-    } finally {
-      loading.value = false;
-    }
+    } catch (e) { loadError.value = firstErrorMessage(e) ?? '加载失败'; return false; }
+    finally { loading.value = false; }
   }
-
-  // ---- 整批说明 / 备注（轻量手动修正） ----
+  async function load(): Promise<boolean> { return busy.value ? false : fetchWorkspace(); }
   function updateBatchInstruction(text: string): void {
-    if (!workspace.value || loading.value || runPhase.value === 'running') return;
-    workspace.value = { ...workspace.value, batch_instruction: text };
+    if (!workspace.value || busy.value) return;
+    workspace.value.batch_instruction = text; dirty.value = true; copied.value = false;
   }
-
   function updateBatchNote(text: string): void {
-    if (!workspace.value || loading.value || runPhase.value === 'running') return;
-    workspace.value = { ...workspace.value, batch_note: text };
+    if (!workspace.value || busy.value) return;
+    workspace.value.batch_note = text || null; dirty.value = true; copied.value = false;
   }
-
-  // ---- 页面选择 ----
+  function updateUnit(id: number | string, patch: Pick<ImageBatchUnit, 'special_requirement'>): void {
+    if (!workspace.value || busy.value) return;
+    const unit = units.value.find(u => u.id === id);
+    if (!unit) return;
+    unit.special_requirement = patch.special_requirement;
+    dirty.value = true; copied.value = false;
+  }
   function toggleUnit(id: number | string): void {
-    if (!workspace.value || loading.value || runPhase.value === 'running') return;
-    workspace.value = {
-      ...workspace.value,
-      units: workspace.value.units.map((u) =>
-        u.id === id ? { ...u, selected: !u.selected } : u,
-      ),
-    };
+    if (!workspace.value || busy.value || !units.value.some(u => u.id === id)) return;
+    const next = new Set(selectedUnitIds.value);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    selectedUnitIds.value = next;
   }
-
-  function selectAll(): void {
-    if (!workspace.value || loading.value) return;
-    workspace.value = {
-      ...workspace.value,
-      units: workspace.value.units.map((u) => ({ ...u, selected: true })),
+  function selectAll(): void { if (!busy.value) selectedUnitIds.value = new Set(units.value.map(u => u.id)); }
+  function clearSelection(): void { if (!busy.value) selectedUnitIds.value = new Set(); }
+  async function persistDraft(): Promise<void> {
+    if (!workspace.value || !dirty.value) return;
+    const input: ImageBatchDraftInput = {
+      batch_instruction: workspace.value.batch_instruction, batch_note: workspace.value.batch_note,
+      units: units.value.map(u => ({ id: u.id, special_requirement: u.special_requirement })),
     };
+    saving.value = true;
+    try { await client.saveDraft(projectId, itemId, branchId, input); dirty.value = false; }
+    catch (e) { throw new Error('草稿保存失败：' + (firstErrorMessage(e) ?? '请重试')); }
+    finally { saving.value = false; }
   }
-
-  function clearSelection(): void {
-    if (!workspace.value || loading.value) return;
-    workspace.value = {
-      ...workspace.value,
-      units: workspace.value.units.map((u) => ({ ...u, selected: false })),
-    };
-  }
-
-  // ---- 单页轻量修正（特殊要求等） ----
-  function updateUnit(id: number | string, patch: Partial<ImageBatchUnit>): void {
-    if (!workspace.value || loading.value || runPhase.value === 'running') return;
-    workspace.value = {
-      ...workspace.value,
-      units: workspace.value.units.map((u) => (u.id === id ? { ...u, ...patch } : u)),
-    };
-  }
-
-  // ---- 执行动作 ----
-  async function run(mode: ImageBatchExecutionMode): Promise<boolean> {
-    if (!workspace.value || runPhase.value === 'running') return false;
-    const targets = executionTargets(units.value, mode);
-    if (mode !== 'full' && targets.length === 0) {
-      runError.value = '请先勾选至少一页，再执行试样或部分生成。';
-      runPhase.value = 'error';
-      return false;
-    }
-    runPhase.value = 'running';
+  async function saveDraft(): Promise<boolean> {
+    if (!workspace.value || busy.value) return false;
     runError.value = '';
+    try { await persistDraft(); return true; }
+    catch (e) { runError.value = firstErrorMessage(e) ?? '草稿保存失败'; return false; }
+  }
+  async function run(mode: ImageBatchExecutionMode): Promise<boolean> {
+    if (!workspace.value || busy.value) return false;
+    const targets = executionTargets(units.value, mode, selectedUnitIds.value);
+    if (mode !== 'full' && !targets.length) { runError.value = '请先勾选至少一页，再执行试样或部分生成。'; runPhase.value = 'error'; return false; }
+    runPhase.value = 'running'; runError.value = '';
     try {
-      await client.run(projectId, itemId, branchId, {
-        mode,
-        unit_ids: mode === 'full' ? [] : targets.map((u) => u.id),
-      });
-      runPhase.value = 'done';
-      toast.success('批次任务已提交，等待系统组装与生成。');
-      // 执行成功后刷新服务端结果
-      await load();
+      await persistDraft();
+      await client.run(projectId, itemId, branchId, { mode, unit_ids: mode === 'full' ? [] : targets.map(u => u.id) });
+      if (!await fetchWorkspace()) runError.value = '任务已提交，但刷新失败，请重新加载查看结果。';
+      runPhase.value = 'done'; return true;
+    } catch (e) { runError.value = firstErrorMessage(e) ?? '提交失败'; runPhase.value = 'error'; return false; }
+  }
+  async function copyTask(): Promise<boolean> {
+    if (!workspace.value || busy.value) return false;
+    copying.value = true; copied.value = false; runError.value = '';
+    try {
+      await persistDraft();
+      const result = await client.copyTask(projectId, itemId, branchId);
+      if (typeof result.task !== 'string' || !result.task.trim()) throw new Error('服务端未返回可复制的任务文本');
+      await copyText(result.task); copied.value = true; return true;
+    } catch (e) { runError.value = firstErrorMessage(e) ?? '复制任务失败'; return false; }
+    finally { copying.value = false; }
+  }
+  async function resolveSourceChange(id: number | string, action: 'keep' | 'regenerate'): Promise<boolean> {
+    if (!workspace.value || busy.value) return false;
+    resolving.value = true; runError.value = '';
+    try {
+      // The following GET must not discard user-authored Draft fields.
+      await persistDraft();
+      await client.resolveSourceChange(projectId, itemId, branchId, id, { action });
+      if (!await fetchWorkspace()) runError.value = '来源决策已保存，但刷新失败，请重新加载。';
       return true;
-    } catch (e) {
-      runError.value = firstErrorMessage(e) ?? '提交失败';
-      runPhase.value = 'error';
-      return false;
-    }
+    } catch (e) { runError.value = firstErrorMessage(e) ?? '来源决策保存失败'; return false; }
+    finally { resolving.value = false; }
   }
-
-  /** 复制整批生图任务（正式链路由系统组装；本任务仅事件 + typed contract）。 */
-  async function copyTask(): Promise<void> {
-    if (!workspace.value || runPhase.value === 'running') return;
-    copied.value = false;
-    try {
-      await client.copyTask(projectId, itemId, branchId);
-      copied.value = true;
-      toast.success('已复制整批生图任务（系统将组装整批说明 + 最新页面结构）。');
-    } catch (e) {
-      toast.error(firstErrorMessage(e) ?? '复制任务失败');
-    }
-  }
-
-  // ---- 来源变化 ----
-  /** 查看修改：展开来源变化摘要（前端只展示系统检测结果）。 */
-  function viewChange(unit: ImageBatchUnit): void {
-    // 轻量交互：由 UI 直接读取 unit.source_change_summary，本函数保持可测试的状态入口。
-    void unit;
-  }
-
-  /** 继续沿用：保留当前页，忽略来源变化（仅本地标记，正式决策由后端记录）。 */
-  function keepCurrent(unitId: number | string): void {
-    updateUnit(unitId, { source_changed: false, source_change_summary: null });
-  }
-
-  /** 重新生成：标记该页需重新生成（由后端记录正式决策）。 */
-  function regenerate(unitId: number | string): void {
-    updateUnit(unitId, { status: 'needs_revision' });
-  }
-
-  return {
-    workspace,
-    loading,
-    loadError,
-    runPhase,
-    runError,
-    copied,
-    historyOpen,
-    units,
-    selection,
-    allSelected,
-    changedUnits,
-    anySourceChange,
-    load,
-    updateBatchInstruction,
-    updateBatchNote,
-    toggleUnit,
-    selectAll,
-    clearSelection,
-    updateUnit,
-    run,
-    copyTask,
-    viewChange,
-    keepCurrent,
-    regenerate,
-  };
+  function viewChange(unit: ImageBatchUnit): void { void unit; }
+  const keepCurrent = (id: number | string) => resolveSourceChange(id, 'keep');
+  const regenerate = (id: number | string) => resolveSourceChange(id, 'regenerate');
+  return { workspace, selectedUnitIds, dirty, loading, saving, copying, resolving, busy, loadError, runPhase, runError, copied, historyOpen,
+    units, selection, allSelected, changedUnits, anySourceChange, load, saveDraft, updateBatchInstruction, updateBatchNote,
+    toggleUnit, selectAll, clearSelection, updateUnit, run, copyTask, viewChange, keepCurrent, regenerate };
 }

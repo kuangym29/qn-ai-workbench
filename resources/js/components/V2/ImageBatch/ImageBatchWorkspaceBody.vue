@@ -40,6 +40,8 @@ const props = defineProps<{
   allSelected: boolean;
   changedCount: number;
   busy: boolean;
+  dirty: boolean;
+  selectedUnitIds: ReadonlySet<number | string>;
 }>();
 
 const emit = defineEmits<{
@@ -58,7 +60,7 @@ const emit = defineEmits<{
   back: [];
 }>();
 
-const selection = computed(() => selectionSummary(props.units));
+const selection = computed(() => selectionSummary(props.units, props.selectedUnitIds));
 const disabled = computed(() => props.loading || props.busy);
 </script>
 
@@ -74,6 +76,7 @@ const disabled = computed(() => props.loading || props.busy);
         </div>
         <button
           type="button"
+          :disabled="disabled"
           class="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
           @click="emit('back')"
         >
@@ -101,6 +104,7 @@ const disabled = computed(() => props.loading || props.busy);
         <h2 class="text-sm font-semibold text-slate-900">整批生图说明</h2>
         <p class="mt-0.5 text-xs text-slate-400">描述这组图片的视觉意图、人物一致性、场景一致性、光线 / 风格与共同要求。</p>
         <textarea
+          aria-label="整批生图说明"
           :disabled="disabled"
           :value="batchInstruction"
           rows="5"
@@ -115,6 +119,7 @@ const disabled = computed(() => props.loading || props.busy);
         <h2 class="text-sm font-medium text-slate-700">整批备注</h2>
         <p class="mt-0.5 text-xs text-slate-400">只记录当前这一批的特殊补充；已有 SOP / 品牌规范由系统处理。</p>
         <textarea
+          aria-label="整批备注"
           :disabled="disabled"
           :value="batchNote ?? ''"
           rows="2"
@@ -147,7 +152,7 @@ const disabled = computed(() => props.loading || props.busy);
                 type="checkbox"
                 class="h-4 w-4 rounded border-slate-300"
                 :checked="allSelected"
-                @change="emit(allSelected ? 'clearSelection' : 'selectAll')"
+                @change="allSelected ? emit('clearSelection') : emit('selectAll')"
               />
               全选
             </label>
@@ -159,6 +164,7 @@ const disabled = computed(() => props.loading || props.busy);
             v-for="unit in units"
             :key="String(unit.id)"
             :unit="unit"
+            :selected="selectedUnitIds.has(unit.id)"
             :disabled="disabled"
             @toggle="emit('toggleUnit', $event)"
             @update="emit('updateUnit', $event)"
@@ -178,6 +184,7 @@ const disabled = computed(() => props.loading || props.busy);
 
       <!-- 执行动作区 -->
       <section class="rounded-lg border border-slate-200 bg-white p-4" data-v2-image-batch-actions>
+        <p role="status" class="mb-2 text-xs text-slate-500">{{ dirty ? '有未保存修改' : '已保存' }}</p>
         <div class="flex flex-wrap items-center gap-3">
           <button
             type="button"

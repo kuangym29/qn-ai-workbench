@@ -49,7 +49,7 @@ watch(
       :history-open="editor.historyOpen.value"
       :all-selected="editor.allSelected.value"
       :changed-count="editor.changedUnits.value.length"
-      :busy="editor.runPhase.value === 'running'"
+      :busy="editor.busy.value" :dirty="editor.dirty.value" :selected-unit-ids="editor.selectedUnitIds.value"
       @update:batch-instruction="editor.updateBatchInstruction($event)"
       @update:batch-note="editor.updateBatchNote($event)"
       @toggle-unit="editor.toggleUnit($event.id)"

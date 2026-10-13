@@ -4,6 +4,7 @@
 - 执行 AI：豆包
 - 分支：`doubao/v2-image-batch-frontend`（自新 `codex/v2-foundation` @ `223e2ec3…` 独立建立，未从 C01–C04 堆代码）
 - 状态：UI_IMPLEMENTED，WAITING_FOR_BACKEND_API（正式生图后端未合入，REAL_API_INTEGRATED 未达成）
+- R1 合同救援见 `DEV-V2-P3-C05-R1-IMAGE-BATCH-CONTRACT.md`；本页合同已按 R1 同步，原豆包分支保持冻结。
 
 ## 1. 产品最高原则
 
@@ -80,7 +81,7 @@ ImageBatchUnit {
   visual_evidence: string | null;
   characters: string[]; scene: string | null;
   special_requirement: string | null;
-  selected: boolean; status;
+  status;                          // 勾选由前端 selectedUnitIds Set 独立管理
   source_changed?: boolean; source_change_summary?: string | null;
 }
 
@@ -97,6 +98,9 @@ ImageBatchWorkspace {
 
 ImageBatchRunInput { mode; unit_ids: (number | string)[] }
 ImageBatchRunResult { batch_id; mode; unit_ids; status }
+ImageBatchDraftInput { batch_instruction: string; batch_note: string | null; units: { id; special_requirement: string | null }[] }
+ImageBatchSourceChangeInput { action: 'keep' | 'regenerate' }
+ImageBatchCopyResult { task: string }
 ```
 
 ## 13. 生产 API adapter（imageBatchApi.ts，独立于 Mock）
@@ -106,10 +110,14 @@ ImageBatchRunResult { batch_id; mode; unit_ids; status }
 | 方法 | 端点 | 说明 |
 |---|---|---|
 | loadWorkspace | `GET /api/projects/{p}/items/{i}/branches/{b}/image-batch` | 返回 `ImageBatchWorkspace` |
+| saveDraft | `PUT …/image-batch` | 只接受整批说明、备注、unit id 与特殊要求 |
 | run | `POST …/image-batch/run` | body `{mode, unit_ids}` → `ImageBatchRunResult` |
-| copyTask | `POST …/image-batch/copy-task` | 复制整批生图任务（预留） |
+| copyTask | `POST …/image-batch/copy-task` | body `{}` → `{task: string}`，前端将服务端文本写入剪贴板 |
+| resolveSourceChange | `POST …/image-batch/units/{unit}/source-change` | body `{action: 'keep' | 'regenerate'}`，成功后 GET |
 
 正式链路：前端提交执行动作 → 后端组装整批说明 + 最新页面结构 + 当前备注 + 资产状态 → 保留真实 AI task snapshot。前端不自己整理 Prompt、不伪造服务端状态、执行成功后重新拉取工作台。
+
+整批说明、备注、特殊要求输入即标记 dirty；生成与复制前自动 PUT，失败保留 dirty 并终止动作。来源决策前也保存 dirty，避免后续 GET 丢失编辑。GET 成功清空本地勾选和 dirty；选择不写回服务端。
 
 ## 14. Mock 隔离
 
@@ -146,12 +154,13 @@ ImageBatchRunResult { batch_id; mode; unit_ids; status }
 ## 17. 验证
 
 - `node --experimental-strip-types --test tests/frontend/v2/imageBatch/*.test.ts`
+- `node --test tests/frontend/v2/imageBatch/*.test.mjs`（真实 composable 状态与异步竞态）
 - `npm run typecheck`
 - `npm run build`
 - 浏览器：`npm run dev` 后访问 `/v2-image-batch-preview.html`
 
 ## 18. 待后端对接项
 
-- 正式 `image-batch` API 未实现：loadWorkspace / run / copy-task 端点、字段名、404/422 语义以 WorkBuddy Phase 2 后端实现为准。
-- 若后端返回字段命名与本节合同有差异：不擅自改产品结构，由 Work 主程序集成时对齐并记录映射差异。
-- 单页「重新生成 / 继续沿用」为正式决策入口，当前仅本地标记，正式决策由后端记录。
+- 正式 `image-batch` 后端尚未实现：后续实现本页冻结的五个方法；鉴权与 404/422 由后端负责，不用前端 Stub 替代。
+- 单页「重新生成 / 继续沿用」已调用正式 source-change client 并重新 GET，生产路径不本地修改来源标记或状态。
+- DEV Preview 模拟五个方法并展示请求顺序，允许模拟 Draft 保存失败；只用于前端验收，未宣称真实 API 已联调。

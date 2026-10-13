@@ -12,7 +12,9 @@ import type {
   ImageBatchRunResult,
   ImageBatchUnit,
   ImageBatchWorkspace,
-} from '../../types/v2/imageBatch/imageBatch';
+  ImageBatchDraftInput,
+  ImageBatchSourceChangeInput,
+} from '../../../types/v2/imageBatch/imageBatch';
 
 interface MockState {
   workspace: ImageBatchWorkspace;
@@ -48,7 +50,6 @@ function buildMockUnits(): ImageBatchUnit[] {
     characters: p.page_no === 3 ? ['姐姐'] : ['妈妈', '姐姐'],
     scene: p.page_no <= 4 ? '客厅' : p.page_no <= 8 ? '玄关门口' : '小区楼下',
     special_requirement: p.page_no === 4 ? '表情特写，眼睛要亮' : p.page_no === 10 ? '黄昏暖光，逆光剪影' : null,
-    selected: p.page_no <= 6,
     status: p.page_no <= 2 ? ('generated' as const) : p.page_no === 3 ? ('needs_revision' as const) : ('pending' as const),
     source_changed: p.page_no === 4 || p.page_no === 5 ? true : false,
     source_change_summary: p.page_no === 4 ? '最终文字有更新：补充了“眼睛亮亮地”的表述。' : p.page_no === 5 ? '最终文字微调：把“等一等”提前到句首。' : null,
@@ -136,7 +137,24 @@ export async function applyMockRun(input: ImageBatchRunInput): Promise<ImageBatc
   };
 }
 
-/** DEV ONLY MOCK —— 复制整批生图任务（仅记录事件，不开发真实 AI 调用）。 */
-export async function applyMockCopyTask(): Promise<{ task: { copied: boolean } }> {
-  return { task: { copied: true } };
+/** DEV ONLY MOCK —— 模拟服务端返回任务文本，不开发真实 AI 调用。 */
+export async function applyMockCopyTask(): Promise<{ task: string }> {
+  return { task: 'DEV 服务端任务\n' + JSON.stringify(mockImageBatchStore.workspace) };
+}
+
+export async function saveMockDraft(input: ImageBatchDraftInput): Promise<void> {
+  mockImageBatchStore.workspace.batch_instruction = input.batch_instruction;
+  mockImageBatchStore.workspace.batch_note = input.batch_note;
+  for (const patch of input.units) {
+    const unit = mockImageBatchStore.workspace.units.find(u => u.id === patch.id);
+    if (unit) unit.special_requirement = patch.special_requirement;
+  }
+}
+
+export async function resolveMockSourceChange(id: number | string, input: ImageBatchSourceChangeInput): Promise<void> {
+  const unit = mockImageBatchStore.workspace.units.find(u => u.id === id);
+  if (!unit) throw new Error('页面不存在');
+  unit.source_changed = false;
+  unit.source_change_summary = null;
+  if (input.action === 'regenerate') unit.status = 'needs_revision';
 }

@@ -9,6 +9,8 @@ import {
   applyMockRun,
   buildMockWorkspace,
   mockImageBatchStore,
+  saveMockDraft,
+  resolveMockSourceChange,
 } from '../../../../resources/js/composables/v2/imageBatch/imageBatchDevMock.ts';
 
 test('DEV Mock 工作台：10 个页面单元且字段齐全', async () => {
@@ -21,7 +23,7 @@ test('DEV Mock 工作台：10 个页面单元且字段齐全', async () => {
     assert.ok(u.page_no >= 1 && u.page_no <= 10);
     assert.ok(['cover', 'content', 'column_closing', 'fixed_back_cover'].includes(u.page_type));
     assert.ok(Array.isArray(u.characters));
-    assert.ok(typeof u.selected === 'boolean');
+    assert.equal('selected' in u, false);
     assert.ok(['pending', 'generated', 'needs_revision', 'approved'].includes(u.status));
   }
 });
@@ -81,7 +83,30 @@ test('DEV Mock 执行：试样只包含勾选页面（如 P4 / P5）', async () 
   assert.equal(mockImageBatchStore.history.length, before + 1);
 });
 
-test('DEV Mock 复制任务：返回成功标记', async () => {
+test('DEV Mock 复制任务：返回服务端任务文本', async () => {
   const r = await applyMockCopyTask();
-  assert.deepEqual(r, { task: { copied: true } });
+  assert.equal(typeof r.task, 'string'); assert.ok(r.task.includes('DEV 服务端任务'));
+});
+
+test('DEV Mock Draft 保存后 GET 返回最新草稿且不写系统字段', async () => {
+  const before = await buildMockWorkspace();
+  await saveMockDraft({ batch_instruction: 'saved instruction', batch_note: 'saved note', units: [{ id: 'u1', special_requirement: 'saved special' }] });
+  const after = await buildMockWorkspace();
+  assert.equal(after.batch_instruction, 'saved instruction');
+  assert.equal(after.batch_note, 'saved note');
+  assert.equal(after.units[0].special_requirement, 'saved special');
+  assert.equal(after.units[0].final_copy, before.units[0].final_copy);
+  assert.equal(after.units[0].status, before.units[0].status);
+});
+
+test('DEV Mock 来源决策仅经模拟服务端改变，GET 返回结果', async () => {
+  const before = await buildMockWorkspace();
+  await resolveMockSourceChange('u4', { action: 'keep' });
+  await resolveMockSourceChange('u5', { action: 'regenerate' });
+  const after = await buildMockWorkspace();
+  assert.equal(before.units[3].source_changed, true);
+  assert.equal(after.units[3].source_changed, false);
+  assert.equal(after.units[3].status, before.units[3].status);
+  assert.equal(after.units[4].source_changed, false);
+  assert.equal(after.units[4].status, 'needs_revision');
 });

@@ -15,7 +15,7 @@ import type {
   ImageBatchExecutionMode,
   ImageBatchUnit,
   ImageBatchUnitStatus,
-} from '../../types/v2/imageBatch/imageBatch';
+} from '../../../types/v2/imageBatch/imageBatch';
 
 /** 页面类型中文标签（与 Foundation api/types PAGE_TYPE_LABELS 一致，内联避免运行时导入）。 */
 const PAGE_TYPE_LABELS_LOCAL: Record<string, string> = {
@@ -71,12 +71,12 @@ export function groupAssets(assets: AssetCheck[]): { characters: AssetCheck[]; s
 }
 
 /** 已选择页面（按 page_no 升序）。 */
-export function selectedUnits(units: ImageBatchUnit[]): ImageBatchUnit[] {
-  return units.filter((u) => u.selected).sort((a, b) => a.page_no - b.page_no);
+export function selectedUnits(units: ImageBatchUnit[], ids: ReadonlySet<number | string>): ImageBatchUnit[] {
+  return units.filter((u) => ids.has(u.id)).sort((a, b) => a.page_no - b.page_no);
 }
 
-export function selectionSummary(units: ImageBatchUnit[]): { selected: number; total: number } {
-  return { selected: units.filter((u) => u.selected).length, total: units.length };
+export function selectionSummary(units: ImageBatchUnit[], ids: ReadonlySet<number | string>): { selected: number; total: number } {
+  return { selected: selectedUnits(units, ids).length, total: units.length };
 }
 
 /**
@@ -84,9 +84,9 @@ export function selectionSummary(units: ImageBatchUnit[]): { selected: number; t
  *   - full：整批生成，忽略勾选，返回全部页面；
  *   - trial / partial：先做试样 / 选择部分页面生成，返回已勾选页面（可能为空，由 UI 提示）。
  */
-export function executionTargets(units: ImageBatchUnit[], mode: ImageBatchExecutionMode): ImageBatchUnit[] {
+export function executionTargets(units: ImageBatchUnit[], mode: ImageBatchExecutionMode, ids: ReadonlySet<number | string>): ImageBatchUnit[] {
   if (mode === 'full') return [...units].sort((a, b) => a.page_no - b.page_no);
-  return selectedUnits(units);
+  return selectedUnits(units, ids);
 }
 
 /** 是否存在来源页后来有修改的页面。 */

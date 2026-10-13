@@ -3,8 +3,10 @@
 // 端点约定（V2 foundation 风格，branch-aware；正式端点由 WorkBuddy Phase 2 /
 // Work 主程序集成对齐，路径不同仅需替换 base）：
 //   GET  /api/projects/{p}/items/{i}/branches/{b}/image-batch   → ImageBatchWorkspace
+//   PUT  /api/projects/{p}/items/{i}/branches/{b}/image-batch   → Draft only
 //   POST /api/projects/{p}/items/{i}/branches/{b}/image-batch/run → {mode, unit_ids}
 //   POST /api/projects/{p}/items/{i}/branches/{b}/image-batch/copy-task
+//   POST /api/projects/{p}/items/{i}/branches/{b}/image-batch/units/{unit}/source-change
 //
 // 正式链路：前端提交执行动作 → 后端组装整批说明 + 最新页面结构 + 当前备注 + 资产状态，
 // 并保留真实 AI task snapshot；前端不自己整理 Prompt、不伪造服务端状态。
@@ -12,10 +14,14 @@ import type {
   ImageBatchRunInput,
   ImageBatchRunResult,
   ImageBatchWorkspace,
-} from '../../types/v2/imageBatch/imageBatch';
+  ImageBatchDraftInput,
+  ImageBatchSourceChangeInput,
+  ImageBatchCopyResult,
+} from '../../../types/v2/imageBatch/imageBatch';
 
 interface Transport {
   get(url: string): Promise<{ data: unknown }>;
+  put(url: string, input: unknown): Promise<{ data: unknown }>;
   post(url: string, input: unknown): Promise<{ data: unknown }>;
 }
 
@@ -31,7 +37,13 @@ export function createImageBatchClient(http: Transport) {
       return (await http.post(base(p, i, b) + '/run', input)).data as ImageBatchRunResult;
     },
     async copyTask(p: number | string, i: number | string, b: number | string) {
-      return (await http.post(base(p, i, b) + '/copy-task', {})).data as { task: unknown };
+      return (await http.post(base(p, i, b) + '/copy-task', {})).data as ImageBatchCopyResult;
+    },
+    async saveDraft(p: number | string, i: number | string, b: number | string, input: ImageBatchDraftInput): Promise<void> {
+      await http.put(base(p, i, b), input);
+    },
+    async resolveSourceChange(p: number | string, i: number | string, b: number | string, unit: number | string, input: ImageBatchSourceChangeInput): Promise<void> {
+      await http.post(base(p, i, b) + '/units/' + encodeURIComponent(String(unit)) + '/source-change', input);
     },
   };
 }

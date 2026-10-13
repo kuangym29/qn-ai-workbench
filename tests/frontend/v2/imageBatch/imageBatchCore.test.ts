@@ -35,7 +35,7 @@ function makeUnit(overrides: Partial<ImageBatchUnit> = {}): ImageBatchUnit {
     characters: ['妈妈'],
     scene: '客厅',
     special_requirement: null,
-    selected: false,
+
     status: 'pending',
     ...overrides,
   };
@@ -94,38 +94,38 @@ test('groupAssets：按人物 / 场景分组且保持顺序', () => {
 
 test('selectionSummary / selectedUnits：勾选统计与升序', () => {
   const units = [
-    makeUnit({ id: 'u3', page_no: 3, selected: true }),
-    makeUnit({ id: 'u1', page_no: 1, selected: false }),
-    makeUnit({ id: 'u2', page_no: 2, selected: true }),
+    makeUnit({ id: 'u3', page_no: 3 }),
+    makeUnit({ id: 'u1', page_no: 1 }),
+    makeUnit({ id: 'u2', page_no: 2 }),
   ];
-  assert.deepEqual(selectionSummary(units), { selected: 2, total: 3 });
+  assert.deepEqual(selectionSummary(units, new Set(['u2', 'u3'])), { selected: 2, total: 3 });
   assert.deepEqual(
-    selectedUnits(units).map((u) => u.page_no),
+    selectedUnits(units, new Set(['u2', 'u3'])).map((u) => u.page_no),
     [2, 3],
   );
 });
 
 test('executionTargets：整批生成覆盖全部；试样 / 部分生成按勾选；无勾选返回空', () => {
   const units = [
-    makeUnit({ id: 'u1', page_no: 1, selected: true }),
-    makeUnit({ id: 'u2', page_no: 2, selected: false }),
-    makeUnit({ id: 'u3', page_no: 3, selected: true }),
+    makeUnit({ id: 'u1', page_no: 1 }),
+    makeUnit({ id: 'u2', page_no: 2 }),
+    makeUnit({ id: 'u3', page_no: 3 }),
   ];
   assert.deepEqual(
-    executionTargets(units, 'full').map((u) => u.page_no),
+    executionTargets(units, 'full', new Set(['u1', 'u3'])).map((u) => u.page_no),
     [1, 2, 3],
   );
   assert.deepEqual(
-    executionTargets(units, 'trial').map((u) => u.page_no),
+    executionTargets(units, 'trial', new Set(['u1', 'u3'])).map((u) => u.page_no),
     [1, 3],
   );
   assert.deepEqual(
-    executionTargets(units, 'partial').map((u) => u.page_no),
+    executionTargets(units, 'partial', new Set(['u1', 'u3'])).map((u) => u.page_no),
     [1, 3],
   );
-  assert.equal(executionTargets(units, 'trial').length, 2);
-  const none = units.map((u) => ({ ...u, selected: false }));
-  assert.equal(executionTargets(none, 'trial').length, 0);
+  assert.equal(executionTargets(units, 'trial', new Set(['u1', 'u3'])).length, 2);
+  const none = units.map((u) => ({ ...u }));
+  assert.equal(executionTargets(none, 'trial', new Set()).length, 0);
 });
 
 test('hasSourceChange / sourceChangedUnits：来源变化提示', () => {

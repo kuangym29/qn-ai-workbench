@@ -2,11 +2,11 @@
 // V2 图片批次 —— 页面单元卡（系统自动拆页，用户查看 / 轻量修正 / 选择参与本次生成）。
 // 原则：每页不需要重新完整录入；卡片以「最终文字弱展示 + 画面证据 + 人物 + 场景」为主，
 // 制作备注 / 特殊要求弱化；单页状态轻量；来源内容变化给轻量提醒。
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 import type { ImageBatchUnit } from '../../../types/v2/imageBatch/imageBatch';
 import { pageLabel, pageTypeLabel, unitStatusLabel } from '../../../composables/v2/imageBatch/imageBatchCore';
 
-const props = defineProps<{ unit: ImageBatchUnit; disabled?: boolean }>();
+const props = defineProps<{ unit: ImageBatchUnit; selected: boolean; disabled?: boolean }>();
 
 const emit = defineEmits<{
   toggle: [unit: ImageBatchUnit];
@@ -23,18 +23,25 @@ const statusTone: Record<string, string> = {
   approved: 'bg-blue-100 text-blue-700',
 };
 
-// 轻量修正：只允许编辑「特殊要求」一个弱化字段，保存后 emit update。
+// 轻量修正：输入即更新 Draft，让执行动作可以直接自动保存；取消恢复进入编辑前的值。
 const editing = ref(false);
 const draft = ref('');
+const original = ref('');
+watch(() => props.unit, () => { editing.value = false; });
 function startEdit(): void {
+  if (props.disabled) return;
   draft.value = props.unit.special_requirement ?? '';
+  original.value = draft.value;
   editing.value = true;
 }
 function saveEdit(): void {
+  if (props.disabled) return;
   emit('update', { ...props.unit, special_requirement: draft.value.trim() || null });
   editing.value = false;
 }
 function cancelEdit(): void {
+  if (props.disabled) return;
+  emit('update', { ...props.unit, special_requirement: original.value || null });
   editing.value = false;
 }
 </script>
@@ -50,7 +57,7 @@ function cancelEdit(): void {
           <input
             type="checkbox"
             class="h-4 w-4 rounded border-slate-300"
-            :checked="unit.selected"
+            :checked="selected"
             :disabled="disabled"
             @change="emit('toggle', unit)"
           />
@@ -80,6 +87,8 @@ function cancelEdit(): void {
       <textarea
         :id="'batch-special-' + unit.id"
         v-model="draft"
+        :disabled="disabled"
+        @input="emit('update', { ...unit, special_requirement: ($event.target as HTMLTextAreaElement).value || null })"
         rows="2"
         class="mt-1 w-full resize-y rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm text-slate-800 focus:border-slate-400 focus:outline-none"
         placeholder="本页生图特殊要求（可选）"
@@ -89,6 +98,7 @@ function cancelEdit(): void {
           type="button"
           class="rounded-md bg-slate-900 px-3 py-1 text-xs font-medium text-white hover:bg-slate-800"
           @click="saveEdit"
+          :disabled="disabled"
         >
           保存
         </button>
@@ -96,6 +106,7 @@ function cancelEdit(): void {
           type="button"
           class="rounded-md border border-slate-300 px-3 py-1 text-xs text-slate-600 hover:bg-slate-100"
           @click="cancelEdit"
+          :disabled="disabled"
         >
           取消
         </button>
@@ -109,9 +120,9 @@ function cancelEdit(): void {
       role="status"
     >
       <span>⚠ 来源内容后来有修改，建议检查本页图片是否受影响。</span>
-      <button type="button" class="underline hover:text-amber-900" @click="emit('viewChange', unit)">查看修改</button>
-      <button type="button" class="underline hover:text-amber-900" @click="emit('keepCurrent', unit)">继续沿用</button>
-      <button type="button" class="underline hover:text-amber-900" @click="emit('regenerate', unit)">重新生成</button>
+      <button type="button" :disabled="disabled" class="underline hover:text-amber-900" @click="emit('viewChange', unit)">查看修改</button>
+      <button type="button" :disabled="disabled" class="underline hover:text-amber-900" @click="emit('keepCurrent', unit)">继续沿用</button>
+      <button type="button" :disabled="disabled" class="underline hover:text-amber-900" @click="emit('regenerate', unit)">重新生成</button>
     </div>
     <p v-if="unit.source_changed && unit.source_change_summary" class="mt-1 text-xs text-amber-700">
       {{ unit.source_change_summary }}
