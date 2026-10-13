@@ -56,7 +56,7 @@ preview 的 before/after 支持 JSON 值，配图建议作为整个字段展示�
 | Cancel | 数据库仍 0 篇、0 版本 |
 | 人工编辑 / PUT / 刷新 | 标题、摘要、正文、封面保存并保留；1 版本 |
 | AI Preview modified / unchanged | 正文、标题、配图等修改；摘要未变化；数组正常展示 |
-| Confirm Apply / GET / 刷新 | 旁白式长正文换行、共享核心表达与配图正常加载；2 版本 |
+| Confirm Apply / GET / 刷新 | 正文换行、共享核心表达与配图正常加载；2 版本 |
 | 不编辑再 PUT | 仍 2 版本 |
 | 再次相同 AI Preview | 五字段全部 unchanged、确认禁用；取消不写库 |
 | 非 article 分支 | 正式页面 422；API 同一校验由 ArticleApiTest 锁定 |
@@ -75,8 +75,15 @@ preview 的 before/after 支持 JSON 值，配图建议作为整个字段展示�
 - Typecheck：PASS。
 - Build：PASS。
 - diff --check：PASS。
-- MySQL 8.4：执行中，最终结果收尾登记。
+- MySQL 8.4：当前代码提交 `992a92156b6f13234e46fe3af8a66e1c27caea2a` 的 CI gate PASS，387 tests / 3850 assertions。
+- CI 已自证真实 MySQL 8.4.11、InnoDB、隔离库 qn_workbench_test，结构断言、全链 rollback/re-migrate 和完整 PHP suite 均 PASS。
+- CI 日志：https://github.com/kuangym29/qn-ai-workbench/actions/runs/38435958196/job/115429844171 。
+- 本地 gate 已连接真实 8.4.11，但 Windows DDL 极慢；最终提交 CI 全绿后停止冗余本地 runner，没有把本地未完成计为通过。
 
 ## 收尾
 
-MySQL gate 完成后发布独立集成分支并建立指向 codex/v2-foundation 的 Draft PR。确认来源 ancestry 后关闭 PR #30，标记 `superseded by V2-P2-I02 integration`，保留 WorkBuddy 分支。不得 merge Foundation/main。
+已发布 Draft PR #34 → codex/v2-foundation。原生 GitHub 推送多次连接失败，改用连接器逐个发布相同的 merge/fix 文件树，全部树 SHA 与验收版本相同，保留 B02/C02 原始 ancestry 和两个集成 merge。
+
+PR #30 已关闭且未合并，标记 `superseded by V2-P2-I02 integration`；保留 WorkBuddy 分支。Foundation/main 均未推进。
+
+状态：V2-P2-I02_DONE。独立分支冻结，不自行 merge Foundation/main。
