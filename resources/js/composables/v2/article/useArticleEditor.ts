@@ -1,9 +1,10 @@
-// V2 公众号图文文章 —— 编辑器状态机 composable。
+// V2 公众号图文文章 —— 编辑器状态机 composable（R1：branch-aware）。
 //
 // AI 导入：前端不解析。链路为
 //   paste → runPreview()（调 previewProvider，默认后端）→ preview 展示
 //   → confirmImport()（调 applyProvider，默认后端 apply）→ 刷新工作负载
-// 开发预览注入显式 MOCK providers（见 ImagePostDevPreviewApp 同目录 ArticleDevPreviewApp）。
+// 开发预览注入显式 MOCK providers（见 ArticleDevPreviewApp，MOCK 位于 articleDevMock.ts，
+// 正式生产模块不引用）。
 import { computed, ref } from 'vue';
 import type {
   ArticleContentItem,
@@ -32,6 +33,7 @@ export interface ArticleEditorOptions {
 export function useArticleEditor(
   projectId: number | string,
   itemId: number | string,
+  branchId: number | string,
   options: ArticleEditorOptions = {},
 ) {
   const item = ref<ArticleContentItem | null>(null);
@@ -47,15 +49,15 @@ export function useArticleEditor(
   const preview = ref<ArticleImportPreview | null>(null);
 
   const providers: ArticleImportProviders = options.providers ?? {
-    preview: (raw) => articleApi.preview(projectId, itemId, raw),
-    apply: (raw) => articleApi.apply(projectId, itemId, raw),
+    preview: (raw) => articleApi.preview(projectId, itemId, branchId, raw),
+    apply: (raw) => articleApi.apply(projectId, itemId, branchId, raw),
   };
 
   async function load(): Promise<void> {
     loading.value = true;
     loadError.value = '';
     try {
-      const ws = await articleApi.loadWorkspace(projectId, itemId);
+      const ws = await articleApi.loadWorkspace(projectId, itemId, branchId);
       item.value = ws.item;
       fields.value = normalizeArticleFields(ws.article);
     } catch (e) {
@@ -138,7 +140,7 @@ export function useArticleEditor(
     if (!item.value) return false;
     saving.value = true;
     try {
-      const ws = await articleApi.save(projectId, itemId, fields.value);
+      const ws = await articleApi.save(projectId, itemId, branchId, fields.value);
       item.value = ws.item;
       fields.value = normalizeArticleFields(ws.article);
       toast.success('已保存图文文章');

@@ -1,7 +1,10 @@
-// V2 公众号图文文章 —— API adapter。
+// V2 公众号图文文章 —— API adapter（R1 合同收口：branch-aware）。
 //
-// 端点按 V2 foundation 风格约定（/api/projects/{project}/v2/article/{item}），
-// 正式端点由 WorkBuddy Phase 2 后端实现后对齐；路径不同仅需替换 base。
+// 正式端点（冻结，R1）：
+//   GET  /api/projects/{project}/items/{item}/branches/{branch}/article
+//   PUT  /api/projects/{project}/items/{item}/branches/{branch}/article
+//   POST /api/projects/{project}/items/{item}/branches/{branch}/article/preview
+//   POST /api/projects/{project}/items/{item}/branches/{branch}/article/apply
 //
 // 正式 AI 导入链路（后端为唯一解析者）：
 //   POST .../preview  raw → ArticleImportPreview
@@ -15,8 +18,12 @@ import type {
   ArticleSaveInput,
 } from '../../../types/v2/article/article';
 
-function base(projectId: number | string, itemId: number | string): string {
-  return `/api/projects/${Number(projectId)}/v2/article/${Number(itemId)}`;
+function base(
+  projectId: number | string,
+  itemId: number | string,
+  branchId: number | string,
+): string {
+  return `/api/projects/${Number(projectId)}/items/${Number(itemId)}/branches/${Number(branchId)}/article`;
 }
 
 export const articleApi = {
@@ -24,8 +31,11 @@ export const articleApi = {
   async loadWorkspace(
     projectId: number | string,
     itemId: number | string,
+    branchId: number | string,
   ): Promise<ArticleEditorWorkspace> {
-    const res = await http.get<ApiResponse<ArticleEditorWorkspace>>(base(projectId, itemId));
+    const res = await http.get<ApiResponse<ArticleEditorWorkspace>>(
+      base(projectId, itemId, branchId),
+    );
     return res.data.data;
   },
 
@@ -33,9 +43,13 @@ export const articleApi = {
   async save(
     projectId: number | string,
     itemId: number | string,
+    branchId: number | string,
     input: ArticleSaveInput,
   ): Promise<ArticleEditorWorkspace> {
-    const res = await http.put<ApiResponse<ArticleEditorWorkspace>>(base(projectId, itemId), input);
+    const res = await http.put<ApiResponse<ArticleEditorWorkspace>>(
+      base(projectId, itemId, branchId),
+      input,
+    );
     return res.data.data;
   },
 
@@ -43,10 +57,11 @@ export const articleApi = {
   async preview(
     projectId: number | string,
     itemId: number | string,
+    branchId: number | string,
     raw: string,
   ): Promise<ArticleImportPreview> {
     const res = await http.post<ApiResponse<ArticleImportPreview>>(
-      `${base(projectId, itemId)}/preview`,
+      `${base(projectId, itemId, branchId)}/preview`,
       { raw },
     );
     return res.data.data;
@@ -56,10 +71,11 @@ export const articleApi = {
   async apply(
     projectId: number | string,
     itemId: number | string,
+    branchId: number | string,
     raw: string,
   ): Promise<ArticleEditorWorkspace> {
     const res = await http.post<ApiResponse<ArticleEditorWorkspace>>(
-      `${base(projectId, itemId)}/apply`,
+      `${base(projectId, itemId, branchId)}/apply`,
       { raw },
     );
     return res.data.data;
