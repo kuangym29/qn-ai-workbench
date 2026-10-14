@@ -28,28 +28,28 @@
 - Long Review content and controls at 353px, including drawer and comment editing.
 
 ### Task 1: Verify source and baseline
-- [ ] Verify source SHAs, P02A ancestry and isolated worktree.
-- [ ] Run I06B baseline SQLite suite before integration.
+- [x] Verify source SHAs, P02A ancestry and isolated worktree.
+- [x] Run I06B baseline SQLite suite before integration.
 
 ### Task 2: Compose shared contracts
 Files: `routes/web.php`, `app/Models/Project.php`, `tests/Feature/V2/PromotionStage2BIntegrationTest.php`; providers only if a real conflict requires it.
-- [ ] Add route smoke/uniqueness, Project relation and container binding regression tests.
-- [ ] Run RED on I06B (Review is absent).
-- [ ] Merge I03; inspect every conflict; retain all six module route families and both relation sets.
-- [ ] Run new tests GREEN and targeted backend/frontend contracts; commit integration.
+- [x] Add route smoke/uniqueness, Project relation and container binding regression tests.
+- [x] Run RED on I06B (Review is absent).
+- [x] Merge I03; inspect every conflict; retain all six module route families and both relation sets.
+- [x] Run new tests GREEN and targeted backend/frontend contracts; commit integration.
 
 ### Task 3: Complete automated verification
-- [ ] Run all frontend test files (excluding browser harness entrypoints), typecheck, build and diff check.
-- [ ] Run full SQLite, all migration cycles and full MySQL 8.4 gate including Review concurrency.
-- [ ] Inspect production imports for mock fallback and forbidden producers; publish Draft staging PR for CI.
+- [x] Run all frontend test files (excluding browser harness entrypoints), typecheck, build and diff check.
+- [x] Run full SQLite, all migration cycles and full MySQL 8.4 gate including Review concurrency.
+- [x] Inspect production imports for mock fallback and forbidden producers; publish Draft staging PR for CI.
 
 ### Task 4: Real browser matrix
-- [ ] Start isolated Laravel with real Vite build and disposable seeded SQLite.
-- [ ] Exercise ImagePost, Article, Video, ImageBatch, ReusableAssets and Review flows specified by the user.
-- [ ] Verify Content Library/Detail and all business pages at353px; Review/assets at390px; shell at768/1024/1440; drawer open/close/overlay/ESC.
-- [ ] Record actual document/client widths and expected versus unexpected console errors; fix only reproduced integration bugs using RED→GREEN.
+- [x] Start isolated Laravel with real Vite build and disposable seeded SQLite.
+- [x] Exercise ImagePost, Article, Video, ImageBatch, ReusableAssets and Review flows specified by the user.
+- [x] Verify Content Library/Detail and all business pages at353px; Review/assets at390px; shell at768/1024/1440; drawer open/close/overlay/ESC.
+- [x] Record actual document/client widths and expected versus unexpected console errors; fix only reproduced integration bugs using RED→GREEN.
 
 ### Task 5: Review and freeze
-- [ ] Conduct a fresh review against all20 user focus items; resolve important findings with regression tests.
-- [ ] Push final branch, verify final CI and clean status, record40-field report.
-- [ ] Close PR42/43 as superseded without merge; keep PR40 open/draft/frozen. Stop.
+- [x] Conduct a fresh review against all20 user focus items; resolve important findings with regression tests.
+- [x] Push final branch, verify final CI and clean status, record40-field report.
+- [x] Close PR42/43 as superseded without merge; keep PR40 open/draft/frozen. Stop.
