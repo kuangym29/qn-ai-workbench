@@ -37,4 +37,13 @@ class ReviewPageIntegrationTest extends TestCase
         $this->assertSame(['data'], array_keys($body));
         $this->assertNull($body['data']['preview']);
     }
+
+    public function test_all_review_api_endpoints_require_authentication(): void
+    {
+        $review = ReviewRequest::factory()->create();
+        $base = "/api/projects/{$review->project_id}/reviews";
+        $this->getJson($base)->assertUnauthorized();
+        $this->getJson($base.'/'.$review->id)->assertUnauthorized();
+        $this->postJson($base.'/'.$review->id.'/decision', ['decision' => 'approved'])->assertUnauthorized();
+    }
 }

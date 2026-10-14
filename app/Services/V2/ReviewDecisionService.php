@@ -40,7 +40,7 @@ class ReviewDecisionService
         }
 
         return DB::transaction(function () use ($request, $decision, $comment, $targetLabel): ReviewDecision {
-            $request->refresh();
+            $request = ReviewRequest::query()->lockForUpdate()->findOrFail($request->id);
             if (! $request->isPending()) {
                 throw new \DomainException('审核已结束，不能重复决策。');
             }

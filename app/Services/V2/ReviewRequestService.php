@@ -38,6 +38,8 @@ class ReviewRequestService
         $label = $data['review_target_label'] ?? $target->label();
 
         return DB::transaction(function () use ($project, $branch, $data, $target, $label): ReviewRequest {
+            // Lock an existing parent, including when no pending row exists yet.
+            ContentBranch::query()->where('project_id', $project->id)->lockForUpdate()->findOrFail($branch->id);
             $existing = ReviewRequest::query()
                 ->where('content_branch_id', $branch->id)
                 ->where('review_target_type', $target->value)

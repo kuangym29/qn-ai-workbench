@@ -17,6 +17,16 @@ class ReviewMigrationRollbackTest extends TestCase
 {
     use DatabaseMigrations;
 
+    public function test_reset_then_remigrate_restores_both_tables(): void
+    {
+        $this->artisan('migrate:reset', ['--force' => true])->assertExitCode(0);
+        $this->assertFalse(Schema::hasTable('review_requests'));
+        $this->assertFalse(Schema::hasTable('review_decisions'));
+        $this->artisan('migrate', ['--force' => true])->assertExitCode(0);
+        $this->assertTrue(Schema::hasTable('review_requests'));
+        $this->assertTrue(Schema::hasTable('review_decisions'));
+    }
+
     public function test_review_tables_present_after_migrate_and_removed_after_rollback(): void
     {
         $this->assertTrue(Schema::hasTable('review_requests'));
