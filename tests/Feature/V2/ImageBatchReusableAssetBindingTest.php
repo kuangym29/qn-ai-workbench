@@ -197,7 +197,9 @@ class ImageBatchReusableAssetBindingTest extends TestCase
             ->json();
 
         $run = ImageBatchRun::query()->findOrFail($result['batch_id']);
-        $this->assertSame([
+        // 快照从 MySQL JSON 列回读时键顺序会被规范化（与 SQLite/PHP 插入顺序不同），
+        // 但 JS 按键名读取、顺序无关；用 assertEquals 放松字典键序、保留列表顺序。
+        $this->assertEquals([
             ['type' => 'character', 'name' => '妈妈', 'status' => 'existing'],
             ['type' => 'scene', 'name' => '客厅', 'status' => 'existing'],
             ['type' => 'character', 'name' => '爸爸', 'status' => 'missing'],
