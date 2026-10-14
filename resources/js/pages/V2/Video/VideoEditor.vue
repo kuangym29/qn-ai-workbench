@@ -96,7 +96,6 @@ onMounted(async () => {
 
 <style scoped>
 @media (max-width: 639px) {
-  .v2-video-workspace :deep(aside) { display: none; }
   .v2-video-workspace :deep(header) { flex-wrap: wrap; gap: 0.5rem; padding-left: 0.75rem; padding-right: 0.75rem; }
   .v2-video-workspace :deep(header > div) { flex-wrap: wrap; min-width: 0; max-width: 100%; }
   .v2-video-workspace :deep(main) { min-width: 0; padding: 0.75rem; }

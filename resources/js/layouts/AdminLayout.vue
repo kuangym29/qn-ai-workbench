@@ -1,19 +1,29 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 
 // Mobile drawer state. On desktop (md+) the sidebar is a static flex child and
 // this flag is ignored (the md: variants force it visible/in-flow). On mobile the
 // sidebar is an off-canvas drawer toggled by the hamburger button; a backdrop and
 // ESC also close it. No third-party drawer library is used.
 const sidebarOpen = ref(false);
-function toggleSidebar(): void {
-  sidebarOpen.value = !sidebarOpen.value;
+const sidebarElement = ref<HTMLElement | null>(null);
+const menuButton = ref<HTMLButtonElement | null>(null);
+const headerElement = ref<HTMLElement | null>(null);
+const headerHeight = ref(0);
+let headerObserver: ResizeObserver | null = null;
+async function toggleSidebar(): Promise<void> {
+  if (sidebarOpen.value) { closeSidebar(); return; }
+  sidebarOpen.value = true;
+  await nextTick();
+  sidebarElement.value?.querySelector<HTMLElement>('button:not([disabled]), a[href]')?.focus();
 }
 function closeSidebar(): void {
+  const wasOpen = sidebarOpen.value;
   sidebarOpen.value = false;
+  if (wasOpen) void nextTick(() => menuButton.value?.focus());
 }
 function onKeydown(event: KeyboardEvent): void {
-  if (event.key === 'Escape') sidebarOpen.value = false;
+  if (event.key === 'Escape') closeSidebar();
 }
 import { Link, router, usePage } from '@inertiajs/vue3';
 import type { Project } from '../api/types';
@@ -84,6 +94,10 @@ let authInterceptor: number | null = null;
 
 onMounted(async () => {
   window.addEventListener('keydown', onKeydown);
+  const measureHeader = () => { headerHeight.value = headerElement.value?.getBoundingClientRect().height ?? 0; };
+  measureHeader();
+  headerObserver = new ResizeObserver(measureHeader);
+  if (headerElement.value) headerObserver.observe(headerElement.value);
   authInterceptor = http.interceptors.response.use(
     (response) => response,
     async (error: unknown) => {
@@ -104,6 +118,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown);
+  headerObserver?.disconnect();
   if (authInterceptor !== null) http.interceptors.response.eject(authInterceptor);
 });
 
@@ -181,14 +196,15 @@ async function onSwitch(event: Event): Promise<void> {
       </button>
     </div>
   </div>
-  <div v-else class="flex h-screen bg-slate-100">
+  <div v-else class="flex h-screen bg-slate-100" :style="{ '--mobile-header-height': `${headerHeight}px` }">
     <!-- Sidebar: static flex child on desktop (md+); off-canvas drawer on mobile.
          md: variants force it back into normal flow and always visible, so the
          desktop layout is unchanged. The mobile state (translate) is driven by
          sidebarOpen below. -->
     <aside
-      class="fixed inset-y-0 left-0 z-40 flex w-60 flex-col bg-slate-900 text-slate-300 transition-transform md:static md:z-auto md:translate-x-0"
-      :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+      ref="sidebarElement"
+      class="fixed inset-y-0 top-[var(--mobile-header-height)] left-0 z-40 flex w-60 flex-col bg-slate-900 text-slate-300 transition-transform md:static md:top-0 md:z-auto md:translate-x-0 md:visible"
+      :class="sidebarOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'"
     >
       <div class="border-b border-slate-800 px-5 py-4">
         <p class="text-sm font-semibold text-white">QN AI 内容工作台</p>
@@ -217,10 +233,12 @@ async function onSwitch(event: Event): Promise<void> {
            project selector / user area / hamburger never force a horizontal
            scroll; secondary labels collapse below md/sm. -->
       <header
+        ref="headerElement"
         class="relative z-50 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 md:px-6"
       >
         <div class="flex min-w-0 items-center gap-2">
           <button
+            ref="menuButton"
             type="button"
             class="inline-flex shrink-0 items-center justify-center rounded-md border border-slate-300 p-1.5 text-slate-700 hover:bg-slate-50 md:hidden"
             :aria-expanded="sidebarOpen"
