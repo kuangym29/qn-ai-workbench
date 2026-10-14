@@ -17,6 +17,10 @@ use InvalidArgumentException;
 /** V2 entrypoints deliberately keep the still-running legacy nested API intact. */
 class V2ContentController extends Controller
 {
+    public function __construct(
+        private readonly ImageBatchWorkspaceService $workspace,
+    ) {}
+
     private function scope(Request $request, Project $project): void
     {
         app(ProjectContext::class)->assertCurrent($request, $project);
@@ -69,7 +73,7 @@ class V2ContentController extends Controller
         $contentBranch = $model->contentBranches()->where('project_id', $project->id)->findOrFail($branch);
 
         try {
-            (new ImageBatchWorkspaceService())->assertImageBatch($contentBranch);
+            $this->workspace->assertImageBatch($contentBranch);
         } catch (InvalidArgumentException $e) {
             abort(422, $e->getMessage());
         }

@@ -9,7 +9,6 @@ use App\Models\ContentItem;
 use App\Models\ContentPage;
 use App\Models\ImageBatchRun;
 use App\Models\ImageBatchUnitSetting;
-use App\Services\V2\EmptyAssetNameSource;
 use App\Services\V2\ImageBatchAssetResolver;
 use App\Services\V2\ImageBatchCopyTaskService;
 use App\Services\V2\ImageBatchRunService;
@@ -79,7 +78,9 @@ class ImageBatchServiceTest extends TestCase
     {
         $item = $this->item();
         $page = $this->page($item, 1);
-        $resolver = new ImageBatchAssetResolver(new EmptyAssetNameSource);
+        // I06B：容器默认把 AssetNameSource 绑到 ReusableAssetNameSource（经 EmptyAssetReferenceReader），
+        // 无显式引用 → 返回空。这里用真实默认绑定验证「默认空」语义。
+        $resolver = new ImageBatchAssetResolver($this->app->make(AssetNameSource::class));
 
         $this->assertSame([], $resolver->characters($page));
         $this->assertNull($resolver->scene($page));
@@ -135,7 +136,7 @@ class ImageBatchServiceTest extends TestCase
         $this->page($item, 1);
         $this->page($item, 2);
 
-        $workspace = (new ImageBatchWorkspaceService)->workspace($branch);
+        $workspace = $this->app->make(ImageBatchWorkspaceService::class)->workspace($branch);
 
         $this->assertSame(['content_title', 'source_label', 'batch_instruction', 'batch_note', 'assets', 'units', 'history'], array_keys($workspace));
         $this->assertCount(2, $workspace['units']);
@@ -152,7 +153,7 @@ class ImageBatchServiceTest extends TestCase
         ]);
 
         $this->expectException(\InvalidArgumentException::class);
-        (new ImageBatchWorkspaceService)->workspace($branch);
+        $this->app->make(ImageBatchWorkspaceService::class)->workspace($branch);
     }
 
     public function test_save_draft_rejects_forbidden_top_level_keys(): void
@@ -161,7 +162,7 @@ class ImageBatchServiceTest extends TestCase
         $branch = $this->branch($item);
 
         $this->expectException(\InvalidArgumentException::class);
-        (new ImageBatchWorkspaceService)->saveDraft($branch, ['batch_instruction' => 'x', 'history' => []]);
+        $this->app->make(ImageBatchWorkspaceService::class)->saveDraft($branch, ['batch_instruction' => 'x', 'history' => []]);
     }
 
     public function test_run_returns_queued_and_persists_snapshot(): void
@@ -170,7 +171,7 @@ class ImageBatchServiceTest extends TestCase
         $branch = $this->branch($item);
         $this->page($item, 1);
 
-        $result = (new ImageBatchRunService)->run($branch, ['mode' => 'full', 'unit_ids' => []]);
+        $result = $this->app->make(ImageBatchRunService::class)->run($branch, ['mode' => 'full', 'unit_ids' => []]);
 
         $this->assertSame(['batch_id', 'mode', 'unit_ids', 'status'], array_keys($result));
         $this->assertSame('queued', $result['status']);
@@ -187,12 +188,12 @@ class ImageBatchServiceTest extends TestCase
         $branch = $this->branch($item);
         $this->page($item, 1, ['final_copy' => '唯一文字']);
 
-        (new ImageBatchWorkspaceService)->saveDraft($branch, [
+        $this->app->make(ImageBatchWorkspaceService::class)->saveDraft($branch, [
             'batch_instruction' => '服务层说明',
             'batch_note' => '服务层备注',
         ]);
 
-        $task = (new ImageBatchCopyTaskService)->task($branch)['task'];
+        $task = $this->app->make(ImageBatchCopyTaskService::class)->task($branch)['task'];
 
         $this->assertStringContainsString('服务层说明', $task);
         $this->assertStringContainsString('服务层备注', $task);

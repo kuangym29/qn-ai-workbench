@@ -19,8 +19,8 @@ use InvalidArgumentException;
 class ImageBatchSourceChangeService
 {
     public function __construct(
-        private readonly ImageBatchWorkspaceService $workspace = new ImageBatchWorkspaceService,
-        private readonly ImageBatchSourceService $source = new ImageBatchSourceService,
+        private readonly ImageBatchWorkspaceService $workspace,
+        private readonly ImageBatchSourceService $source,
     ) {}
 
     public function resolve(ContentBranch $branch, int $unitId, string $action): ImageBatchUnitSetting

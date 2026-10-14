@@ -26,8 +26,8 @@ use InvalidArgumentException;
 class ImageBatchRunService
 {
     public function __construct(
-        private readonly ImageBatchWorkspaceService $workspace = new ImageBatchWorkspaceService,
-        private readonly ImageBatchAssetResolver $assets = new ImageBatchAssetResolver,
+        private readonly ImageBatchWorkspaceService $workspace,
+        private readonly ImageBatchAssetResolver $assets,
     ) {}
 
     /**

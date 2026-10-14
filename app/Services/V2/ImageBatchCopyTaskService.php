@@ -24,8 +24,8 @@ class ImageBatchCopyTaskService
     ];
 
     public function __construct(
-        private readonly ImageBatchWorkspaceService $workspace = new ImageBatchWorkspaceService,
-        private readonly ImageBatchAssetResolver $assets = new ImageBatchAssetResolver,
+        private readonly ImageBatchWorkspaceService $workspace,
+        private readonly ImageBatchAssetResolver $assets,
     ) {}
 
     /** @return array{task: string} */

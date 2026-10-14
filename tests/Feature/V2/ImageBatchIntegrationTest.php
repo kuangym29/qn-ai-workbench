@@ -10,7 +10,8 @@ use App\Models\ContentBranch;
 use App\Models\ContentItem;
 use App\Models\ContentPage;
 use App\Models\Project;
-use App\Models\ReusableAsset;
+use App\Contracts\V2\ReusableAssetReferenceReader;
+use App\Services\V2\EmptyAssetReferenceReader;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -315,8 +316,13 @@ class ImageBatchIntegrationTest extends TestCase
         $this->page($item, 1);
         $this->acting($item);
 
-        // I05 不吸收 B06：保持 Foundation + B05 的默认 AssetNameSource 行为。
-        $this->assertFalse(class_exists(ReusableAsset::class), 'I05 不应引入 B06 资产索引');
+        // I06B：ReusableAsset 资产索引已吸收，但默认引用读取器仍是 EmptyAssetReferenceReader，
+        // 未登记任何显式引用 → assets / characters / scene 默认全空。
+        $this->assertInstanceOf(
+            EmptyAssetReferenceReader::class,
+            $this->app->make(ReusableAssetReferenceReader::class),
+            'I06B 默认引用读取器必须是 EmptyAssetReferenceReader（不推断）'
+        );
         $body = $this->show($item, $branch);
 
         $this->assertSame([], $body['assets']);

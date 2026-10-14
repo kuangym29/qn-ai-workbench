@@ -27,7 +27,7 @@ class ImageBatchAssetResolver
         AssetCheckStatus::NewInBatch->value => 3,
     ];
 
-    public function __construct(private readonly AssetNameSource $source = new EmptyAssetNameSource) {}
+    public function __construct(private readonly AssetNameSource $source) {}
 
     /**
      * 某一页的人物名（保持顺序、去重）。

@@ -16,6 +16,7 @@ use App\Http\Controllers\V2\ImageBatchController;
 use App\Http\Controllers\V2\ImagePostImportController;
 use App\Http\Controllers\V2\ArticleImportController;
 use App\Http\Controllers\V2\VideoController;
+use App\Http\Controllers\V2\ReusableAssetController;
 use App\Http\Controllers\V2ContentController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -170,6 +171,8 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/projects/{project}/content/{item}/branches/{branch}/video', [\App\Http\Controllers\V2\VideoController::class, 'page']);
     // I05：图片批次生产正式页面（分支资格由 API 单一真源校验，不合格 → 422）。
     Route::get('/projects/{project}/content/{item}/branches/{branch}/image-batch', [$controller, 'imageBatchPage']);
+    // I06B：人物 / 场景复用资产索引正式页面（只读索引，数据由前端通过只读 API 拉取）。
+    Route::get('/projects/{project}/reusable-assets', [ReusableAssetController::class, 'page']);
     Route::prefix('api/projects/{project}')->group(function () use ($controller): void {
         Route::get('/inspirations', [$controller, 'inspirations']);
         Route::post('/inspirations', [$controller, 'saveInspiration']);
@@ -206,6 +209,8 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/items/{item}/branches/{branch}/image-batch/run', [ImageBatchController::class, 'run']);
         Route::post('/items/{item}/branches/{branch}/image-batch/copy-task', [ImageBatchController::class, 'copyTask']);
         Route::post('/items/{item}/branches/{branch}/image-batch/units/{unit}/source-change', [ImageBatchController::class, 'sourceChange']);
+        // I06B：人物 / 场景复用资产索引只读 API（GET 契约 {characters, scenes}，不包 data.data）。
+        Route::get('/reusable-assets', [ReusableAssetController::class, 'index']);
     });
 
     // B02：公众号 · 图文文章（article）后端。GET 读 / PUT 人工保存 / preview 只读预览 / apply 确认落库。

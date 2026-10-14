@@ -32,13 +32,20 @@ use InvalidArgumentException;
  */
 class ImageBatchController extends Controller
 {
+    public function __construct(
+        private readonly ImageBatchWorkspaceService $workspaceService,
+        private readonly ImageBatchRunService $runService,
+        private readonly ImageBatchCopyTaskService $copyTaskService,
+        private readonly ImageBatchSourceChangeService $sourceChangeService,
+    ) {}
+
     public function show(Request $request, Project $project, int $item, int $branch): JsonResponse
     {
         app(ProjectContext::class)->assertCurrent($request, $project);
         $branchModel = $this->resolveBranch($project, $item, $branch);
 
         try {
-            $workspace = (new ImageBatchWorkspaceService)->workspace($branchModel);
+            $workspace = $this->workspaceService->workspace($branchModel);
         } catch (InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
@@ -67,7 +74,7 @@ class ImageBatchController extends Controller
         ]);
 
         try {
-            (new ImageBatchWorkspaceService)->saveDraft($branchModel, $data);
+            $this->workspaceService->saveDraft($branchModel, $data);
         } catch (InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
@@ -87,7 +94,7 @@ class ImageBatchController extends Controller
         ]);
 
         try {
-            $result = (new ImageBatchRunService)->run($branchModel, $data);
+            $result = $this->runService->run($branchModel, $data);
         } catch (InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
@@ -101,7 +108,7 @@ class ImageBatchController extends Controller
         $branchModel = $this->resolveBranch($project, $item, $branch);
 
         try {
-            $result = (new ImageBatchCopyTaskService)->task($branchModel);
+            $result = $this->copyTaskService->task($branchModel);
         } catch (InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
@@ -119,7 +126,7 @@ class ImageBatchController extends Controller
         ]);
 
         try {
-            $setting = (new ImageBatchSourceChangeService)->resolve($branchModel, $unit, $data['action']);
+            $setting = $this->sourceChangeService->resolve($branchModel, $unit, $data['action']);
         } catch (InvalidArgumentException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         } catch (ModelNotFoundException $e) {
