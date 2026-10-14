@@ -15,6 +15,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use InvalidArgumentException;
+use Inertia\Inertia;
+use Inertia\Response;
 
 /**
  * V2 轻量审核中心 HTTP 入口。审核中心不是审批系统：只做「待我审核 / 通过 / 退回修改」。
@@ -29,6 +31,13 @@ use InvalidArgumentException;
  */
 class ReviewController extends Controller
 {
+    public function page(Request $request, Project $project): Response
+    {
+        app(ProjectContext::class)->assertCurrent($request, $project);
+
+        return Inertia::render('V2/Review/ReviewCenter', ['projectId' => $project->id]);
+    }
+
     public function index(Request $request, Project $project): JsonResponse
     {
         app(ProjectContext::class)->assertCurrent($request, $project);

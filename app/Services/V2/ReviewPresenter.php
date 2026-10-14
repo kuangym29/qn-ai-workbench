@@ -46,7 +46,7 @@ class ReviewPresenter
     public function toDetail(ReviewRequest $request): array
     {
         return array_merge($this->toItem($request), [
-            'preview' => $request->preview ?? ['kind' => 'text', 'text' => null],
+            'preview' => $request->preview,
         ]);
     }
 
