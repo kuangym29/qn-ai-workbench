@@ -12,6 +12,7 @@ use App\Http\Controllers\ProductionTaskController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SourceReferenceController;
 use App\Http\Controllers\TopicController;
+use App\Http\Controllers\V2\ImageBatchController;
 use App\Http\Controllers\V2\ImagePostImportController;
 use App\Http\Controllers\V2\ArticleImportController;
 use App\Http\Controllers\V2\VideoController;
@@ -167,6 +168,8 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/projects/{project}/content/{item}/branches/{branch}/image-post', [$controller, 'imagePostPage']);
     Route::get('/projects/{project}/content/{item}/branches/{branch}/article', [ArticleImportController::class, 'editor']);
     Route::get('/projects/{project}/content/{item}/branches/{branch}/video', [\App\Http\Controllers\V2\VideoController::class, 'page']);
+    // I05：图片批次生产正式页面（分支资格由 API 单一真源校验，不合格 → 422）。
+    Route::get('/projects/{project}/content/{item}/branches/{branch}/image-batch', [$controller, 'imageBatchPage']);
     Route::prefix('api/projects/{project}')->group(function () use ($controller): void {
         Route::get('/inspirations', [$controller, 'inspirations']);
         Route::post('/inspirations', [$controller, 'saveInspiration']);
@@ -195,6 +198,14 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/items/{item}/branches/{branch}/video', [VideoController::class, 'show']);
         Route::put('/items/{item}/branches/{branch}/video', [VideoController::class, 'save']);
         Route::post('/items/{item}/branches/{branch}/video/source-change', [VideoController::class, 'sourceChange']);
+        // I05：图片批次生产（image_post + wechat_official 分支），正式接通 C05-R1 前端。
+        // GET 工作台本体（不包 data）/ PUT 整批草稿 / POST 执行（第一阶段只留 queued 记录）/
+        // POST 复制服务端组装任务 / POST 单页来源变化处理（keep / regenerate）。
+        Route::get('/items/{item}/branches/{branch}/image-batch', [ImageBatchController::class, 'show']);
+        Route::put('/items/{item}/branches/{branch}/image-batch', [ImageBatchController::class, 'save']);
+        Route::post('/items/{item}/branches/{branch}/image-batch/run', [ImageBatchController::class, 'run']);
+        Route::post('/items/{item}/branches/{branch}/image-batch/copy-task', [ImageBatchController::class, 'copyTask']);
+        Route::post('/items/{item}/branches/{branch}/image-batch/units/{unit}/source-change', [ImageBatchController::class, 'sourceChange']);
     });
 
     // B02：公众号 · 图文文章（article）后端。GET 读 / PUT 人工保存 / preview 只读预览 / apply 确认落库。

@@ -5,12 +5,14 @@ namespace App\Http\Controllers;
 use App\Http\Resources\V2ContentResource as Resource;
 use App\Models\Project;
 use App\Services\StartContentService;
+use App\Services\V2\ImageBatchWorkspaceService;
 use App\Support\ProjectContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use InvalidArgumentException;
 
 /** V2 entrypoints deliberately keep the still-running legacy nested API intact. */
 class V2ContentController extends Controller
@@ -52,6 +54,29 @@ class V2ContentController extends Controller
                 'topic' => $model->topic?->only(['id', 'title']),
                 'inspiration' => $model->topic?->inspiration?->only(['id', 'body']),
             ],
+        ]);
+    }
+
+    /**
+     * I05：图片批次生产正式页面。
+     * 分支资格复用单一真源 ImageBatchWorkspaceService::assertImageBatch（image_post + wechat_official），
+     * 不合格 → 422，与 API 行为一致。页面只接收 projectId / itemId / branchId。
+     */
+    public function imageBatchPage(Request $request, Project $project, int $item, int $branch): Response
+    {
+        $this->scope($request, $project);
+        $model = $project->contentItems()->with(['contentColumn'])->findOrFail($item);
+        $contentBranch = $model->contentBranches()->where('project_id', $project->id)->findOrFail($branch);
+
+        try {
+            (new ImageBatchWorkspaceService())->assertImageBatch($contentBranch);
+        } catch (InvalidArgumentException $e) {
+            abort(422, $e->getMessage());
+        }
+
+        return Inertia::render('V2/ImageBatch/ImageBatchEditor', [
+            'projectId' => $project->id, 'itemId' => $model->id, 'branchId' => $contentBranch->id,
+            'columnName' => $model->contentColumn->name,
         ]);
     }
 
