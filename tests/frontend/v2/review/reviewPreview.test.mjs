@@ -11,3 +11,15 @@ const renderer=createRenderer({createElement:tag=>({tag,children:[],props:{}}),i
 function mount(preview){const props=reactive({detail:{id:1,content_title:'审核内容',channel:'wechat_official',format:'article',review_target_label:'后端正式对象名',version_label:'v1',submitted_at:'2026-10-14T00:00:00Z',preview},loading:false,error:'',decisionPhase:'idle',decisionError:'',comment:'',targetLabel:''});const root={children:[]};const app=renderer.createApp({setup:()=>()=>h(Detail,props)});app.mount(root);const nodes=()=>{const out=[];function walk(n){out.push(n);for(const c of n.children??[])walk(c);}walk(root);return out;};return {props,app,nodes,text:()=>nodes().map(n=>n.text??'').join(' ')};}
 for(const [preview,expected] of [[{kind:'text',text:'完整正文'},'完整正文'],[{kind:'lines',lines:['第一行','第二行']},'第二行'],[{kind:'items',items:[{label:'P4',value:'画面证据'}]},'画面证据'],[null,'暂无预览内容。']])test(`preview ${preview?.kind??'null'} renders without another parser`,()=>{const x=mount(preview);assert.ok(x.text().includes(expected));assert.ok(x.text().includes('后端正式对象名'));x.app.unmount();});
 test('busy decision disables back, decision and comment fields',async()=>{const x=mount(null);x.nodes().find(n=>n.tag==='button'&&n.text?.trim()==='退回修改').props.onClick();await nextTick();x.props.decisionPhase='submitting';await nextTick();for(const n of x.nodes().filter(n=>['button','textarea','input'].includes(n.tag)))assert.equal(n.props.disabled,true);x.app.unmount();});
+
+// Geometry is checked in the real browser; these rendered CSS contracts prevent
+// long tokens losing their inherited wrapping rule in any preview branch.
+for(const kind of ['text','lines','items'])test(`long ${kind} preview preserves full text and allows intrinsic wrapping`,()=>{
+ const long='https://example.test/'+ 'a'.repeat(180);
+ const preview=kind==='text'?{kind,text:long}:kind==='lines'?{kind,lines:[long]}:{kind,items:[{label:'label'.repeat(12),value:long}]};
+ const x=mount(preview);
+ assert.ok(x.text().includes(long));
+ assert.ok(x.nodes().some(n=>String(n.props?.class).includes('[overflow-wrap:anywhere]')),'preview needs inherited anywhere wrapping');
+ if(kind==='items')assert.ok(x.nodes().some(n=>String(n.props?.class).includes('grid-cols-[110px_minmax(0,1fr)]')),'items value column must shrink within its card');
+ x.app.unmount();
+});

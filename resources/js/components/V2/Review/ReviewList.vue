@@ -55,7 +55,7 @@ const emit = defineEmits<{
       <p class="mt-1 text-sm text-slate-500">新提交的审核项会自动出现在这里。</p>
     </div>
 
-    <ul v-else class="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white">
+    <ul v-else class="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white [overflow-wrap:anywhere]">
       <li v-for="item in items" :key="item.id">
         <button
           type="button"
@@ -75,7 +75,7 @@ const emit = defineEmits<{
               {{ truncateSummary(item.preview_summary, 90) }}
             </p>
           </div>
-          <div class="shrink-0 text-right">
+          <div class="min-w-0 max-w-[50%] shrink-0 text-right">
             <p class="text-xs font-medium text-slate-600">版本 {{ item.version_label }}</p>
             <p class="mt-0.5 text-xs text-slate-400">{{ new Date(item.submitted_at).toLocaleString('zh-CN') }}</p>
           </div>

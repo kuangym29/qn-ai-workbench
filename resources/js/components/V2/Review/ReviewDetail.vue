@@ -78,7 +78,7 @@ function approve(): void {
       </template>
     </ErrorState>
 
-    <div v-else-if="detail" class="overflow-hidden rounded-lg border border-slate-200 bg-white">
+    <div v-else-if="detail" class="overflow-hidden rounded-lg border border-slate-200 bg-white [overflow-wrap:anywhere]">
       <!-- 头部 -->
       <div class="border-b border-slate-100 px-4 py-4">
         <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -116,7 +116,7 @@ function approve(): void {
           <div
             v-for="(item, i) in detail.preview.items ?? []"
             :key="i"
-            class="grid grid-cols-[110px_1fr] gap-3 py-1.5 text-sm"
+            class="grid grid-cols-[110px_minmax(0,1fr)] gap-3 py-1.5 text-sm"
           >
             <dt class="text-slate-400">{{ item.label }}</dt>
             <dd class="whitespace-pre-wrap text-slate-700">{{ item.value ?? '—' }}</dd>
