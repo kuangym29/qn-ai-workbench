@@ -32,7 +32,7 @@ class V2ContentController extends Controller
 
         return Inertia::render(match ($page) {
             'in-progress' => 'InProgress/Index', 'inspirations' => 'Inspirations/Index',
-            'topics' => 'Topics/Pool', 'content' => 'ContentLibrary/Index', 'review' => 'ReviewInbox/Index',
+            'topics' => 'Topics/Pool', 'content' => 'ContentLibrary/Index',
         }, ['projectId' => $project->id]);
     }
 

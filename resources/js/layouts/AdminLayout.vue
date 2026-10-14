@@ -54,7 +54,7 @@ const workspaceLinks = [
   {path: 'inspirations', label: '灵感'},
   {path: 'topics', label: '选题'},
   {path: 'content', label: '内容库'},
-  {path: 'review', label: '待我审核'},
+  {path: 'reviews', label: '待我审核'},
 ];
 function goToWorkspace(path: string): void {
   if (!projectContext.current) { toast.info('请先选择一个项目'); router.visit('/projects'); return; }

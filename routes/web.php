@@ -17,6 +17,7 @@ use App\Http\Controllers\V2\ImagePostImportController;
 use App\Http\Controllers\V2\ArticleImportController;
 use App\Http\Controllers\V2\VideoController;
 use App\Http\Controllers\V2\ReusableAssetController;
+use App\Http\Controllers\V2\ReviewController;
 use App\Http\Controllers\V2ContentController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -164,7 +165,7 @@ Route::middleware('auth')->group(function (): void {
 // V2 uses flat project scopes; V1 nested entrypoints remain operational until Plan 6.
 Route::middleware('auth')->group(function (): void {
     $controller = V2ContentController::class;
-    Route::get('/projects/{project}/{page}', [$controller, 'workspace'])->whereIn('page', ['in-progress', 'inspirations', 'topics', 'content', 'review']);
+    Route::get('/projects/{project}/{page}', [$controller, 'workspace'])->whereIn('page', ['in-progress', 'inspirations', 'topics', 'content']);
     Route::get('/projects/{project}/content/{item}', [$controller, 'detailPage']);
     Route::get('/projects/{project}/content/{item}/branches/{branch}/image-post', [$controller, 'imagePostPage']);
     Route::get('/projects/{project}/content/{item}/branches/{branch}/article', [ArticleImportController::class, 'editor']);
@@ -173,6 +174,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/projects/{project}/content/{item}/branches/{branch}/image-batch', [$controller, 'imageBatchPage']);
     // I06B：人物 / 场景复用资产索引正式页面（只读索引，数据由前端通过只读 API 拉取）。
     Route::get('/projects/{project}/reusable-assets', [ReusableAssetController::class, 'page']);
+    Route::get('/projects/{project}/reviews', [ReviewController::class, 'page']);
     Route::prefix('api/projects/{project}')->group(function () use ($controller): void {
         Route::get('/inspirations', [$controller, 'inspirations']);
         Route::post('/inspirations', [$controller, 'saveInspiration']);
@@ -211,6 +213,10 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/items/{item}/branches/{branch}/image-batch/units/{unit}/source-change', [ImageBatchController::class, 'sourceChange']);
         // I06B：人物 / 场景复用资产索引只读 API（GET 契约 {characters, scenes}，不包 data.data）。
         Route::get('/reusable-assets', [ReusableAssetController::class, 'index']);
+        // B03：轻量审核中心；独立审核合同保留 data envelope。
+        Route::get('/reviews', [ReviewController::class, 'index']);
+        Route::get('/reviews/{review}', [ReviewController::class, 'show']);
+        Route::post('/reviews/{review}/decision', [ReviewController::class, 'decide']);
     });
 
     // B02：公众号 · 图文文章（article）后端。GET 读 / PUT 人工保存 / preview 只读预览 / apply 确认落库。
