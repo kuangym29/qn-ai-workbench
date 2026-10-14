@@ -58,6 +58,7 @@ watch(
       @update-unit="editor.updateUnit($event.id, { special_requirement: $event.special_requirement })"
       @run="editor.run($event)"
       @copy-task="editor.copyTask()"
+      @save-draft="editor.saveDraft()"
       @toggle-history="editor.historyOpen.value = !editor.historyOpen.value"
       @view-change="editor.viewChange($event)"
       @keep-current="editor.keepCurrent($event.id)"

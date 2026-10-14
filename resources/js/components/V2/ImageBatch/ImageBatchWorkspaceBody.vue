@@ -53,6 +53,7 @@ const emit = defineEmits<{
   updateUnit: [unit: ImageBatchUnit];
   run: [mode: ImageBatchExecutionMode];
   copyTask: [];
+  saveDraft: [];
   toggleHistory: [];
   viewChange: [unit: ImageBatchUnit];
   keepCurrent: [unit: ImageBatchUnit];
@@ -185,6 +186,7 @@ const disabled = computed(() => props.loading || props.busy);
       <!-- 执行动作区 -->
       <section class="rounded-lg border border-slate-200 bg-white p-4" data-v2-image-batch-actions>
         <p role="status" class="mb-2 text-xs text-slate-500">{{ dirty ? '有未保存修改' : '已保存' }}</p>
+        <button type="button" :disabled="disabled || !dirty" class="mb-3 rounded-md border border-slate-300 px-3 py-2 text-sm disabled:opacity-50" @click="emit('saveDraft')">保存草稿</button>
         <div class="flex flex-wrap items-center gap-3">
           <button
             type="button"
