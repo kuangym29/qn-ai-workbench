@@ -14,6 +14,7 @@ use App\Http\Controllers\SourceReferenceController;
 use App\Http\Controllers\TopicController;
 use App\Http\Controllers\V2ContentController;
 use App\Http\Controllers\V2\ImagePostImportController;
+use App\Http\Controllers\V2\ArticleImportController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -163,6 +164,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/projects/{project}/{page}', [$controller, 'workspace'])->whereIn('page', ['in-progress', 'inspirations', 'topics', 'content', 'review']);
     Route::get('/projects/{project}/content/{item}', [$controller, 'detailPage']);
     Route::get('/projects/{project}/content/{item}/branches/{branch}/image-post', [$controller, 'imagePostPage']);
+    Route::get('/projects/{project}/content/{item}/branches/{branch}/article', [ArticleImportController::class, 'editor']);
     Route::prefix('api/projects/{project}')->group(function () use ($controller): void {
         Route::get('/inspirations', [$controller, 'inspirations']);
         Route::post('/inspirations', [$controller, 'saveInspiration']);
@@ -184,5 +186,13 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/items/{item}/branches/{branch}/image-post/apply', [ImagePostImportController::class, 'apply']);
         Route::get('/items/{item}/branches/{branch}/image-post', [ImagePostImportController::class, 'show']);
         Route::put('/items/{item}/branches/{branch}/image-post', [ImagePostImportController::class, 'save']);
+    });
+
+    // B02：公众号 · 图文文章（article）后端。GET 读 / PUT 人工保存 / preview 只读预览 / apply 确认落库。
+    Route::prefix('api/projects/{project}')->group(function (): void {
+        Route::get('/items/{item}/branches/{branch}/article', [ArticleImportController::class, 'show']);
+        Route::put('/items/{item}/branches/{branch}/article', [ArticleImportController::class, 'save']);
+        Route::post('/items/{item}/branches/{branch}/article/preview', [ArticleImportController::class, 'preview']);
+        Route::post('/items/{item}/branches/{branch}/article/apply', [ArticleImportController::class, 'apply']);
     });
 });
