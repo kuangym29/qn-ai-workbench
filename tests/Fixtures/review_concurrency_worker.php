@@ -20,6 +20,7 @@ try {
     }
     $app = require dirname(__DIR__, 2).'/bootstrap/app.php';
     $app->make(Kernel::class)->bootstrap();
+    unset($connection['name']); // The copied name would send hydrated models outside this transaction.
     $connection['url'] = null; // Already resolved by the parent connection.
     config(['app.env' => 'testing', 'database.default' => 'review_concurrency', 'database.connections.review_concurrency' => $connection]);
     DB::purge('review_concurrency');
@@ -29,8 +30,17 @@ try {
     $review = $job['operation'] === 'decide' ? ReviewRequest::findOrFail($job['review_id']) : null;
     $project = $job['operation'] === 'create' ? Project::findOrFail($job['project_id']) : null;
     $branch = $job['operation'] === 'create' ? ContentBranch::findOrFail($job['branch_id']) : null;
+    $workerConnection = DB::connection();
+    foreach (array_filter([$review, $project, $branch]) as $model) {
+        if ($model->getConnection() !== $workerConnection) {
+            throw new RuntimeException('Concurrency model connection drifted.');
+        }
+    }
     $parentLocked = false;
-    DB::listen(function (QueryExecuted $query) use ($job, &$parentLocked): void {
+    DB::listen(function (QueryExecuted $query) use ($job, &$parentLocked, $workerConnection): void {
+        if ($query->connection !== $workerConnection) {
+            throw new RuntimeException('Concurrency query connection drifted.');
+        }
         $sql = strtolower($query->sql);
         $parent = $job['operation'] === 'create' ? 'content_branches' : 'review_requests';
         if (str_starts_with(ltrim($sql), 'select') && str_contains($sql, $parent) && str_contains($sql, 'for update')) {
