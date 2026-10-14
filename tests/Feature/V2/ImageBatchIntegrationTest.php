@@ -76,6 +76,17 @@ class ImageBatchIntegrationTest extends TestCase
 
     // ── 1. GET response shape ──────────────────────────────────────────────
 
+    public function test_run_history_records_real_creation_time(): void
+    {
+        $this->travelTo(now()->startOfSecond());
+        $item = ContentItem::factory()->create();
+        $branch = $this->batchBranch($item);
+        $this->page($item, 1);
+        $this->acting($item);
+        $this->postJson($this->base($item, $branch, '/run'), ['mode' => 'full', 'unit_ids' => []])->assertCreated();
+        $this->assertSame(now()->toJSON(), $this->show($item, $branch)['history'][0]['created_at']);
+    }
+
     public function test_get_returns_workspace_body_not_wrapped_in_data(): void
     {
         $item = ContentItem::factory()->create();

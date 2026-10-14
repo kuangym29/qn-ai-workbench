@@ -8,7 +8,8 @@ defineProps<{ history: BatchHistoryItem[]; open: boolean }>();
 
 const emit = defineEmits<{ toggle: [] }>();
 
-function formatTime(isoStr: string): string {
+function formatTime(isoStr: string | null): string {
+  if (!isoStr) return '时间未记录';
   const d = new Date(isoStr);
   if (Number.isNaN(d.getTime())) return isoStr;
   const p = (n: number) => String(n).padStart(2, '0');

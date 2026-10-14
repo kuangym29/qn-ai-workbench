@@ -24,7 +24,7 @@ class ImageBatchRun extends Model
     ];
 
     /** 只保留 created_at（spec）：关闭 updated_at。 */
-    public $timestamps = false;
+    public const UPDATED_AT = null;
 
     protected function casts(): array
     {

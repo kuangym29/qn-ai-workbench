@@ -52,7 +52,7 @@ export interface ImageBatchUnit {
 /** 历史批次（轻量入口：创建时间 / 包含页面 / 状态 / 说明摘要）。 */
 export interface BatchHistoryItem {
   id: number | string;
-  created_at: string;
+  created_at: string | null;
   page_labels: string[];
   status: string;
   instruction_summary: string | null;
