@@ -12,8 +12,9 @@ use App\Http\Controllers\ProductionTaskController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SourceReferenceController;
 use App\Http\Controllers\TopicController;
-use App\Http\Controllers\V2ContentController;
 use App\Http\Controllers\V2\ImagePostImportController;
+use App\Http\Controllers\V2\ReviewController;
+use App\Http\Controllers\V2ContentController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -184,5 +185,11 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/items/{item}/branches/{branch}/image-post/apply', [ImagePostImportController::class, 'apply']);
         Route::get('/items/{item}/branches/{branch}/image-post', [ImagePostImportController::class, 'show']);
         Route::put('/items/{item}/branches/{branch}/image-post', [ImagePostImportController::class, 'save']);
+
+        // B03：轻量审核中心（review）。只做 待审核 / 通过 / 退回修改。
+        // 列表默认 pending；decision 仅 pending 可提交（已决策 → 409）；review_decisions append-only。
+        Route::get('/reviews', [ReviewController::class, 'index']);
+        Route::get('/reviews/{review}', [ReviewController::class, 'show']);
+        Route::post('/reviews/{review}/decision', [ReviewController::class, 'decide']);
     });
 });
