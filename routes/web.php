@@ -164,6 +164,9 @@ Route::middleware('auth')->group(function (): void {
     Route::get('/projects/{project}/{page}', [$controller, 'workspace'])->whereIn('page', ['in-progress', 'inspirations', 'topics', 'content', 'review']);
     Route::get('/projects/{project}/content/{item}', [$controller, 'detailPage']);
     Route::get('/projects/{project}/content/{item}/branches/{branch}/image-post', [$controller, 'imagePostPage']);
+
+    // B06 + I06A：人物 / 场景复用资产索引正式页面（Inertia 入口，只传 projectId；数据走只读 API）。
+    Route::get('/projects/{project}/reusable-assets', [ReusableAssetController::class, 'page']);
     Route::prefix('api/projects/{project}')->group(function () use ($controller): void {
         Route::get('/inspirations', [$controller, 'inspirations']);
         Route::post('/inspirations', [$controller, 'saveInspiration']);

@@ -39,6 +39,26 @@ class ReusableAssetApiTest extends TestCase
             ->assertExactJson(['characters' => [], 'scenes' => []]);
     }
 
+    public function test_response_body_is_the_workspace_itself_without_data_envelope(): void
+    {
+        // I06A 锁：响应体必须是 { characters, scenes } 本体，
+        // 不允许包成 { data: { characters, scenes } }（与 V2 Video / ImageBatch 一致）。
+        $project = Project::factory()->create();
+        ReusableAsset::factory()->for($project)->character()->existing()->create(['name' => '妈妈']);
+        ReusableAsset::factory()->for($project)->scene()->missing()->create(['name' => '厨房']);
+        $this->acting($project);
+
+        $response = $this->getJson("/api/projects/{$project->id}/reusable-assets")->assertOk();
+
+        $payload = $response->json();
+        $this->assertIsArray($payload);
+        $this->assertArrayHasKey('characters', $payload);
+        $this->assertArrayHasKey('scenes', $payload);
+        // 顶层不得出现 data 包裹键。
+        $this->assertArrayNotHasKey('data', $payload);
+        $this->assertSame(['characters', 'scenes'], array_keys($payload));
+    }
+
     public function test_index_returns_characters(): void
     {
         $project = Project::factory()->create();
