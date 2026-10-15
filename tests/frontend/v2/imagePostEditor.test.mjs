@@ -12,6 +12,17 @@ function fixture() {
  const api={async loadWorkspace(){calls.push('get');return {item:{id:1,title:'t',core_message:'c',story_line:''},pages:[{page_no:4,page_type:'content',final_copy:text}],branch:{id:3}};},async preview(...args){calls.push(['preview',args[3]]);return p;},async apply(...args){calls.push(['apply',args[3]]);text='new';},async save(){calls.push('put');return {warnings:[]};}};
  return {e:useImagePostEditor(1,2,3,api),calls,api};
 }
+test('review dirty guard compares saved nested page and shared item fields, then clears after save GET',async()=>{
+ const {e}=fixture();await e.load();assert.equal(e.dirty.value,false);
+ e.pages.value[0].final_copy='edited';assert.equal(e.dirty.value,true);
+ e.pages.value[0].final_copy='old';assert.equal(e.dirty.value,false);
+ e.item.value.core_message='changed';assert.equal(e.dirty.value,true);
+ await e.save();assert.equal(e.dirty.value,false);
+});
+test('review stays dirty if PUT succeeds but GET fails',async()=>{
+ const {e,api}=fixture();await e.load();e.item.value.story_line='modified';
+ api.loadWorkspace=async()=>{throw Error('refresh failed');};await e.save();assert.equal(e.dirty.value,true);
+});
 test('preview and cancellation never mutate formal pages or call apply',async()=>{
  const {e,calls}=fixture();await e.load();e.pasteText.value='P4 raw';await e.runParse();
  assert.equal(e.pages.value[0].final_copy,'old');e.closeImport();

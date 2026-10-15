@@ -18,6 +18,7 @@ use App\Http\Controllers\V2\ArticleImportController;
 use App\Http\Controllers\V2\VideoController;
 use App\Http\Controllers\V2\ReusableAssetController;
 use App\Http\Controllers\V2\ReviewController;
+use App\Http\Controllers\V2\ReviewSubmissionController;
 use App\Http\Controllers\V2ContentController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -217,6 +218,8 @@ Route::middleware('auth')->group(function (): void {
         Route::get('/reviews', [ReviewController::class, 'index']);
         Route::get('/reviews/{review}', [ReviewController::class, 'show']);
         Route::post('/reviews/{review}/decision', [ReviewController::class, 'decide']);
+        Route::get('/items/{item}/branches/{branch}/review-submissions/{target}', [ReviewSubmissionController::class, 'show']);
+        Route::post('/items/{item}/branches/{branch}/review-submissions/{target}', [ReviewSubmissionController::class, 'store']);
     });
 
     // B02：公众号 · 图文文章（article）后端。GET 读 / PUT 人工保存 / preview 只读预览 / apply 确认落库。

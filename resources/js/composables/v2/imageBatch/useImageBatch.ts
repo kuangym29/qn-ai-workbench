@@ -13,6 +13,12 @@ export function useImageBatch(
   const workspace = ref<ImageBatchWorkspace | null>(null);
   const selectedUnitIds = ref<Set<number | string>>(new Set());
   const dirty = ref(false);
+  const savedReviewInput = ref('');
+  const reviewInput = () => JSON.stringify(workspace.value ? {
+    batch_instruction: workspace.value.batch_instruction, batch_note: workspace.value.batch_note,
+    units: workspace.value.units.map(u => ({ id: u.id, special_requirement: u.special_requirement })),
+  } : null);
+  const reviewDirty = computed(() => workspace.value !== null && reviewInput() !== savedReviewInput.value);
   const loading = ref(false);
   const saving = ref(false);
   const copying = ref(false);
@@ -35,6 +41,7 @@ export function useImageBatch(
     try {
       workspace.value = await client.loadWorkspace(projectId, itemId, branchId);
       selectedUnitIds.value = new Set(); dirty.value = false;
+      savedReviewInput.value = reviewInput();
       return true;
     } catch (e) { loadError.value = firstErrorMessage(e) ?? '加载失败'; return false; }
     finally { loading.value = false; }
@@ -77,8 +84,15 @@ export function useImageBatch(
   async function saveDraft(): Promise<boolean> {
     if (!workspace.value || busy.value) return false;
     runError.value = '';
-    try { await persistDraft(); return true; }
+    const selected = new Set(selectedUnitIds.value);
+    try {
+      await persistDraft(); saving.value = true;
+      if (!await fetchWorkspace()) { runError.value = '草稿已保存，但刷新失败，请重新加载。'; return false; }
+      selectedUnitIds.value = new Set(units.value.filter(u => selected.has(u.id)).map(u => u.id));
+      return true;
+    }
     catch (e) { runError.value = firstErrorMessage(e) ?? '草稿保存失败'; return false; }
+    finally { saving.value = false; }
   }
   async function run(mode: ImageBatchExecutionMode): Promise<boolean> {
     if (!workspace.value || busy.value) return false;
@@ -118,7 +132,7 @@ export function useImageBatch(
   function viewChange(unit: ImageBatchUnit): void { void unit; }
   const keepCurrent = (id: number | string) => resolveSourceChange(id, 'keep');
   const regenerate = (id: number | string) => resolveSourceChange(id, 'regenerate');
-  return { workspace, selectedUnitIds, dirty, loading, saving, copying, resolving, busy, loadError, runPhase, runError, copied, historyOpen,
+  return { workspace, selectedUnitIds, dirty, reviewDirty, loading, saving, copying, resolving, busy, loadError, runPhase, runError, copied, historyOpen,
     units, selection, allSelected, changedUnits, anySourceChange, load, saveDraft, updateBatchInstruction, updateBatchNote,
     toggleUnit, selectAll, clearSelection, updateUnit, run, copyTask, viewChange, keepCurrent, regenerate };
 }

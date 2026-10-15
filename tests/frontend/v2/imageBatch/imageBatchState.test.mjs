@@ -15,6 +15,15 @@ function fixture(){
  const e=useImageBatch(1,2,3,client,async text=>calls.push(['clipboard',text]));return {e,client,calls};
 }
 test('selection is local; successful GET and reload clear selection and dirty',async()=>{const {e}=fixture();await e.load();e.toggleUnit('u1');assert.equal(e.selectedUnitIds.value.has('u1'),true);assert.equal('selected' in e.units.value[0],false);assert.equal(e.selection.value.selected,1);await e.load();assert.equal(e.selectedUnitIds.value.size,0);assert.equal(e.dirty.value,false);e.selectAll();assert.equal(e.allSelected.value,true);e.clearSelection();assert.equal(e.selection.value.selected,0);});
+test('review dirty ignores selection, detects nested edits, resets after save GET, survives GET failure',async()=>{
+ const {e,client,calls}=fixture();await e.load();e.selectAll();assert.equal(e.reviewDirty.value,false);
+ e.updateBatchInstruction('new');assert.equal(e.reviewDirty.value,true);e.updateBatchInstruction('initial');assert.equal(e.reviewDirty.value,false);
+ e.updateUnit('u1',{special_requirement:'new'});assert.equal(e.reviewDirty.value,true);await e.saveDraft();assert.equal(e.reviewDirty.value,false);assert.equal(calls.at(-1),'get');
+ e.updateBatchNote('modified');client.loadWorkspace=async()=>{throw Error('offline');};assert.equal(await e.saveDraft(),false);assert.equal(e.reviewDirty.value,true);
+});
+test('explicit draft save preserves selected units that still exist',async()=>{
+ const {e}=fixture();await e.load();e.selectAll();e.updateBatchNote('saved');await e.saveDraft();assert.equal(e.selectedUnitIds.value.has('u1'),true);
+});
 for(const [name,edit] of [['instruction',e=>e.updateBatchInstruction('new')],['note',e=>e.updateBatchNote('note')],['requirement',e=>e.updateUnit('u1',{special_requirement:'special'})]])test(`${name} marks dirty; successful PUT clears it`,async()=>{const {e,calls}=fixture();await e.load();edit(e);assert.equal(e.dirty.value,true);assert.equal(await e.saveDraft(),true);assert.equal(e.dirty.value,false);const input=calls.find(x=>Array.isArray(x)&&x[0]==='put')[1];assert.deepEqual(Object.keys(input).sort(),['batch_instruction','batch_note','units']);assert.deepEqual(Object.keys(input.units[0]).sort(),['id','special_requirement']);});
 for(const mode of ['full','trial','partial'])test(`dirty ${mode}: PUT then run then GET; exact targets`,async()=>{const {e,calls}=fixture();await e.load();e.updateBatchInstruction('new');if(mode!=='full')e.toggleUnit('u1');assert.equal(await e.run(mode),true);assert.deepEqual(calls.map(x=>Array.isArray(x)?x[0]:x),['get','put','run','get']);assert.deepEqual(calls[2][1],{mode,unit_ids:mode==='full'?[]:['u1']});});
 for(const mode of ['trial','partial'])test(`${mode} rejects empty selection before saving`,async()=>{const {e,calls}=fixture();await e.load();e.updateBatchNote('n');assert.equal(await e.run(mode),false);assert.deepEqual(calls,['get']);});

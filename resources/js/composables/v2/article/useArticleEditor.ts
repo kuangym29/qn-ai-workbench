@@ -34,6 +34,8 @@ export function useArticleEditor(
 ) {
   const item = ref<ArticleContentItem | null>(null);
   const fields = ref<ArticleFields>(normalizeArticleFields(null));
+  const savedFields = ref('');
+  const dirty = computed(() => item.value !== null && JSON.stringify(fields.value) !== savedFields.value);
   const loading = ref(false);
   const loadError = ref('');
   const saving = ref(false);
@@ -55,6 +57,7 @@ export function useArticleEditor(
       const ws = await client.loadWorkspace(projectId, itemId, branchId);
       item.value = ws.item;
       fields.value = normalizeArticleFields(ws.article);
+      savedFields.value = JSON.stringify(fields.value);
     } catch (e) {
       loadError.value = firstErrorMessage(e) ?? '加载失败';
     } finally {
@@ -106,6 +109,7 @@ export function useArticleEditor(
       const ws = await client.apply(projectId, itemId, branchId, previewRaw.value);
       item.value = ws.item;
       fields.value = normalizeArticleFields(ws.article);
+      savedFields.value = JSON.stringify(fields.value);
       toast.success('已应用 AI 导入');
       phase.value = 'idle';
       closeImport();
@@ -146,6 +150,7 @@ export function useArticleEditor(
       const ws = await client.save(projectId, itemId, branchId, fields.value);
       item.value = ws.item;
       fields.value = normalizeArticleFields(ws.article);
+      savedFields.value = JSON.stringify(fields.value);
       toast.success('已保存图文文章');
       return true;
     } catch (e) {
@@ -158,6 +163,7 @@ export function useArticleEditor(
 
   return {
     item,
+    dirty,
     fields,
     loading,
     loadError,

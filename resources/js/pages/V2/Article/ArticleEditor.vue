@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ReviewSubmission from '../../../components/V2/Review/ReviewSubmission.vue';
 // V2 公众号图文文章编辑器 —— 正式 Inertia 页面。
 // 数据从 API 加载（articleApi，R1 branch-aware）；AI 导入为后端 preview/apply 链路。
 // 页面只依赖 props（projectId / itemId / branchId），不根据 URL 自动选项目。
@@ -53,6 +54,7 @@ const displayItem = computed(() => editor.value.item.value ? {
       </template>
     </PageHeader>
 
+    <ReviewSubmission :project-id="projectId" :item-id="itemId" :branch-id="branchId" target="article_copy" :dirty="editor.dirty.value" :busy='editor.busy.value || editor.phase.value === "preview"' :ready="!!editor.item.value && !editor.loadError.value" />
     <ArticleEditorBody
       :item="displayItem"
       :fields="editor.fields.value"

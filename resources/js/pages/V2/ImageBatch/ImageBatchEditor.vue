@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ReviewSubmission from '../../../components/V2/Review/ReviewSubmission.vue';
 // V2 图片批次生产 —— 正式 Inertia 页面。
 // 图片生产以「整批」为主：整批说明 / 整批备注 / 资产摘要 / 页面单元 / 执行动作。
 import { shallowRef, watch } from 'vue';
@@ -33,6 +34,7 @@ watch(
     <div class="mb-4">
       <Link :href="'/projects/' + projectId + '/content/' + itemId" class="text-sm text-slate-600 underline">返回篇目</Link>
     </div>
+    <ReviewSubmission :project-id="projectId" :item-id="itemId" :branch-id="branchId" target="image_batch" :dirty="editor.reviewDirty.value" :busy='editor.busy.value' :ready="!!editor.workspace.value && !editor.loadError.value" />
     <ImageBatchWorkspaceBody
       :content-title="editor.workspace.value?.content_title ?? ''"
       :source-label="editor.workspace.value?.source_label ?? ''"

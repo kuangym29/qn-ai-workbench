@@ -22,6 +22,13 @@ test('API handles raw GET article:null, PUT/apply status then GET, and raw struc
  assert.equal(calls[1][1],base+'/preview');assert.deepEqual(calls[1][2],{raw:'RAW'});
 });
 function fixture(){const calls=[];const client={async loadWorkspace(){calls.push('get');return structuredClone(workspace);},async save(p,i,b,input){calls.push(['put',input]);return {...workspace,article:input};},async preview(p,i,b,raw){calls.push(['preview',raw]);return {item:{changed:false,fields:[]},article:{added:[{field:'headline',after:'AI'}],modified:[],unchanged:[]},warnings:[]};},async apply(p,i,b,raw){calls.push(['apply',raw]);return {...workspace,article:{headline:'AI',image_suggestions:[]}};}};const e=useArticleEditor(1,2,3,{client});return {e,client,calls};}
+test('review dirty tracks all editable fields and clears only on successful server response',async()=>{
+ const {e,client}=fixture();await e.load();assert.equal(e.dirty.value,false);
+ e.updateField('headline','changed');assert.equal(e.dirty.value,true);e.updateField('headline','');assert.equal(e.dirty.value,false);
+ e.addImage({position:1,description:'new',note:null});assert.equal(e.dirty.value,true);
+ const save=client.save;client.save=async()=>{throw Error('GET refresh failed');};assert.equal(await e.save(),false);assert.equal(e.dirty.value,true);
+ client.save=save;await e.save();assert.equal(e.dirty.value,false);
+});
 test('empty article opens safely and manual save uses formal fields',async()=>{const {e,calls}=fixture();await e.load();assert.equal(e.item.value.title,'Title');assert.equal(e.fields.value.headline,null);e.updateField('headline','Manual');assert.equal(await e.save(),true);assert.equal(e.fields.value.headline,'Manual');assert.equal(calls[1][0],'put');});
 test('cancel is read-only and apply uses the exact previewed raw input',async()=>{const {e,calls}=fixture();await e.load();e.pasteText.value='first';await e.runPreview();e.closeImport();assert.deepEqual(calls,['get',['preview','first']]);e.pasteText.value='reviewed';await e.runPreview();e.pasteText.value='changed without preview';await e.confirmImport();assert.deepEqual(calls.at(-1),['apply','reviewed']);assert.equal(e.fields.value.headline,'AI');});
 test('save and preview busy reject duplicate actions and edits',async()=>{const {e,client,calls}=fixture();await e.load();let finish;client.save=()=>new Promise(r=>finish=r);const pending=e.save();e.updateField('headline','race');assert.equal(e.fields.value.headline,null);assert.equal(await e.save(),false);e.pasteText.value='raw';await e.runPreview();assert.deepEqual(calls,['get']);finish({...workspace,article:null});await pending;});
