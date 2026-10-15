@@ -3,6 +3,7 @@
 namespace Tests\Feature\V2;
 
 use App\Models\ContentBranch;
+use App\Models\ArticleContent;
 use App\Models\ContentItem;
 use App\Models\Project;
 use App\Models\ReviewRequest;
@@ -68,6 +69,52 @@ class ReviewConcurrencyTest extends TestCase
         foreach ($results as $result) {
             $this->assertTrue($result['parent_locked'], 'Decision must execute a locking read of review_requests.');
         }
+    }
+
+    public function test_concurrent_resubmissions_cannot_reopen_a_decided_version(): void
+    {
+        foreach (['approved', 'changes_requested'] as $decision) {
+            [$review, $job] = $this->submissionReview();
+            (new \App\Services\V2\ReviewDecisionService)->decide($review, \App\Enums\ReviewDecision::from($decision), '修改后提交', null);
+            $results = $this->workers([$job, $job]);
+            $this->assertSame([422, 422], array_column($results, 'status'));
+            $this->assertSame(1, ReviewRequest::where('content_branch_id', $review->content_branch_id)->count());
+            $this->assertSame($decision, $review->fresh()->status->value);
+            foreach ($results as $result) {
+                $this->assertTrue($result['parent_locked']);
+            }
+        }
+    }
+
+    public function test_decision_racing_submission_never_creates_another_same_version(): void
+    {
+        foreach (['approved', 'changes_requested'] as $decision) {
+            [$review, $job] = $this->submissionReview();
+            $results = $this->workers([
+                ['operation' => 'decide', 'review_id' => $review->id, 'decision' => $decision],
+                $job,
+            ]);
+            $this->assertSame(200, $results[0]['status']);
+            $this->assertContains($results[1]['status'], [200, 422]);
+            if ($results[1]['status'] === 200) {
+                $this->assertSame($review->id, $results[1]['id']);
+            }
+            $this->assertSame(1, ReviewRequest::where('content_branch_id', $review->content_branch_id)->count());
+            $this->assertSame($decision, $review->fresh()->status->value);
+            foreach ($results as $result) {
+                $this->assertTrue($result['parent_locked']);
+            }
+        }
+    }
+
+    private function submissionReview(): array
+    {
+        $item = ContentItem::factory()->create();
+        $branch = ContentBranch::factory()->for($item)->create(['channel' => 'wechat_official', 'format' => 'article']);
+        ArticleContent::create(['project_id' => $item->project_id, 'content_item_id' => $item->id, 'content_branch_id' => $branch->id, 'body' => '正式保存内容']);
+        $review = app(\App\Services\V2\ReviewSubmissionService::class)->submit($item->project, $item->id, $branch->id, 'article_copy');
+
+        return [$review, ['operation' => 'submit', 'project_id' => $item->project_id, 'branch_id' => $branch->id]];
     }
 
     private function workers(array $jobs): array

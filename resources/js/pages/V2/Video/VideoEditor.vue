@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import ReviewSubmission from '../../../components/V2/Review/ReviewSubmission.vue';
 // V2 视频号视频制作 —— 正式 Inertia 页面。
 // R1：正式页面必须接收 projectId / itemId / branchId 三参数（branch-aware）。
 // 数据从 API 加载（videoApi）；生成按钮（复制任务 / 试样 / 选择片段）为 UI 动作，
 // 保持 disabled pending integration，真实视频生成由后续后端提供。
 //
 // 注意：本任务未修改 routes/web.php；此页面的正式路由由 Work 主程序集成时接线。
-import { onMounted } from 'vue';
+import { shallowRef, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import AdminLayout from '../../../layouts/AdminLayout.vue';
 import PageHeader from '../../../components/PageHeader.vue';
@@ -21,7 +22,7 @@ const props = defineProps<{
   branchId: string | number;
 }>();
 
-const editor = useVideoEditor(props.projectId, props.itemId, props.branchId);
+const editor = shallowRef(useVideoEditor(props.projectId, props.itemId, props.branchId));
 
 function handleScopeError(e: unknown): void {
   if (is404(e)) {
@@ -29,16 +30,19 @@ function handleScopeError(e: unknown): void {
     router.visit('/projects');
     return;
   }
-  editor.loadError.value = '加载失败';
+  editor.value.loadError.value = '加载失败';
 }
 
-onMounted(async () => {
+watch(() => [props.projectId, props.itemId, props.branchId], async () => {
+  const instance = useVideoEditor(props.projectId, props.itemId, props.branchId);
+  editor.value = instance;
   try {
-    await editor.load();
+    await instance.load();
   } catch (e) {
+    if (editor.value !== instance) return;
     handleScopeError(e);
   }
-});
+}, { immediate: true });
 </script>
 
 <template>
@@ -64,6 +68,7 @@ onMounted(async () => {
       </template>
     </PageHeader>
 
+    <ReviewSubmission :project-id="projectId" :item-id="itemId" :branch-id="branchId" target="video_production" :dirty="editor.dirty.value" :busy='editor.loading.value || editor.saving.value || editor.resolvingSource.value' :ready="!!editor.video.value && !editor.loadError.value" />
     <VideoEditorBody
       :video="editor.video.value"
       :loading="editor.loading.value"

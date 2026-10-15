@@ -28,8 +28,9 @@ export function useImagePostEditor(projectId: number | string, itemId: number | 
   const loading = ref(true);
   const loadError = ref('');
   const saving = ref(false);
-  let loadedSnapshot = '';
+  const loadedSnapshot = ref('');
   const manualSnapshot = () => JSON.stringify({ item: item.value, pages: pages.value });
+  const dirty = computed(() => item.value !== null && manualSnapshot() !== loadedSnapshot.value);
 
   // ---- AI 导入子状态 ----
   const phase = ref<ImportPhase>('idle');
@@ -56,7 +57,7 @@ export function useImagePostEditor(projectId: number | string, itemId: number | 
       const ws = await client.loadWorkspace(projectId, itemId, branchId);
       item.value = ws.item;
       pages.value = ws.pages;
-      loadedSnapshot = manualSnapshot();
+      loadedSnapshot.value = manualSnapshot();
       return true;
     } catch (e) {
       loadError.value = firstErrorMessage(e) ?? '加载失败';
@@ -84,7 +85,7 @@ export function useImagePostEditor(projectId: number | string, itemId: number | 
 
   /** 解析粘贴内容，进入 preview 阶段；失败进入 error 阶段。 */
   async function runParse(): Promise<void> {
-    if (loadedSnapshot && manualSnapshot() !== loadedSnapshot) {
+    if (loadedSnapshot.value && dirty.value) {
       parseError.value = '请先保存手动修改，再导入 AI 内容。';
       phase.value = 'error';
       return;
@@ -158,6 +159,7 @@ export function useImagePostEditor(projectId: number | string, itemId: number | 
 
   return {
     item,
+    dirty,
     pages,
     loading,
     loadError,
