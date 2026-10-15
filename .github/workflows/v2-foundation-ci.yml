@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - codex/v2-foundation
+      - main
   workflow_dispatch:
   pull_request:
     branches:
       - codex/v2-foundation
+      - main
 
 jobs:
   php-tests:
@@ -64,3 +66,29 @@ jobs:
 
       - name: Run MySQL 8.4 release gate
         run: bash scripts/test-mysql.sh all
+
+  frontend-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run official frontend suite
+        run: npm run test:frontend
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
