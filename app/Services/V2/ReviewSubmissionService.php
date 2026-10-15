@@ -52,6 +52,20 @@ class ReviewSubmissionService
             $snapshot = $this->snapshot($content, $model, $type);
             $canonical = $this->canonical($snapshot);
             $version = '内容版本 '.substr(hash('sha256', json_encode($canonical, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR)), 0, 16);
+            // Lock pending rows too: a concurrent decision must not turn a pending
+            // into a decided version between this check and create's pending lookup.
+            $decided = ReviewRequest::query()
+                ->where('project_id', $project->id)
+                ->where('content_branch_id', $model->id)
+                ->where('review_target_type', $type->value)
+                ->where('version_label', $version)
+                ->orderByDesc('id')->lockForUpdate()->get()
+                ->first(fn (ReviewRequest $review) => ! $review->isPending());
+            if ($decided) {
+                abort(422, $decided->status === ReviewStatus::ChangesRequested
+                    ? '当前内容与被退回版本没有变化，请先修改并保存后再提交审核。'
+                    : '当前内容版本已审核通过，无需重复提交。');
+            }
             $items = [];
             foreach ($snapshot as $field => $value) {
                 $items[] = ['label' => $this->label($field), 'value' => is_array($value) ? $this->describe($value) : (string) $value];

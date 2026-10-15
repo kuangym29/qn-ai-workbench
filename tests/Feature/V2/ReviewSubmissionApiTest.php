@@ -206,4 +206,28 @@ class ReviewSubmissionApiTest extends TestCase
         $video->update(['units' => $units]);
         $this->postJson($url)->assertOk()->assertJsonPath('data.review.id', $first);
     }
+
+    public function test_unchanged_returned_version_cannot_be_submitted_again(): void
+    {
+        $this->assertDecidedVersionCannotBeResubmitted('changes_requested', '当前内容与被退回版本没有变化，请先修改并保存后再提交审核。');
+    }
+
+    public function test_unchanged_approved_version_cannot_be_submitted_again(): void
+    {
+        $this->assertDecidedVersionCannotBeResubmitted('approved', '当前内容版本已审核通过，无需重复提交。');
+    }
+
+    private function assertDecidedVersionCannotBeResubmitted(string $decision, string $message): void
+    {
+        foreach (['image_post_copy', 'article_copy', 'video_production', 'image_batch'] as $target) {
+            [$item, $branch, $url] = $this->setupTarget($target);
+            $this->saveTarget($target, $item, $branch);
+            $review = $this->postJson($url)->assertCreated()->json('data.review');
+            $this->postJson("/api/projects/{$item->project_id}/reviews/{$review['id']}/decision", ['decision' => $decision, 'comment' => '修改后再提交'])->assertOk();
+            $count = ReviewRequest::count();
+            $this->postJson($url)->assertUnprocessable()->assertJsonPath('message', $message);
+            $this->assertSame($count, ReviewRequest::count());
+            $this->getJson($url)->assertOk()->assertJsonPath('data.pending', false);
+        }
+    }
 }

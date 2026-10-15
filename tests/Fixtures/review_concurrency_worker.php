@@ -6,6 +6,7 @@ use App\Models\Project;
 use App\Models\ReviewRequest;
 use App\Services\V2\ReviewDecisionService;
 use App\Services\V2\ReviewRequestService;
+use App\Services\V2\ReviewSubmissionService;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\DB;
@@ -28,8 +29,8 @@ try {
     DB::statement('SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED');
     $job = $input['job'];
     $review = $job['operation'] === 'decide' ? ReviewRequest::findOrFail($job['review_id']) : null;
-    $project = $job['operation'] === 'create' ? Project::findOrFail($job['project_id']) : null;
-    $branch = $job['operation'] === 'create' ? ContentBranch::findOrFail($job['branch_id']) : null;
+    $project = $job['operation'] !== 'decide' ? Project::findOrFail($job['project_id']) : null;
+    $branch = $job['operation'] !== 'decide' ? ContentBranch::findOrFail($job['branch_id']) : null;
     $workerConnection = DB::connection();
     foreach (array_filter([$review, $project, $branch]) as $model) {
         if ($model->getConnection() !== $workerConnection) {
@@ -42,7 +43,7 @@ try {
             throw new RuntimeException('Concurrency query connection drifted.');
         }
         $sql = strtolower($query->sql);
-        $parent = $job['operation'] === 'create' ? 'content_branches' : 'review_requests';
+        $parent = $job['operation'] !== 'decide' ? 'content_branches' : 'review_requests';
         if (str_starts_with(ltrim($sql), 'select') && str_contains($sql, $parent) && str_contains($sql, 'for update')) {
             $parentLocked = true;
         }
@@ -64,10 +65,17 @@ try {
             $result = (new ReviewRequestService)->create($project, $branch, [
                 'review_target_type' => 'image_post_copy', 'version_label' => 'concurrent-v1',
             ]);
+        } elseif ($job['operation'] === 'submit') {
+            $result = app(ReviewSubmissionService::class)->submit($project, $branch->content_item_id, $branch->id, 'article_copy');
         } else {
             $result = (new ReviewDecisionService)->decide($review, ReviewDecision::from($job['decision']), 'Concurrent review comment', null);
         }
         $output = ['status' => 200, 'id' => $result->id];
+    } catch (\Symfony\Component\HttpKernel\Exception\HttpException $error) {
+        if ($error->getStatusCode() !== 422) {
+            throw $error;
+        }
+        $output = ['status' => 422];
     } catch (DomainException) {
         // The HTTP controller maps this service conflict to 409.
         $output = ['status' => 409];
