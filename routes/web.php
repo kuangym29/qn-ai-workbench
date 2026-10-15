@@ -12,8 +12,13 @@ use App\Http\Controllers\ProductionTaskController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SourceReferenceController;
 use App\Http\Controllers\TopicController;
-use App\Http\Controllers\V2ContentController;
+use App\Http\Controllers\V2\ImageBatchController;
 use App\Http\Controllers\V2\ImagePostImportController;
+use App\Http\Controllers\V2\ArticleImportController;
+use App\Http\Controllers\V2\VideoController;
+use App\Http\Controllers\V2\ReusableAssetController;
+use App\Http\Controllers\V2\ReviewController;
+use App\Http\Controllers\V2ContentController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -160,9 +165,16 @@ Route::middleware('auth')->group(function (): void {
 // V2 uses flat project scopes; V1 nested entrypoints remain operational until Plan 6.
 Route::middleware('auth')->group(function (): void {
     $controller = V2ContentController::class;
-    Route::get('/projects/{project}/{page}', [$controller, 'workspace'])->whereIn('page', ['in-progress', 'inspirations', 'topics', 'content', 'review']);
+    Route::get('/projects/{project}/{page}', [$controller, 'workspace'])->whereIn('page', ['in-progress', 'inspirations', 'topics', 'content']);
     Route::get('/projects/{project}/content/{item}', [$controller, 'detailPage']);
     Route::get('/projects/{project}/content/{item}/branches/{branch}/image-post', [$controller, 'imagePostPage']);
+    Route::get('/projects/{project}/content/{item}/branches/{branch}/article', [ArticleImportController::class, 'editor']);
+    Route::get('/projects/{project}/content/{item}/branches/{branch}/video', [\App\Http\Controllers\V2\VideoController::class, 'page']);
+    // I05：图片批次生产正式页面（分支资格由 API 单一真源校验，不合格 → 422）。
+    Route::get('/projects/{project}/content/{item}/branches/{branch}/image-batch', [$controller, 'imageBatchPage']);
+    // I06B：人物 / 场景复用资产索引正式页面（只读索引，数据由前端通过只读 API 拉取）。
+    Route::get('/projects/{project}/reusable-assets', [ReusableAssetController::class, 'page']);
+    Route::get('/projects/{project}/reviews', [ReviewController::class, 'page']);
     Route::prefix('api/projects/{project}')->group(function () use ($controller): void {
         Route::get('/inspirations', [$controller, 'inspirations']);
         Route::post('/inspirations', [$controller, 'saveInspiration']);
@@ -184,5 +196,34 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/items/{item}/branches/{branch}/image-post/apply', [ImagePostImportController::class, 'apply']);
         Route::get('/items/{item}/branches/{branch}/image-post', [ImagePostImportController::class, 'show']);
         Route::put('/items/{item}/branches/{branch}/image-post', [ImagePostImportController::class, 'save']);
+
+        // B04：视频号视频制作（video 分支）。
+        // GET 读取（系统补 order/source_page_id/source_label + timeline/total_duration）；
+        // PUT 白名单保存（变化才补版本）；source-change 仅 keep（只更新来源 fingerprint）。
+        Route::get('/items/{item}/branches/{branch}/video', [VideoController::class, 'show']);
+        Route::put('/items/{item}/branches/{branch}/video', [VideoController::class, 'save']);
+        Route::post('/items/{item}/branches/{branch}/video/source-change', [VideoController::class, 'sourceChange']);
+        // I05：图片批次生产（image_post + wechat_official 分支），正式接通 C05-R1 前端。
+        // GET 工作台本体（不包 data）/ PUT 整批草稿 / POST 执行（第一阶段只留 queued 记录）/
+        // POST 复制服务端组装任务 / POST 单页来源变化处理（keep / regenerate）。
+        Route::get('/items/{item}/branches/{branch}/image-batch', [ImageBatchController::class, 'show']);
+        Route::put('/items/{item}/branches/{branch}/image-batch', [ImageBatchController::class, 'save']);
+        Route::post('/items/{item}/branches/{branch}/image-batch/run', [ImageBatchController::class, 'run']);
+        Route::post('/items/{item}/branches/{branch}/image-batch/copy-task', [ImageBatchController::class, 'copyTask']);
+        Route::post('/items/{item}/branches/{branch}/image-batch/units/{unit}/source-change', [ImageBatchController::class, 'sourceChange']);
+        // I06B：人物 / 场景复用资产索引只读 API（GET 契约 {characters, scenes}，不包 data.data）。
+        Route::get('/reusable-assets', [ReusableAssetController::class, 'index']);
+        // B03：轻量审核中心；独立审核合同保留 data envelope。
+        Route::get('/reviews', [ReviewController::class, 'index']);
+        Route::get('/reviews/{review}', [ReviewController::class, 'show']);
+        Route::post('/reviews/{review}/decision', [ReviewController::class, 'decide']);
+    });
+
+    // B02：公众号 · 图文文章（article）后端。GET 读 / PUT 人工保存 / preview 只读预览 / apply 确认落库。
+    Route::prefix('api/projects/{project}')->group(function (): void {
+        Route::get('/items/{item}/branches/{branch}/article', [ArticleImportController::class, 'show']);
+        Route::put('/items/{item}/branches/{branch}/article', [ArticleImportController::class, 'save']);
+        Route::post('/items/{item}/branches/{branch}/article/preview', [ArticleImportController::class, 'preview']);
+        Route::post('/items/{item}/branches/{branch}/article/apply', [ArticleImportController::class, 'apply']);
     });
 });

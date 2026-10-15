@@ -61,4 +61,14 @@ class Project extends Model
     {
         return $this->hasMany(Asset::class);
     }
+
+    public function reusableAssets(): HasMany
+    {
+        return $this->hasMany(ReusableAsset::class);
+    }
+
+    public function reviewRequests(): HasMany
+    {
+        return $this->hasMany(ReviewRequest::class);
+    }
 }

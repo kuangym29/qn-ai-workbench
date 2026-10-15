@@ -1,5 +1,30 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+
+// Mobile drawer state. On desktop (md+) the sidebar is a static flex child and
+// this flag is ignored (the md: variants force it visible/in-flow). On mobile the
+// sidebar is an off-canvas drawer toggled by the hamburger button; a backdrop and
+// ESC also close it. No third-party drawer library is used.
+const sidebarOpen = ref(false);
+const sidebarElement = ref<HTMLElement | null>(null);
+const menuButton = ref<HTMLButtonElement | null>(null);
+const headerElement = ref<HTMLElement | null>(null);
+const headerHeight = ref(0);
+let headerObserver: ResizeObserver | null = null;
+async function toggleSidebar(): Promise<void> {
+  if (sidebarOpen.value) { closeSidebar(); return; }
+  sidebarOpen.value = true;
+  await nextTick();
+  sidebarElement.value?.querySelector<HTMLElement>('button:not([disabled]), a[href]')?.focus();
+}
+function closeSidebar(): void {
+  const wasOpen = sidebarOpen.value;
+  sidebarOpen.value = false;
+  if (wasOpen) void nextTick(() => menuButton.value?.focus());
+}
+function onKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') closeSidebar();
+}
 import { Link, router, usePage } from '@inertiajs/vue3';
 import type { Project } from '../api/types';
 import { USE_MOCK } from '../api/config';
@@ -29,7 +54,7 @@ const workspaceLinks = [
   {path: 'inspirations', label: '灵感'},
   {path: 'topics', label: '选题'},
   {path: 'content', label: '内容库'},
-  {path: 'review', label: '待我审核'},
+  {path: 'reviews', label: '待我审核'},
 ];
 function goToWorkspace(path: string): void {
   if (!projectContext.current) { toast.info('请先选择一个项目'); router.visit('/projects'); return; }
@@ -68,6 +93,11 @@ async function onLogout(): Promise<void> {
 let authInterceptor: number | null = null;
 
 onMounted(async () => {
+  window.addEventListener('keydown', onKeydown);
+  const measureHeader = () => { headerHeight.value = headerElement.value?.getBoundingClientRect().height ?? 0; };
+  measureHeader();
+  headerObserver = new ResizeObserver(measureHeader);
+  if (headerElement.value) headerObserver.observe(headerElement.value);
   authInterceptor = http.interceptors.response.use(
     (response) => response,
     async (error: unknown) => {
@@ -87,6 +117,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown);
+  headerObserver?.disconnect();
   if (authInterceptor !== null) http.interceptors.response.eject(authInterceptor);
 });
 
@@ -94,6 +126,13 @@ onUnmounted(() => {
 watch(
   () => page.props.currentProject,
   (project) => hydrateFromServer((project as Project | null) ?? null),
+);
+
+// Any route change should dismiss the mobile drawer so it never lingers over a
+// freshly navigated page.
+watch(
+  () => page.url,
+  () => closeSidebar(),
 );
 
 function navClass(active: boolean, enabled = true): string {
@@ -157,9 +196,16 @@ async function onSwitch(event: Event): Promise<void> {
       </button>
     </div>
   </div>
-  <div v-else class="flex h-screen bg-slate-100">
-    <!-- Sidebar -->
-    <aside class="flex w-60 flex-col bg-slate-900 text-slate-300">
+  <div v-else class="flex h-screen bg-slate-100" :style="{ '--mobile-header-height': `${headerHeight}px` }">
+    <!-- Sidebar: static flex child on desktop (md+); off-canvas drawer on mobile.
+         md: variants force it back into normal flow and always visible, so the
+         desktop layout is unchanged. The mobile state (translate) is driven by
+         sidebarOpen below. -->
+    <aside
+      ref="sidebarElement"
+      class="fixed inset-y-0 top-[var(--mobile-header-height)] left-0 z-40 flex w-60 flex-col bg-slate-900 text-slate-300 transition-transform md:static md:top-0 md:z-auto md:translate-x-0 md:visible"
+      :class="sidebarOpen ? 'translate-x-0 visible' : '-translate-x-full invisible'"
+    >
       <div class="border-b border-slate-800 px-5 py-4">
         <p class="text-sm font-semibold text-white">QN AI 内容工作台</p>
         <p class="text-xs text-slate-500">V2 创作工作台</p>
@@ -173,29 +219,52 @@ async function onSwitch(event: Event): Promise<void> {
         <button type="button" :class="navClass(isSourcesActive)" @click="goToSources">来源管理</button>
       </nav>   </aside>
 
+    <!-- Mobile drawer backdrop: only rendered while open and never on desktop. -->
+    <div
+      v-if="sidebarOpen"
+      class="fixed inset-0 z-30 bg-black/40 md:hidden"
+      aria-hidden="true"
+      @click="closeSidebar"
+    ></div>
+
     <!-- Main column -->
     <div class="flex min-w-0 flex-1 flex-col">
-      <!-- Topbar: current project area + switcher -->
+      <!-- Topbar: current project area + switcher. Wraps on narrow screens so the
+           project selector / user area / hamburger never force a horizontal
+           scroll; secondary labels collapse below md/sm. -->
       <header
-        class="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3"
+        ref="headerElement"
+        class="relative z-50 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-3 md:px-6"
       >
-        <div class="flex items-center gap-3">
-          <span class="text-sm text-slate-500">当前项目</span>
+        <div class="flex min-w-0 items-center gap-2">
+          <button
+            ref="menuButton"
+            type="button"
+            class="inline-flex shrink-0 items-center justify-center rounded-md border border-slate-300 p-1.5 text-slate-700 hover:bg-slate-50 md:hidden"
+            :aria-expanded="sidebarOpen"
+            aria-label="切换导航菜单"
+            @click="toggleSidebar"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <span class="hidden shrink-0 text-sm text-slate-500 sm:inline">当前项目</span>
           <select
             :value="projectContext.current?.id ?? ''"
-            class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 focus:border-slate-400 focus:outline-none"
+            class="max-w-[7rem] shrink truncate rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 focus:border-slate-400 focus:outline-none sm:max-w-[11rem]"
             @change="onSwitch"
           >
             <option value="">未选择项目</option>
             <option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</option>
           </select>
-          <span v-if="projectContext.current" class="text-xs text-slate-400">
+          <span v-if="projectContext.current" class="hidden max-w-[6rem] truncate text-xs text-slate-400 md:inline">
             已选：{{ projectContext.current.name }}
           </span>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex min-w-0 items-center gap-2 md:gap-3">
           <span
-            class="rounded-full px-2.5 py-0.5 text-xs font-medium"
+            class="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium"
             :class="USE_MOCK ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'"
           >
             {{ USE_MOCK ? 'Mock 数据模式' : '真实接口模式' }}
@@ -205,7 +274,7 @@ async function onSwitch(event: Event): Promise<void> {
       </header>
 
       <!-- Page content -->
-      <main class="flex-1 overflow-y-auto px-6 py-6">
+      <main class="min-w-0 flex-1 overflow-y-auto px-4 py-6 md:px-6">
         <slot />
       </main>
     </div>
