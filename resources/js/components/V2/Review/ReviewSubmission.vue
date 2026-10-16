@@ -6,6 +6,8 @@ import type { SubmissionScope } from '../../../composables/v2/review/reviewSubmi
 const props = defineProps<SubmissionScope & { dirty: boolean; busy: boolean; ready: boolean }>();
 const submission = useReviewSubmission(() => ({ projectId: props.projectId, itemId: props.itemId, branchId: props.branchId, target: props.target }), () => props.dirty || props.busy || !props.ready);
 watch(() => [props.projectId, props.itemId, props.branchId, props.target], () => { void submission.load(); }, { immediate: true });
+// 保存成功（dirty 由 true → false）后，按服务器当前保存版本重算审核提交状态。
+watch(() => props.dirty, (dirty, wasDirty) => { if (wasDirty && !dirty) void submission.load(); });
 </script>
 <template>
  <section class="my-4 flex min-w-0 flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-3" aria-label="提交审核">

@@ -19,6 +19,7 @@ use App\Http\Controllers\V2\VideoController;
 use App\Http\Controllers\V2\ReusableAssetController;
 use App\Http\Controllers\V2\ReviewController;
 use App\Http\Controllers\V2\ReviewSubmissionController;
+use App\Http\Controllers\V2\PublicationController;
 use App\Http\Controllers\V2ContentController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -220,6 +221,9 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/reviews/{review}/decision', [ReviewController::class, 'decide']);
         Route::get('/items/{item}/branches/{branch}/review-submissions/{target}', [ReviewSubmissionController::class, 'show']);
         Route::post('/items/{item}/branches/{branch}/review-submissions/{target}', [ReviewSubmissionController::class, 'store']);
+        // P5-I01：手工"标记已发布"闭环。GET 实时算发布状态（无副作用）；POST 事务 + 锁分支 + 查 exact approved + 幂等 + 抗并发唯一约束。
+        Route::get('/items/{item}/branches/{branch}/publication/{target}', [PublicationController::class, 'show']);
+        Route::post('/items/{item}/branches/{branch}/publication/{target}', [PublicationController::class, 'store']);
     });
 
     // B02：公众号 · 图文文章（article）后端。GET 读 / PUT 人工保存 / preview 只读预览 / apply 确认落库。

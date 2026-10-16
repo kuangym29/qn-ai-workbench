@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ReviewSubmission from '../../components/V2/Review/ReviewSubmission.vue';
+import PublicationAction from '../../components/V2/Publication/PublicationAction.vue';
 import { shallowRef, watch } from 'vue';
 import { Link, router } from '@inertiajs/vue3';
 import AdminLayout from '../../layouts/AdminLayout.vue';
@@ -18,7 +19,8 @@ watch(() => [props.projectId, props.itemId, props.branchId], () => {
  <AdminLayout>
   <Breadcrumb :items="[{label:'内容库',href:'/projects/'+projectId+'/content'},{label:editor.item.value?.title ?? '图片文章',href:'/projects/'+projectId+'/content/'+itemId},{label:'图片文章编辑'}]" />
   <div class="mb-4"><Link :href="'/projects/'+projectId+'/content/'+itemId" class="text-sm text-slate-600 underline">返回篇目</Link></div>
-  <ReviewSubmission :project-id="projectId" :item-id="itemId" :branch-id="branchId" target="image_post_copy" :dirty="editor.dirty.value" :busy='editor.loading.value || editor.saving.value || editor.applying.value || editor.phase.value === "parsing" || editor.phase.value === "preview"' :ready="!!editor.item.value && !editor.loadError.value" />
+  <ReviewSubmission :project-id="projectId" :item-id="itemId" :branch-id="branchId" target="image_post_copy" :dirty="editor.dirty.value" :busy='editor.loading.value || editor.saving.value || editor.applying.value || editor.phase.value === "parsing" || editor.phase.value === "preview"'     :ready="!!editor.item.value && !editor.loadError.value" />
+    <PublicationAction :project-id="projectId" :item-id="itemId" :branch-id="branchId" target="image_post_copy" :dirty="editor.dirty.value" :busy='editor.loading.value || editor.saving.value || editor.applying.value || editor.phase.value === "parsing" || editor.phase.value === "preview"' :ready="!!editor.item.value && !editor.loadError.value" />
     <ImagePostEditorBody
    :item="editor.item.value" :pages="editor.pages.value" :loading="editor.loading.value" :load-error="editor.loadError.value"
    :saving="editor.saving.value" :applying="editor.applying.value" :apply-error="editor.applyError.value" :warnings="editor.warnings.value"

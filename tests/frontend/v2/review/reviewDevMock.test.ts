@@ -30,10 +30,10 @@ test('DEV Mock 列表：≥5 条且全部 pending', async () => {
   }
 });
 
-test('DEV Mock 列表：覆盖小绿书 / 图文 / 视频审核对象，且公众号与视频号渠道均出现', async () => {
+test('DEV Mock 列表：覆盖图片文章 / 图文 / 视频审核对象，且公众号与视频号渠道均出现', async () => {
   const items = await buildMockReviewList();
   const labels = new Set(items.map((i) => i.review_target_label));
-  assert.ok(labels.has('小绿书内容'));
+  assert.ok(labels.has('图片文章'));
   assert.ok(labels.has('公众号图文'));
   assert.ok(labels.has('视频制作'));
   const channels = new Set(items.map((i) => i.channel));

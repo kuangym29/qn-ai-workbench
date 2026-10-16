@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import ReviewSubmission from '../../../components/V2/Review/ReviewSubmission.vue';
+import PublicationAction from '../../../components/V2/Publication/PublicationAction.vue';
 // V2 视频号视频制作 —— 正式 Inertia 页面。
 // R1：正式页面必须接收 projectId / itemId / branchId 三参数（branch-aware）。
 // 数据从 API 加载（videoApi）；生成按钮（复制任务 / 试样 / 选择片段）为 UI 动作，
@@ -69,6 +70,7 @@ watch(() => [props.projectId, props.itemId, props.branchId], async () => {
     </PageHeader>
 
     <ReviewSubmission :project-id="projectId" :item-id="itemId" :branch-id="branchId" target="video_production" :dirty="editor.dirty.value" :busy='editor.loading.value || editor.saving.value || editor.resolvingSource.value' :ready="!!editor.video.value && !editor.loadError.value" />
+    <PublicationAction :project-id="projectId" :item-id="itemId" :branch-id="branchId" target="video_production" :dirty="editor.dirty.value" :busy='editor.loading.value || editor.saving.value || editor.resolvingSource.value' :ready="!!editor.video.value && !editor.loadError.value" />
     <VideoEditorBody
       :video="editor.video.value"
       :loading="editor.loading.value"

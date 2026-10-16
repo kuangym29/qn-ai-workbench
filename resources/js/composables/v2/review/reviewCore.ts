@@ -38,7 +38,7 @@ export const REVIEW_FORMAT_LABELS: Record<ReviewFormat, string> = {
 
 /** 审核对象中文标签（未知对象原样返回）。 */
 export const REVIEW_TARGET_LABELS: Record<string, string> = {
-  image_post_copy: '小绿书内容',
+  image_post_copy: '图片文章',
   article_copy: '公众号图文',
   video_production: '视频制作',
   image_batch: '图片批次',

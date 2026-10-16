@@ -25,7 +25,7 @@ function makeItem(overrides: Partial<ReviewItem> = {}): ReviewItem {
     channel: 'wechat_official',
     format: 'image_post',
     review_target_type: 'image_post_copy',
-    review_target_label: '小绿书内容',
+    review_target_label: '图片文章',
     version_label: 'v1 · 初稿',
     submitted_at: '2026-10-13T08:00:00+08:00',
     preview_summary: '共 10 页。',
@@ -62,7 +62,7 @@ test('channelLabel / formatLabel / targetLabel 映射与正式枚举', () => {
   assert.equal(formatLabel('image_post'), '图片文章');
   assert.equal(formatLabel('article'), '图文文章');
   assert.equal(formatLabel('video'), '视频制作');
-  assert.equal(targetLabel('image_post_copy'), '小绿书内容');
+  assert.equal(targetLabel('image_post_copy'), '图片文章');
   assert.equal(targetLabel('image_batch'), '图片批次');
   assert.equal(targetLabel('article_copy'), '公众号图文');
   assert.equal(targetLabel('video_production'), '视频制作');
