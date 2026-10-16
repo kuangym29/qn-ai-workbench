@@ -25,7 +25,10 @@ return new class extends Migration
             $table->foreignId('content_branch_id')->constrained()->cascadeOnDelete();
 
             // 引用当前审核通过的 ReviewRequest（服务器自查，不接受客户端传入）。
-            $table->foreignId('review_request_id')->nullable()->constrained('review_requests')->nullOnDelete();
+            // NOT NULL + restrictOnDelete：发布记录必须始终持有审核凭证；
+            // 删除被引用的 ReviewRequest 由数据库拒绝（RESTRICT），
+            // 不得静默把历史发布记录的 review_request_id 置 NULL。
+            $table->foreignId('review_request_id')->constrained('review_requests')->restrictOnDelete();
 
             $table->string('review_target_type'); // ReviewTargetType 稳定内部值
             $table->string('version_label');      // 关联内容版本身份（区别于同分支不同版本）

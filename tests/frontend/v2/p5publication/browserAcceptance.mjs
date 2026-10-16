@@ -1,14 +1,15 @@
-// V2-P5-I01 —— 发布闭环真实浏览器验收（真实 Laravel + 真实 Vite 构建产物）。
+// V2-P5-I01-R1 —— 发布闭环真实浏览器验收（真实 Laravel + 真实 Vite 构建产物）。
 //
-// 覆盖：
-//   A. 三个可发布目标（image_post_copy / article_copy / video_production）编辑器内
-//      「标记已发布」→「已发布 · 时间」全闭环，并经 GET 校验 publication 记录已写入。
-//   B. Article 修改正文 → 新版本（未重新审核）→ 发布按钮禁用 + POST 422（内容已改必须重审）。
-//      （"不同版本各自成记录 / 旧版本改动后拦截"由后端 PublicationApiTest 覆盖；此处验证前端版本门禁拦截。）
-//   C. ImageBatch 编辑器内【无】发布按钮（发布目标仅限上述三者）。
-//   D. image_batch 的 publication GET 返回 422（后端拒绝）。
-//   E. 353 / 390 / 1024 窄屏下编辑器无横向滚动。
-//   F. console 0 意外错误 / 无意外 5xx。
+// R1 口径（相对初版的关键变化）：
+//   - 不预置 approved 状态：Article / ImagePost / Video 全部真实走
+//     保存 → 提交审核 → 审核中心「通过」→ 标记已发布 的用户流程。
+//   - ImageBatch：正式合同是运行于 wechat_official + image_post ContentBranch 的
+//     /projects/{p}/content/{item}/branches/{branch}/image-batch 页面；真实打开该页面，
+//     断言「标记已发布」按钮数量 == 0（不允许 skip），并对同一 branch 的
+//     publication/image_batch GET 断言 422。
+//   - Article 第二版本：dirty 守卫 → 保存 B → 未审核 422 → 重新审核 → 第二条发布记录。
+//   - Responsive：ImagePost / Article / Video 三页面 × {353, 390, 1024} = 9 条真实断言。
+//   - console / network：精确区分 expected 422 与 unexpected 错误，不做宽泛过滤。
 //
 // 前置（由 bootstrap 准备）：migrate:fresh + P5PublicationBrowserSeeder + npm run build + php -S。
 // 运行：node tests/frontend/v2/p5publication/browserAcceptance.mjs
@@ -21,6 +22,7 @@ const CHROME = process.env.CHROME_PATH ?? 'C:/Users/Administrator/AppData/Local/
 
 const results = [];
 let failures = 0;
+let skips = 0;
 
 function check(step, ok, detail = '') {
   results.push({ step, ok, detail });
@@ -57,21 +59,46 @@ const context = await browser.newContext({
 });
 const page = await context.newPage();
 
-const consoleErrors = [];
-const badRequests = [];
+// ── console / network 采集（精确口径）────────────────────────────────────
+const consoleErrors = [];        // 全部 console error 文本
+const expected422Console = [];   // 其中：浏览器对 422 响应的资源报错（expected）
+const unexpectedConsole = [];    // 其余 unexpected console error
+const triggered422 = [];         // harness 主动 fetch 触发的 422
+const page422 = [];              // 页面自发请求产生的 422
+const badRequests = [];          // >=500 响应
+
+function isExpected422Console(text) {
+  // 只精确匹配 Chromium 对 422 状态的标准 resource 报错，不用宽泛字符串过滤。
+  return /Failed to load resource: the server responded with a status of 422/.test(text);
+}
+
 page.on('console', (message) => {
   if (message.type() !== 'error') return;
-  consoleErrors.push(message.text());
+  const text = message.text();
+  consoleErrors.push(text);
+  if (isExpected422Console(text)) expected422Console.push(text);
+  else unexpectedConsole.push(text);
 });
 page.on('response', (response) => {
-  if (response.status() < 500) return;
-  badRequests.push(`${response.status()} ${response.request().method()} ${response.url()}`);
+  const status = response.status();
+  if (status === 422) {
+    page422.push(`${response.request().method()} ${response.url()}`);
+  }
+  if (status >= 500) {
+    badRequests.push(`${status} ${response.request().method()} ${response.url()}`);
+  }
 });
 
+/** 主动触发的 422（harness 自己 fetch），计入 expected。 */
+async function triggered(method, url, body, expectedStatus) {
+  const res = await inPage(method, url, body)(page);
+  if (res.status === 422) triggered422.push(`${method} ${url}`);
+  return res;
+}
+
 /** 等待「标记已发布」按钮出现且可用（说明发布状态已加载且 can_publish=true）。 */
-async function waitPublishable(section = '') {
-  const loc = section ? page.locator(section) : page;
-  const btn = loc.getByRole('button', { name: '标记已发布' });
+async function waitPublishable() {
+  const btn = page.getByRole('button', { name: '标记已发布' });
   await btn.waitFor({ state: 'visible', timeout: 30000 });
   // playwright-core 的 locator.waitFor 不支持 state:'enabled'，改用文本轮询。
   await page.waitForFunction(
@@ -85,6 +112,54 @@ async function waitPublishable(section = '') {
     { timeout: 30000 },
   );
   return btn;
+}
+
+/** 等待某保存类按钮恢复可用（保存完成）。 */
+async function waitSaveDone(name) {
+  await page.waitForFunction(
+    (label) => {
+      const b = Array.from(document.querySelectorAll('button')).find(
+        (x) => (x.textContent ?? '').trim() === label,
+      );
+      return b && !b.disabled;
+    },
+    name,
+    { timeout: 30000 },
+  );
+}
+
+/** 编辑器内点击「提交审核」，等待 UI 进入「审核中」。 */
+async function submitReviewAndWaitPending() {
+  const submit = page.getByRole('button', { name: '提交审核' });
+  await submit.waitFor({ state: 'visible', timeout: 30000 });
+  await submit.click();
+  await page.waitForFunction(() => document.body.innerText.includes('审核中'), null, { timeout: 30000 });
+}
+
+/**
+ * 审核中心：打开指定标题的 pending 项并点击「通过」。
+ * 决策成功后自动回到列表并刷新，等待该标题从 pending 列表消失。
+ */
+async function approveInReviewCenter(projectId, title) {
+  await page.goto(`/projects/${projectId}/reviews`);
+  await page.waitForFunction(
+    (t) => Array.from(document.querySelectorAll('button')).some((b) => (b.textContent ?? '').includes(t)),
+    title,
+    { timeout: 30000 },
+  );
+  await page.locator('button', { hasText: title }).first().click();
+  const approve = page.getByRole('button', { name: '通过', exact: true });
+  await approve.waitFor({ state: 'visible', timeout: 30000 });
+  await approve.click();
+  await page.waitForFunction(
+    (t) => {
+      const btns = Array.from(document.querySelectorAll('button'));
+      return !btns.some((b) => (b.textContent ?? '').trim() === '通过') &&
+        !btns.some((b) => (b.textContent ?? '').includes(t));
+    },
+    title,
+    { timeout: 30000 },
+  );
 }
 
 try {
@@ -106,7 +181,7 @@ try {
   const itemsResponse = await inPage('GET', `/api/projects/${project}/items`)(page);
   check('items API 200', itemsResponse.status === 200, `${itemsResponse.status}`);
 
-  const scope = { project, image_post: null, article: null, video: null };
+  const scope = { image_post: null, article: null, video: null };
   for (const entry of itemsResponse.json.data) {
     for (const b of entry.content_branches ?? []) {
       if (b.channel === 'wechat_official' && b.format === 'image_post') scope.image_post = { item: entry.id, branch: b.id };
@@ -116,122 +191,219 @@ try {
   }
   check('fixture branches resolved (image_post/article/video)', Boolean(scope.image_post && scope.article && scope.video), JSON.stringify(scope));
 
-  // ── A1. image_post_copy 发布闭环 ─────────────────────────────────────
-  {
-    const { item, branch } = scope.image_post;
-    const url = `/projects/${project}/content/${item}/branches/${branch}/image-post`;
-    await page.goto(url);
-    await page.waitForSelector('[data-v2-image-post-pages]', { timeout: 30000 });
-    const btn = await waitPublishable();
-    check('A1. image_post: 标记已发布 可用', await btn.isEnabled(), '');
-    await btn.click();
-    await page.waitForFunction(() => document.body.innerText.includes('已发布'), null, { timeout: 30000 });
-    check('A1. image_post: 显示 已发布', (await page.locator('body').innerText()).includes('已发布'));
-    const pub = await inPage('GET', `/api/projects/${project}/items/${item}/branches/${branch}/publication/image_post_copy`)(page);
-    check('A1. image_post: GET published=true', pub.status === 200 && pub.json.data.published === true, `${pub.status} published=${pub.json?.data?.published}`);
-  }
+  const articleUrl = `/projects/${project}/content/${scope.article.item}/branches/${scope.article.branch}/article`;
+  const imagePostUrl = `/projects/${project}/content/${scope.image_post.item}/branches/${scope.image_post.branch}/image-post`;
+  const videoUrl = `/projects/${project}/content/${scope.video.item}/branches/${scope.video.branch}/video`;
 
-  // ── A2. article_copy 发布闭环 + B. 修改后重新发布 → 第二条记录 ─────────
+  // ═══ S1. Article 完整真实生命周期（保存 → 提交审核 → 审核通过 → 发布）═══
   {
     const { item, branch } = scope.article;
-    const url = `/projects/${project}/content/${item}/branches/${branch}/article`;
-    await page.goto(url);
-    await page.waitForFunction(() => document.querySelector('textarea[placeholder="正文内容…（长文可直接粘贴）"]') !== null, null, { timeout: 30000 });
-    const btn = await waitPublishable();
-    check('A2. article: 标记已发布 可用', await btn.isEnabled(), '');
-    await btn.click();
-    await page.waitForFunction(() => document.body.innerText.includes('已发布'), null, { timeout: 30000 });
-    const first = await inPage('GET', `/api/projects/${project}/items/${item}/branches/${branch}/publication/article_copy`)(page);
-    const id1 = first.json?.data?.publication_id;
-    check('A2. article: GET published=true', first.status === 200 && first.json.data.published === true, `id1=${id1}`);
+    const stateUrl = `/api/projects/${project}/items/${item}/branches/${branch}/publication/article_copy`;
 
-    // 修改正文 → 新版本（未重新审核）；保存后重载，发布状态按新版本实时重算。
-    // 设计约束：内容改变后旧版审核失效，必须重新审核通过才能发布 → 按钮禁用 + POST 422。
-    await page.fill('textarea[placeholder="正文内容…（长文可直接粘贴）"]', '秋天气温变化大，注意给孩子适时添减衣物，保持室内湿度，预防呼吸道不适。（修订版）');
+    // A. 进入编辑器 → 修改正文 → 保存。
+    await page.goto(articleUrl);
+    await page.waitForFunction(() => document.querySelector('textarea[placeholder="正文内容…（长文可直接粘贴）"]') !== null, null, { timeout: 30000 });
+    const before = await inPage('GET', stateUrl)(page);
+    check('S1-A. article: 初始 approved=false / can_publish=false', before.status === 200 && before.json.data.approved === false && before.json.data.can_publish === false, JSON.stringify(before.json?.data));
+    await page.fill('textarea[placeholder="正文内容…（长文可直接粘贴）"]', '秋天气温变化大，注意给孩子适时添减衣物，保持室内湿度，预防呼吸道不适。（第一阶段修订）');
     await page.getByRole('button', { name: '保存文章' }).click();
-    await page.waitForFunction(() => {
-      const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim() === '保存文章');
-      return b && !b.disabled;
-    }, null, { timeout: 30000 });
-    await page.waitForTimeout(400);
-    await page.reload();
-    await page.waitForFunction(() => document.querySelector('textarea[placeholder="正文内容…（长文可直接粘贴）"]') !== null, null, { timeout: 30000 });
-    // 新版本未审核 → 按钮可见但禁用。
-    const btn2 = page.getByRole('button', { name: '标记已发布' });
-    await btn2.waitFor({ state: 'visible', timeout: 30000 });
-    check('B. article: 修改后按钮禁用（新版本未重新审核）', (await btn2.isEnabled()) === false, '');
-    // 直接 POST 发布 → 422（内容已改，当前版本未审核通过）。
-    const blocked = await inPage('POST', `/api/projects/${project}/items/${item}/branches/${branch}/publication/article_copy`)(page);
-    check('B. article: 内容改动后重新发布被 422 拦截', blocked.status === 422, `${blocked.status}`);
-    // 重载后 GET 反映当前（新）版本：未发布（旧版本记录仍存在，由后端并发/版本测试覆盖）。
-    const after = await inPage('GET', `/api/projects/${project}/items/${item}/branches/${branch}/publication/article_copy`)(page);
-    check('B. article: 新版本 GET published=false（无意外发布）', after.status === 200 && after.json.data.published === false, `published=${after.json?.data?.published}`);
-  }
+    await waitSaveDone('保存文章');
+    check('S1-A. article: 正文修改并保存成功', true);
 
-  // ── A3. video_production 发布闭环 ───────────────────────────────────
-  {
-    const { item, branch } = scope.video;
-    const url = `/projects/${project}/content/${item}/branches/${branch}/video`;
-    await page.goto(url);
-    await page.getByRole('button', { name: '保存' }).first().waitFor({ timeout: 30000 });
+    // B. 提交审核（真实 ReviewSubmission UI）。
+    await submitReviewAndWaitPending();
+    check('S1-B. article: 提交审核后显示「审核中」', true);
+
+    // C. 审核中心真实「通过」。
+    await approveInReviewCenter(project, 'P5-R1 图文文章');
+    check('S1-C. article: 审核中心通过 exact version', true);
+
+    // D. 返回编辑器：approved=true / can_publish=true → 标记已发布。
+    await page.goto(articleUrl);
+    await page.waitForFunction(() => document.querySelector('textarea[placeholder="正文内容…（长文可直接粘贴）"]') !== null, null, { timeout: 30000 });
+    const approved = await inPage('GET', stateUrl)(page);
+    check('S1-D. article: 审核通过后 approved=true / can_publish=true', approved.status === 200 && approved.json.data.approved === true && approved.json.data.can_publish === true, JSON.stringify(approved.json?.data));
     const btn = await waitPublishable();
-    check('A3. video: 标记已发布 可用', await btn.isEnabled(), '');
     await btn.click();
     await page.waitForFunction(() => document.body.innerText.includes('已发布'), null, { timeout: 30000 });
-    const pub = await inPage('GET', `/api/projects/${project}/items/${item}/branches/${branch}/publication/video_production`)(page);
-    check('A3. video: GET published=true', pub.status === 200 && pub.json.data.published === true, `${pub.status} published=${pub.json?.data?.published}`);
+    const published = await inPage('GET', stateUrl)(page);
+    check('S1-D. article: 标记已发布 → published=true', published.status === 200 && published.json.data.published === true, `id=${published.json?.data?.publication_id}`);
   }
 
-  // ── C. ImageBatch 无发布按钮 + D. image_batch 发布 GET 422 ───────────
+  // ═══ S2. Article 第二版本闭环（dirty 守卫 → 未审核 422 → 重审 → 第二条）═══
   {
-    const { item, branch } = scope.image_post; // 随便取一个已登录项目下的 image-batch 分支（P5 演示未建 image_batch 分支）
-    // ImageBatch 分支：复用 image_post 的项目，按 channel/format 找 image_batch；若没有则直接验证 GET 422。
-    let batchBranch = null;
-    for (const entry of itemsResponse.json.data) {
-      const b = (entry.content_branches ?? []).find((x) => x.format === 'image_batch');
-      if (b) { batchBranch = { item: entry.id, branch: b.id }; break; }
-    }
-    if (batchBranch) {
-      const url = `/projects/${project}/content/${batchBranch.item}/branches/${batchBranch.branch}/image-batch`;
-      await page.goto(url);
-      await page.waitForSelector('[data-v2-image-batch-units]', { timeout: 30000 });
-      const publishBtnCount = await page.getByRole('button', { name: '标记已发布' }).count();
-      check('C. image_batch: 编辑器内无「标记已发布」按钮', publishBtnCount === 0, `buttons=${publishBtnCount}`);
-      const pub = await inPage('GET', `/api/projects/${project}/items/${batchBranch.item}/branches/${batchBranch.branch}/publication/image_batch`)(page);
-      check('D. image_batch: publication GET 422', pub.status === 422, `${pub.status}`);
-    } else {
-      // 演示项目没有 image_batch 分支：仍验证「任何 image_batch publication GET 均 422」（用任一 item/branch 即可触发 target 校验）。
-      const any = scope.image_post;
-      const pub = await inPage('GET', `/api/projects/${project}/items/${any.item}/branches/${any.branch}/publication/image_batch`)(page);
-      check('D. image_batch: publication GET 422（target 校验）', pub.status === 422, `${pub.status}`);
-      check('C. image_batch: 演示未建 image_batch 分支（跳过编辑器内按钮断言）', true, 'no image_batch branch in demo');
-    }
+    const { item, branch } = scope.article;
+    const stateUrl = `/api/projects/${project}/items/${item}/branches/${branch}/publication/article_copy`;
+
+    await page.goto(articleUrl);
+    await page.waitForFunction(() => document.querySelector('textarea[placeholder="正文内容…（长文可直接粘贴）"]') !== null, null, { timeout: 30000 });
+    // 第一阶段：修改但不保存 → dirty 守卫。
+    await page.fill('textarea[placeholder="正文内容…（长文可直接粘贴）"]', '秋季幼儿护理补充：潮湿天气注意衣物防潮，晴好天气多户外活动。（第二阶段修订）');
+    // 「标记已发布」不可执行：要么按钮不存在（旧版本已发布态延续，未刷新到新版本），
+    // 要么按钮存在但禁用；同时页面必须显示统一文案「请先保存当前修改，再发布」。
+    const dirtyGuardVisible = await page.waitForFunction(
+      () => {
+        const btns = Array.from(document.querySelectorAll('button'));
+        const pub = btns.find((x) => (x.textContent ?? '').trim() === '标记已发布');
+        const hint = document.body.innerText.includes('请先保存当前修改，再发布');
+        return Boolean(hint && (!pub || pub.disabled));
+      },
+      null,
+      { timeout: 15000 },
+    ).then(() => true).catch(() => false);
+    check('S2. article: dirty 时发布按钮不可执行 + 提示「请先保存当前修改，再发布」', dirtyGuardVisible);
+
+    // 保存 B。
+    await page.getByRole('button', { name: '保存文章' }).click();
+    await waitSaveDone('保存文章');
+    const stateB = await inPage('GET', stateUrl)(page);
+    check('S2. article: 版本 B approved=false / published=false / can_publish=false',
+      stateB.status === 200 && stateB.json.data.approved === false && stateB.json.data.published === false && stateB.json.data.can_publish === false,
+      JSON.stringify(stateB.json?.data));
+    const btnB = page.getByRole('button', { name: '标记已发布' });
+    await btnB.waitFor({ state: 'visible', timeout: 30000 });
+    check('S2. article: 版本 B 发布按钮不可执行', (await btnB.isEnabled()) === false);
+
+    // 直接 POST → 422（expected）。
+    const blocked = await triggered('POST', stateUrl, undefined, 422);
+    check('S2. article: 版本 B 未审核直接 POST → 422', blocked.status === 422, `${blocked.status}`);
+
+    // 重新走 提交审核 → 审核中心通过 → 发布。
+    await submitReviewAndWaitPending();
+    check('S2. article: 版本 B 提交审核', true);
+    await approveInReviewCenter(project, 'P5-R1 图文文章');
+    check('S2. article: 版本 B 审核中心通过', true);
+    await page.goto(articleUrl);
+    await page.waitForFunction(() => document.querySelector('textarea[placeholder="正文内容…（长文可直接粘贴）"]') !== null, null, { timeout: 30000 });
+    const readyB = await inPage('GET', stateUrl)(page);
+    check('S2. article: 版本 B can_publish=true', readyB.status === 200 && readyB.json.data.can_publish === true, JSON.stringify(readyB.json?.data));
+    const btn2 = await waitPublishable();
+    await btn2.click();
+    await page.waitForFunction(() => document.body.innerText.includes('已发布'), null, { timeout: 30000 });
+    const pubB = await inPage('GET', stateUrl)(page);
+    check('S2. article: 版本 B 标记已发布 → published=true', pubB.status === 200 && pubB.json.data.published === true, `id=${pubB.json?.data?.publication_id}`);
   }
 
-  // ── E. 窄屏无横向滚动（image_post 编辑器） ──────────────────────────
+  // ═══ S3. ImagePost 完整真实生命周期 ═══════════════════════════════════
   {
     const { item, branch } = scope.image_post;
-    const url = `/projects/${project}/content/${item}/branches/${branch}/image-post`;
-    await page.goto(url);
+    const stateUrl = `/api/projects/${project}/items/${item}/branches/${branch}/publication/image_post_copy`;
+
+    await page.goto(imagePostUrl);
     await page.waitForSelector('[data-v2-image-post-pages]', { timeout: 30000 });
-    for (const width of [353, 390, 1024]) {
-      await page.setViewportSize({ width, height: 900 });
-      await page.waitForTimeout(450);
-      const m = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
-      check(`E. 无横向滚动 @${width}px`, m.scroll <= m.client + 1, `scroll=${m.scroll} client=${m.client}`);
-    }
-    await page.setViewportSize({ width: 1280, height: 900 });
+    const before = await inPage('GET', stateUrl)(page);
+    check('S3. image_post: 初始 approved=false', before.status === 200 && before.json.data.approved === false, JSON.stringify(before.json?.data));
+
+    // 修改正式内容并保存（整篇核心表达 → 版本快照变化）。
+    const coreMessage = page.locator('textarea[placeholder="整篇核心表达"]');
+    await coreMessage.waitFor({ state: 'visible', timeout: 15000 });
+    await coreMessage.fill('秋季幼儿护理：穿衣适度、湿度适宜、作息规律。（修订）');
+    await page.getByRole('button', { name: '保存整篇' }).click();
+    await waitSaveDone('保存整篇');
+    check('S3. image_post: 正式内容修改并保存', true);
+
+    await submitReviewAndWaitPending();
+    check('S3. image_post: 提交审核', true);
+    await approveInReviewCenter(project, 'P5-R1 图片文章');
+    check('S3. image_post: 审核中心通过', true);
+
+    await page.goto(imagePostUrl);
+    await page.waitForSelector('[data-v2-image-post-pages]', { timeout: 30000 });
+    const approved = await inPage('GET', stateUrl)(page);
+    check('S3. image_post: approved=true / can_publish=true', approved.status === 200 && approved.json.data.approved === true && approved.json.data.can_publish === true, JSON.stringify(approved.json?.data));
+    const btn = await waitPublishable();
+    await btn.click();
+    await page.waitForFunction(() => document.body.innerText.includes('已发布'), null, { timeout: 30000 });
+    const pub = await inPage('GET', stateUrl)(page);
+    check('S3. image_post: 标记已发布 → published=true', pub.status === 200 && pub.json.data.published === true, `id=${pub.json?.data?.publication_id}`);
+
+    // 文案校验：Review / Publication 区域显示「图片文章」，不得出现「小绿书内容」。
+    const reviewSectionText = await page.locator('section[aria-label="提交审核"]').innerText().catch(() => '');
+    const bodyText = await page.locator('body').innerText();
+    check('S3. image_post: 发布区显示「图片文章」或已发布态', bodyText.includes('已发布') || bodyText.includes('图片文章'), '');
+    check('S3. image_post: 全页不出现旧文案「小绿书内容」', !bodyText.includes('小绿书内容'), reviewSectionText.slice(0, 60));
   }
 
-  // ── F. console / 5xx ─────────────────────────────────────────────────
-  const realErrors = consoleErrors.filter((t) => !/favicon/i.test(t) && !/422|Unprocessable Content/i.test(t));
-  check('F1. console 0 error', realErrors.length === 0, realErrors.slice(0, 2).join(' | '));
-  check('F2. no unexpected 5xx', badRequests.length === 0, badRequests.slice(0, 2).join(' | '));
+  // ═══ S4. Video 完整真实生命周期 ═══════════════════════════════════════
+  {
+    const { item, branch } = scope.video;
+    const stateUrl = `/api/projects/${project}/items/${item}/branches/${branch}/publication/video_production`;
+
+    await page.goto(videoUrl);
+    await page.getByRole('button', { name: '保存' }).first().waitFor({ timeout: 30000 });
+    const before = await inPage('GET', stateUrl)(page);
+    check('S4. video: 初始 approved=false', before.status === 200 && before.json.data.approved === false, JSON.stringify(before.json?.data));
+
+    // 修改旁白并保存。
+    const narration = page.locator('textarea[placeholder="完整旁白…"]');
+    await narration.waitFor({ state: 'visible', timeout: 15000 });
+    await narration.fill('换季时节，孩子的日常护理需要注意穿衣、湿度与作息三个方面。（修订）');
+    await page.getByRole('button', { name: '保存', exact: true }).first().click();
+    await waitSaveDone('保存');
+    check('S4. video: 内容修改并保存', true);
+
+    await submitReviewAndWaitPending();
+    check('S4. video: 提交审核', true);
+    await approveInReviewCenter(project, 'P5-R1 视频');
+    check('S4. video: 审核中心通过', true);
+
+    await page.goto(videoUrl);
+    await page.getByRole('button', { name: '保存' }).first().waitFor({ timeout: 30000 });
+    const approved = await inPage('GET', stateUrl)(page);
+    check('S4. video: approved=true / can_publish=true', approved.status === 200 && approved.json.data.approved === true && approved.json.data.can_publish === true, JSON.stringify(approved.json?.data));
+    const btn = await waitPublishable();
+    await btn.click();
+    await page.waitForFunction(() => document.body.innerText.includes('已发布'), null, { timeout: 30000 });
+    const pub = await inPage('GET', stateUrl)(page);
+    check('S4. video: 标记已发布 → published=true', pub.status === 200 && pub.json.data.published === true, `id=${pub.json?.data?.publication_id}`);
+  }
+
+  // ═══ S5. ImageBatch 真实页面 + 无发布按钮 + image_batch 422 ═══════════
+  {
+    const { item, branch } = scope.image_post; // 正式合同：ImageBatch 页面运行于 image_post 分支
+    const batchUrl = `/projects/${project}/content/${item}/branches/${branch}/image-batch`;
+    await page.goto(batchUrl);
+    await page.waitForSelector('[data-v2-image-batch-actions]', { timeout: 30000 });
+    check('S5. image-batch: 真实页面加载成功（image_post 分支）', page.url().includes('/image-batch'), page.url());
+    const publishBtnCount = await page.getByRole('button', { name: '标记已发布' }).count();
+    check('S5. image-batch: 「标记已发布」按钮数量 == 0', publishBtnCount === 0, `buttons=${publishBtnCount}`);
+    const pub = await triggered('GET', `/api/projects/${project}/items/${item}/branches/${branch}/publication/image_batch`, undefined, 422);
+    check('S5. image-batch: publication/image_batch GET → 422', pub.status === 422, `${pub.status}`);
+  }
+
+  // ═══ S6. Responsive：3 页面 × 3 宽度 = 9 条真实断言 ════════════════════
+  {
+    const targets = [
+      ['image_post', imagePostUrl, '[data-v2-image-post-pages]'],
+      ['article', articleUrl, 'textarea[placeholder="正文内容…（长文可直接粘贴）"]'],
+      ['video', videoUrl, null],
+    ];
+    for (const [label, url, selector] of targets) {
+      await page.goto(url);
+      if (selector) await page.waitForSelector(selector, { timeout: 30000 });
+      else await page.getByRole('button', { name: '保存' }).first().waitFor({ timeout: 30000 });
+      for (const width of [353, 390, 1024]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.waitForTimeout(450);
+        const m = await page.evaluate(() => ({ scroll: document.documentElement.scrollWidth, client: document.documentElement.clientWidth }));
+        check(`S6. ${label} @${width}px: scrollWidth <= clientWidth`, m.scroll <= m.client + 1, `scroll=${m.scroll} client=${m.client}`);
+      }
+      await page.setViewportSize({ width: 1280, height: 900 });
+    }
+  }
+
+  // ── S7. console / network 汇总 ────────────────────────────────────────
+  check('S7. console: 0 unexpected errors', unexpectedConsole.length === 0, unexpectedConsole.slice(0, 3).join(' | '));
+  check('S7. network: 0 unexpected 5xx', badRequests.length === 0, badRequests.slice(0, 3).join(' | '));
+  console.log(`\n[accounting] expected 422 (triggered)=${triggered422.length}, expected 422 (page)=${page422.length}, expected422Console=${expected422Console.length}, unexpectedConsole=${unexpectedConsole.length}, unexpected5xx=${badRequests.length}`);
+  console.log(`[accounting] triggered 422 detail: ${triggered422.join(' ; ') || '(none)'}`);
+  console.log(`[accounting] page 422 detail: ${page422.join(' ; ') || '(none)'}`);
 } catch (err) {
-  check('FATAL', false, String(err && err.stack ? err.stack : err).slice(0, 500));
+  check('FATAL', false, String(err && err.stack ? err.stack : err).slice(0, 800));
 } finally {
   await browser.close();
 }
 
-console.log(`\n${results.filter((r) => r.ok).length}/${results.length} browser checks passed`);
+const passed = results.filter((r) => r.ok).length;
+console.log(`\n${passed}/${results.length} browser checks passed (skips: ${skips})`);
 process.exit(failures === 0 ? 0 : 1);

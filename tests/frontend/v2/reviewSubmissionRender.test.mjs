@@ -21,7 +21,10 @@ for(const target of ['image_post_copy','article_copy','video_production','image_
  x.props.dirty=false;x.props.busy=true;await flush();assert.equal(x.button('提交审核').props.disabled,true);
  x.props.busy=false;await flush();assert.equal(x.button('提交审核').props.disabled,false);
  const request=x.button('提交审核').props.onClick();await flush();assert.equal(x.button('提交中').props.disabled,true);finish();await request;await flush();
- assert.ok(x.text().includes('审核中'));assert.equal(x.nodes().find(n=>n.tag==='a').props.href,'/projects/1/reviews');assert.deepEqual(calls,['get','post','get']);x.app.unmount();
+ assert.ok(x.text().includes('审核中'));assert.equal(x.nodes().find(n=>n.tag==='a').props.href,'/projects/1/reviews');
+ // 保存成功（dirty 由 true → false）会按当前保存版本重算审核状态（额外一次 GET），
+ // 再是提交 POST 与提交后的刷新 GET。
+ assert.deepEqual(calls,['get','get','post','get']);x.app.unmount();
  const reload=mount(target,client);await flush();assert.ok(reload.text().includes('审核中'));reload.app.unmount();
 });
 test('initial error retries GET; failed POST and failed confirmation GET remain visible',async()=>{

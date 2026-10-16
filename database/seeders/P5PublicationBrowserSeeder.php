@@ -2,35 +2,21 @@
 
 namespace Database\Seeders;
 
-use App\Enums\Channel;
-use App\Enums\ContentFormat;
-use App\Enums\ReviewStatus;
-use App\Enums\ReviewTargetType;
 use App\Models\ArticleContent;
 use App\Models\ContentBranch;
 use App\Models\ContentItem;
 use App\Models\ContentPage;
 use App\Models\Project;
-use App\Models\ReviewRequest;
 use App\Models\User;
 use App\Models\VideoContent;
-use App\Services\V2\ContentVersionResolver;
 use Illuminate\Database\Seeder;
 
 /**
- * P5-I01 浏览器验收专用演示数据（不挂进 DatabaseSeeder，不在生产逻辑中使用）。
+ * V2-P5-I01-R1 浏览器验收种子数据。
  *
- * 为三个可发布目标各构建一个「已审核通过」分支，使「标记已发布」闭环可在真实浏览器中走通：
- *   - image_post_copy   → channel=wechat_official + format=image_post + 3 个内容页
- *   - article_copy      → channel=wechat_official + format=article + 一篇图文
- *   - video_production  → channel=wechat_channels + format=video + 一份视频制作
- *
- * 每个分支的 ReviewRequest 用 ContentVersionResolver 计算真实 version_label 后直接置为
- * approved —— 这样浏览器里点「标记已发布」时，PublicationService 能查到 exact approved review。
- * 不预置任何 PublicationRecord，保留「首次发布 → 创建」与「修改后重新发布 → 第二条」的验证空间。
- *
- * 登录用户：p5@example.test / password
- * 项目：p5-pub-demo
+ * 与初版的区别：不再预置任何 approved ReviewRequest。
+ * R1 要求真实走完用户流程（保存 → 提交审核 → 审核中心通过 → 标记已发布），
+ * 因此这里只准备：登录用户 / Project / ContentItem / Branch / 可编辑的正式基础内容。
  */
 class P5PublicationBrowserSeeder extends Seeder
 {
@@ -38,106 +24,92 @@ class P5PublicationBrowserSeeder extends Seeder
     {
         $user = User::query()->firstOrCreate(
             ['email' => 'p5@example.test'],
-            ['name' => 'P5 Browser', 'password' => bcrypt('password')],
+            ['name' => 'P5 Browser Acceptance', 'password' => bcrypt('password')],
         );
 
         $project = Project::query()->firstOrCreate(
             ['slug' => 'p5-pub-demo'],
-            ['name' => '青柠育见 · P5 发布验收', 'description' => 'P5-I01 发布闭环浏览器验收演示项目'],
+            ['name' => 'p5-pub-demo', 'description' => 'P5-I01-R1 发布闭环真实浏览器验收演示项目'],
         );
 
-        // ── 1. image_post_copy ──────────────────────────────────────────
+        // ── image_post（wechat_official）—— 图片文章制作分支 ──────────────
+        // 注意：不用 ->for($item) / 不依赖 factory 闭包创建关联——本项目多个 factory 的
+        // definition 会在 expand 时静默创建孤儿 ContentItem/ContentBranch，
+        // 污染浏览器验收的 scope 解析。一律显式传纯 int 外键。
         $ipItem = ContentItem::factory()->create([
             'project_id' => $project->id,
-            'title' => '柠檬熊的一天（图片文章）',
+            'title' => 'P5-R1 图片文章',
         ]);
-        $ipBranch = ContentBranch::factory()->for($ipItem)->create([
+        $ipBranch = ContentBranch::factory()->create([
+            'content_item_id' => $ipItem->id,
             'project_id' => $project->id,
-            'channel' => Channel::WechatOfficial->value,
-            'format' => ContentFormat::ImagePost->value,
+            'channel' => 'wechat_official',
+            'format' => 'image_post',
         ]);
-        foreach ([1 => '柠檬熊在客厅给爸爸做早餐', 2 => '妈妈带柠檬熊去公园放风筝', 3 => '一家人围坐在客厅吃晚饭'] as $no => $copy) {
-            ContentPage::factory()->for($ipItem)->create([
-                'project_id' => $project->id,
-                'page_no' => $no,
-                'page_type' => 'content',
-                'final_copy' => $copy,
-                'visual_evidence' => '暖光场景',
-            ]);
-        }
-        $this->approve($project, $ipItem, $ipBranch, ReviewTargetType::ImagePostCopy);
+        ContentPage::factory()->create([
+            'content_item_id' => $ipItem->id,
+            'project_id' => $project->id,
+            'page_no' => 1,
+            'final_copy' => '秋天早晚温差加大，带孩子外出时备一件薄外套，出汗后及时更换，避免着凉。',
+            'narrative_role' => '开头切入',
+            'visual_evidence' => '母亲在小区门口给孩子披上外套',
+        ]);
+        ContentPage::factory()->create([
+            'content_item_id' => $ipItem->id,
+            'project_id' => $project->id,
+            'page_no' => 2,
+            'final_copy' => '室内保持适度湿度，多吃润燥蔬果，作息规律，增强呼吸道抵抗力。',
+            'narrative_role' => '建议收尾',
+            'visual_evidence' => '孩子在桌前吃梨，窗户半开通风',
+        ]);
 
-        // ── 2. article_copy ─────────────────────────────────────────────
+        // ── article（wechat_official）—— 图文文章分支 ─────────────────────
         $arItem = ContentItem::factory()->create([
             'project_id' => $project->id,
-            'title' => '秋日育儿指南（图文）',
+            'title' => 'P5-R1 图文文章',
         ]);
-        $arBranch = ContentBranch::factory()->for($arItem)->create([
+        $arBranch = ContentBranch::factory()->create([
+            'content_item_id' => $arItem->id,
             'project_id' => $project->id,
-            'channel' => Channel::WechatOfficial->value,
-            'format' => ContentFormat::Article->value,
+            'channel' => 'wechat_official',
+            'format' => 'article',
         ]);
         ArticleContent::factory()->create([
             'project_id' => $project->id,
             'content_item_id' => $arItem->id,
             'content_branch_id' => $arBranch->id,
-            'headline' => '秋日育儿指南',
-            'summary' => '换季护理要点一览',
+            'headline' => '秋季幼儿护理三件事',
+            'summary' => '换季阶段的穿衣、湿度与作息要点。',
             'body' => '秋天气温变化大，注意给孩子适时添减衣物，保持室内湿度，预防呼吸道不适。',
-            'image_suggestions' => [],
-            'cover_suggestion' => '暖色秋景封面',
+            'image_suggestions' => [['position' => 1, 'description' => '家长为孩子添衣的场景', 'note' => null]],
+            'cover_suggestion' => '温馨家庭场景封面',
         ]);
-        $this->approve($project, $arItem, $arBranch, ReviewTargetType::ArticleCopy);
 
-        // ── 3. video_production ────────────────────────────────────────
+        // ── video（wechat_channels）—— 视频制作分支 ───────────────────────
         $viItem = ContentItem::factory()->create([
             'project_id' => $project->id,
-            'title' => '柠檬熊早餐视频（视频制作）',
+            'title' => 'P5-R1 视频',
         ]);
-        $viBranch = ContentBranch::factory()->for($viItem)->create([
+        $viBranch = ContentBranch::factory()->create([
+            'content_item_id' => $viItem->id,
             'project_id' => $project->id,
-            'channel' => Channel::WechatChannels->value,
-            'format' => ContentFormat::Video->value,
+            'channel' => 'wechat_channels',
+            'format' => 'video',
         ]);
-        VideoContent::factory()->create([
+        // VideoContentFactory::definition() 方法体总会创建孤儿 item+branch，绕过 factory 直建。
+        VideoContent::create([
             'project_id' => $project->id,
             'content_item_id' => $viItem->id,
             'content_branch_id' => $viBranch->id,
-            'batch_instruction' => '暖调家庭日常',
-            'narration' => '旁白：柠檬熊的早晨',
-            'units' => [['source_page_id' => 1, 'dynamic_instruction' => '镜头缓缓推进', 'duration_seconds' => 5.0, 'note' => null]],
-            'source_fingerprint' => null,
+            'batch_instruction' => '以温馨家庭风格呈现秋季幼儿护理要点。',
+            'narration' => '换季时节，孩子的日常护理需要注意穿衣、湿度与作息三个方面。',
+            'units' => [
+                ['source_page_id' => 1, 'dynamic_instruction' => '缓慢推进', 'duration_seconds' => 4, 'note' => '开头'],
+                ['source_page_id' => 2, 'dynamic_instruction' => '平移', 'duration_seconds' => 5, 'note' => '中段'],
+            ],
         ]);
-        $this->approve($project, $viItem, $viBranch, ReviewTargetType::VideoProduction);
 
         // 让登录用户持有该项目（ProjectContext 由点击「进入」设置；这里仅确保项目可被发现）。
-        unset($user, $ipItem, $ipBranch, $arItem, $arBranch, $viItem, $viBranch);
-    }
-
-    /**
-     * 用与提交审核完全相同的 ContentVersionResolver 计算 version_label，再落地一份 approved
-     * ReviewRequest —— 保证 PublicationService 能查到 exact approved review。
-     */
-    private function approve(Project $project, ContentItem $item, ContentBranch $branch, ReviewTargetType $type): void
-    {
-        $versionLabel = app(ContentVersionResolver::class)->versionLabel($item, $branch, $type);
-
-        ReviewRequest::query()->firstOrCreate(
-            [
-                'project_id' => $project->id,
-                'content_branch_id' => $branch->id,
-                'review_target_type' => $type->value,
-                'version_label' => $versionLabel,
-            ],
-            [
-                'content_item_id' => $item->id,
-                'review_target_label' => $type->label(),
-                'preview_summary' => 'P5 验收预置：已审核通过版本',
-                'preview' => [],
-                'status' => ReviewStatus::Approved,
-                'submitted_at' => now(),
-                'decided_at' => now(),
-            ],
-        );
+        unset($user, $project, $ipItem, $ipBranch, $arItem, $arBranch, $viItem, $viBranch);
     }
 }

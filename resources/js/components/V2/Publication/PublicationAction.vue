@@ -20,6 +20,14 @@ watch(
   },
   { immediate: true },
 );
+// 保存成功（dirty 由 true → false）后，按服务器当前保存版本重算发布状态：
+// 旧版本的「已发布」不得延续显示到新版本；新版本需重新审核通过后才可发布。
+watch(
+  () => props.dirty,
+  (dirty, wasDirty) => {
+    if (wasDirty && !dirty) void pub.load();
+  },
+);
 
 function formatPublishedAt(value: string | null): string {
   if (!value) return '';
@@ -56,7 +64,7 @@ function formatPublishedAt(value: string | null): string {
       </button>
       <span v-if="!pub.canPublish.value && pub.reason.value" class="text-sm text-slate-600">{{ pub.reason.value }}</span>
     </template>
-    <p v-if="dirty" class="text-sm text-slate-600">请先保存当前修改，再标记发布。</p>
+    <p v-if="dirty" class="text-sm text-slate-600">请先保存当前修改，再发布。</p>
     <div v-if="pub.error.value" class="min-w-0 text-sm text-red-700" role="alert">
       {{ pub.error.value }}
       <button
