@@ -1,13 +1,28 @@
 <script setup lang="ts">
 // 人物 / 场景复用资产索引 —— 正式页面（Inertia 挂载；路由由 Work 集成接线）。
-// 正式链路：GET /api/projects/{project}/reusable-assets
-// 第一阶段 [准备建立] / [查看] 仅 toast 占位（准备建立为组件 emit 契约）。
-import { onMounted } from 'vue';
+// 正式链路：
+//   GET   /api/projects/{project}/reusable-assets
+//   POST  /api/projects/{project}/reusable-assets
+//   PATCH /api/projects/{project}/reusable-assets/{asset}
+//
+// P5-I02：页面的 [新增人物 / 新增场景] / [查看] / [准备建立] 全部是真实操作
+// （打开新增 / 详情编辑弹层并写库），不再有 toast 占位。
+import { onMounted, ref } from 'vue';
 import { Head } from '@inertiajs/vue3';
 import ReusableAssetIndexBody from '../../../components/V2/ReusableAssets/ReusableAssetIndexBody.vue';
+import ReusableAssetEditorDialog from '../../../components/V2/ReusableAssets/ReusableAssetEditorDialog.vue';
 import ToastHost from '../../../components/ToastHost.vue';
 import { useReusableAssetIndex } from '../../../composables/v2/reusableAssets/useReusableAssetIndex';
-import type { ReusableAssetItem } from '../../../types/v2/reusableAssets/reusableAssets';
+import {
+  buildAssetCreatePayload,
+  buildAssetUpdatePayload,
+} from '../../../composables/v2/reusableAssets/assetIndexCore';
+import type {
+  AssetEditorForm,
+  AssetTab,
+  ReusableAssetItem,
+  ReusableAssetType,
+} from '../../../types/v2/reusableAssets/reusableAssets';
 import { toast } from '../../../ui/toast';
 
 const props = defineProps<{
@@ -17,6 +32,8 @@ const props = defineProps<{
 const {
   loading,
   loadError,
+  saving,
+  saveError,
   tab,
   statusFilter,
   characterCounts,
@@ -25,19 +42,61 @@ const {
   visibleItems,
   isEmpty,
   load,
+  createAsset,
+  updateAsset,
   setTab,
   setStatusFilter,
-} = useReusableAssetIndex(props.projectId);
+  clearSaveError,
+} = useReusableAssetIndex(() => props.projectId);
 
-onMounted(load);
+onMounted(() => {
+  void load();
+});
 
-function onBack() {
-  if (window.history.length > 1) window.history.back();
-  else toast.info('待集成项目工作台导航');
+// ── 新增 / 详情编辑弹层 ─────────────────────────────────────────
+const dialogOpen = ref(false);
+const dialogMode = ref<'create' | 'edit'>('create');
+const dialogType = ref<ReusableAssetType>('character');
+const dialogItem = ref<ReusableAssetItem | null>(null);
+
+function openCreate(type: AssetTab): void {
+  clearSaveError();
+  dialogMode.value = 'create';
+  dialogType.value = type;
+  dialogItem.value = null;
+  dialogOpen.value = true;
 }
 
-function prepareLabel(item: ReusableAssetItem): string {
-  return `准备建立 ${item.name} 的稳定母版（待 Work 集成）`;
+function openDetail(item: ReusableAssetItem): void {
+  clearSaveError();
+  dialogMode.value = 'edit';
+  dialogType.value = item.type;
+  dialogItem.value = item;
+  dialogOpen.value = true;
+}
+
+function closeDialog(): void {
+  dialogOpen.value = false;
+}
+
+async function onSubmit(form: AssetEditorForm): Promise<void> {
+  try {
+    if (dialogMode.value === 'create') {
+      await createAsset(buildAssetCreatePayload(dialogType.value, form));
+      toast.success('已新增，可继续补充预览图与说明');
+    } else if (dialogItem.value) {
+      await updateAsset(dialogItem.value.id, buildAssetUpdatePayload(form));
+      toast.success('已保存');
+    }
+    dialogOpen.value = false;
+  } catch {
+    // 保存失败：错误经 saveError 显示在弹层内，弹层保持打开以便重试。
+  }
+}
+
+function onBack(): void {
+  if (window.history.length > 1) window.history.back();
+  else toast.info('待集成项目工作台导航');
 }
 </script>
 
@@ -58,10 +117,22 @@ function prepareLabel(item: ReusableAssetItem): string {
       @switch-tab="setTab"
       @change-filter="setStatusFilter"
       @retry="load"
-      @prepare-character="(item) => toast.info(prepareLabel(item))"
-      @prepare-scene="(item) => toast.info(prepareLabel(item))"
-      @view-character="(item) => toast.info(`查看人物 ${item.name}（详情待集成）`)"
-      @view-scene="(item) => toast.info(`查看场景 ${item.name}（详情待集成）`)"
+      @create="openCreate"
+      @prepare-character="openDetail"
+      @prepare-scene="openDetail"
+      @view-character="openDetail"
+      @view-scene="openDetail"
+    />
+
+    <ReusableAssetEditorDialog
+      :open="dialogOpen"
+      :mode="dialogMode"
+      :type="dialogType"
+      :item="dialogItem"
+      :saving="saving"
+      :error="saveError"
+      @close="closeDialog"
+      @submit="onSubmit"
     />
   </div>
   <!-- 正式页面自身挂载 ToastHost（DEV Preview 由 DevPreviewApp 挂载，正式页不经过它）。 -->

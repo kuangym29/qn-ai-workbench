@@ -215,6 +215,10 @@ Route::middleware('auth')->group(function (): void {
         Route::post('/items/{item}/branches/{branch}/image-batch/units/{unit}/source-change', [ImageBatchController::class, 'sourceChange']);
         // I06B：人物 / 场景复用资产索引只读 API（GET 契约 {characters, scenes}，不包 data.data）。
         Route::get('/reusable-assets', [ReusableAssetController::class, 'index']);
+        // P5-I02：轻量资产管理入口。POST 新增人物 / 场景（201，同名 → 422）；PATCH 只改
+        // status / thumbnail_url / description（200，显式 null = 清空）。刻意没有 DELETE。
+        Route::post('/reusable-assets', [ReusableAssetController::class, 'store']);
+        Route::patch('/reusable-assets/{asset}', [ReusableAssetController::class, 'update']);
         // B03：轻量审核中心；独立审核合同保留 data envelope。
         Route::get('/reviews', [ReviewController::class, 'index']);
         Route::get('/reviews/{review}', [ReviewController::class, 'show']);
