@@ -94,7 +94,10 @@ class V1GoldenWorkflowTest extends TestCase
         $this->assertNotSame($historicalDraft, $historicalVersion);
         $this->assertDatabaseHas('content_copy_revisions', ['id' => $historyRevision['id'], 'content_item_id' => $historyId]);
 
-        [$itemId, $itemUrl] = $this->item($project, $column, $topic, 'Golden article');
+        $currentTopic = $this->postJson("/api/projects/{$project}/columns/{$column}/topics", [
+            'title' => 'Current article topic',
+        ])->assertCreated()->json('data.id');
+        [$itemId, $itemUrl] = $this->item($project, $column, $currentTopic, 'Golden article');
         [$cover] = $this->page($itemUrl, 1, 'cover', ['cover_title' => 'Golden cover']);
         [$body, $firstDraft] = $this->page($itemUrl, 2, 'content', ['page_title' => 'A repeated golden sentence']);
         $queryVersion = $this->postJson("{$itemUrl}/pages/{$body}/drafts", ['page_small_text' => 'Additional copy'])

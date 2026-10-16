@@ -16,7 +16,9 @@ class CreateChannelTaskRequest extends ProductionApiRequest
     public function rules(): array
     {
         return [
-            'channel' => ['required', Rule::enum(Channel::class)],
+            'channel' => ['required', Rule::enum(Channel::class)->only([
+                Channel::WechatOfficial, Channel::WechatChannels,
+            ])],
             ...$this->prohibitExcept(['channel']),
         ];
     }

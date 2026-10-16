@@ -42,10 +42,13 @@ class StatusBackfillTest extends TestCase
         $this->assertSame('not_applicable', DB::table('channel_tasks')->where('id', $channel->id)->value('video_status'));
         $this->assertSame('unpublished', DB::table('channel_tasks')->where('id', $channel->id)->value('publish_status'));
 
+        $newTopic = \App\Models\Topic::factory()->create([
+            'project_id' => $item->project_id, 'content_column_id' => $item->content_column_id,
+        ]);
         $newItemId = DB::table('content_items')->insertGetId([
             'project_id' => $item->project_id,
             'content_column_id' => $item->content_column_id,
-            'topic_id' => $item->topic_id,
+            'topic_id' => $newTopic->id,
             'title' => '数据库默认状态验证',
         ]);
         $newProductionId = DB::table('production_tasks')->insertGetId([

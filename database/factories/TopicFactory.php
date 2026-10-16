@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\TopicStatus;
 use App\Models\ContentColumn;
 use App\Models\Project;
 use App\Models\Topic;
@@ -18,6 +19,9 @@ class TopicFactory extends Factory
                 ->create(['project_id' => $attributes['project_id']])->id,
             'title' => fake()->sentence(5),
             'description' => null,
+            'inspiration_id' => null,
+            'status' => TopicStatus::Pending,
+            'is_backup' => false,
         ];
     }
 }

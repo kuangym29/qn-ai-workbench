@@ -155,13 +155,15 @@ class ContentPageApiTest extends TestCase
         $otherColumn = ContentColumn::factory()->for($project)->create();
         $otherTopic = Topic::factory()->create(['project_id' => $project->id, 'content_column_id' => $column->id]);
         $otherItem = ContentItem::factory()->create([
-            'project_id' => $project->id, 'content_column_id' => $column->id, 'topic_id' => $topic->id,
+            'project_id' => $project->id, 'content_column_id' => $column->id, 'topic_id' => $otherTopic->id,
         ]);
         $otherPage = $this->page($otherItem, 1);
         $wrongProject = str_replace("/projects/{$project->id}/", "/projects/{$otherProject->id}/", $base);
         $wrongColumn = str_replace("/columns/{$column->id}/", "/columns/{$otherColumn->id}/", $base);
         $wrongTopic = str_replace("/topics/{$topic->id}/", "/topics/{$otherTopic->id}/", $base);
         $wrongItem = str_replace("/items/{$item->id}", "/items/{$otherItem->id}", $base);
+        $wrongItem = str_replace("/topics/{$topic->id}/", "/topics/{$otherTopic->id}/", $wrongItem);
+        $this->getJson("$wrongItem/pages")->assertOk();
         foreach ([$wrongProject, $wrongColumn, $wrongTopic] as $wrong) {
             $this->getJson("$wrong/pages")->assertNotFound();
             $this->postJson("$wrong/pages", ['page_no' => 2, 'page_type' => 'content'])->assertNotFound();

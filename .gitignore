@@ -26,3 +26,7 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# 本地浏览器验收用的临时 SQLite（不入库）
+i06b-browser.sqlite
+tests/frontend/v2/i06b/*.sqlite

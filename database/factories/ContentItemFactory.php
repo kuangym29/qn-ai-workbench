@@ -24,6 +24,8 @@ class ContentItemFactory extends Factory
             ])->id,
             'title' => fake()->sentence(6),
             'copy_status' => CopyStatus::NotStarted,
+            'core_message' => null,
+            'story_line' => null,
         ];
     }
 }

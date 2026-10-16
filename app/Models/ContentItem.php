@@ -13,7 +13,12 @@ class ContentItem extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['title', 'copy_status'];
+    protected $fillable = ['title', 'copy_status', 'core_message', 'story_line'];
+
+    public function contentBranches(): HasMany
+    {
+        return $this->hasMany(ContentBranch::class);
+    }
 
     protected function casts(): array
     {

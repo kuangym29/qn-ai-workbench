@@ -1,3 +1,10 @@
+> **当前开发基线：V2 Foundation（codex/v2-foundation）**
+>
+> V2 以 Inspiration → Topic → 单一 ContentItem → ContentBranch 为主链；直接选题允许无灵感来源。开放公众号小绿书/图文与视频号视频，小红书预留。主导航为进行中、灵感、选题、内容库、待我审核，项目/栏目与来源能力保留。所有查询受服务端当前 Project 限定。
+>
+> V2 不依赖旧 ProductionTask/ChannelTask；旧路径暂留，Plan 6 清理。旧 V1 业务数据可丢弃，不承诺生产数据迁移或回填。当前 foundation 不包含图片、AI 导入、视频制作与真实审核。
+>
+> 详见 [V2 验收基线](V2_FOUNDATION_ACCEPTANCE.md)。下方 V1 描述为保留的历史实现，不能覆盖 V2 规则。
 # 架构基线
 
 ## 系统边界

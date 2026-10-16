@@ -12,6 +12,16 @@ class Project extends Model
 
     protected $fillable = ['name', 'slug', 'description'];
 
+    public function inspirations(): HasMany
+    {
+        return $this->hasMany(Inspiration::class);
+    }
+
+    public function contentBranches(): HasMany
+    {
+        return $this->hasMany(ContentBranch::class);
+    }
+
     public function contentColumns(): HasMany
     {
         return $this->hasMany(ContentColumn::class);
@@ -50,5 +60,15 @@ class Project extends Model
     public function assets(): HasMany
     {
         return $this->hasMany(Asset::class);
+    }
+
+    public function reusableAssets(): HasMany
+    {
+        return $this->hasMany(ReusableAsset::class);
+    }
+
+    public function reviewRequests(): HasMany
+    {
+        return $this->hasMany(ReviewRequest::class);
     }
 }
