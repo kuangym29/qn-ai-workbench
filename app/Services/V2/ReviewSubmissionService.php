@@ -2,38 +2,24 @@
 
 namespace App\Services\V2;
 
-use App\Enums\Channel;
-use App\Enums\ContentFormat;
 use App\Enums\ReviewStatus;
 use App\Enums\ReviewTargetType;
-use App\Models\ArticleContent;
 use App\Models\ContentBranch;
-use App\Models\ContentItem;
-use App\Models\ImageBatchDraft;
 use App\Models\Project;
 use App\Models\ReviewRequest;
-use App\Models\VideoContent;
 use Illuminate\Support\Facades\DB;
 
 /** Manual submission of saved formal content; never runs a producer or writes source data. */
 class ReviewSubmissionService
 {
-    public function __construct(private readonly ReviewRequestService $reviews) {}
+    public function __construct(
+        private readonly ReviewRequestService $reviews,
+        private readonly ContentVersionResolver $resolver,
+    ) {}
 
     public function resolve(Project $project, int $item, int $branch, string $target): array
     {
-        $content = $project->contentItems()->findOrFail($item);
-        $model = $content->contentBranches()->where('project_id', $project->id)->findOrFail($branch);
-        $type = ReviewTargetType::tryFrom($target);
-        $valid = match ($type) {
-            ReviewTargetType::ImagePostCopy, ReviewTargetType::ImageBatch => $model->format === ContentFormat::ImagePost && $model->channel === Channel::WechatOfficial,
-            ReviewTargetType::ArticleCopy => $model->format === ContentFormat::Article && $model->channel === Channel::WechatOfficial,
-            ReviewTargetType::VideoProduction => $model->format === ContentFormat::Video && $model->channel === Channel::WechatChannels,
-            default => false,
-        };
-        abort_unless($valid, 422, '审核目标与当前制作分支不匹配。');
-
-        return [$content, $model, $type];
+        return $this->resolver->resolve($project, $item, $branch, $target);
     }
 
     public function pending(ContentBranch $branch, ReviewTargetType $target): ?ReviewRequest
@@ -47,11 +33,10 @@ class ReviewSubmissionService
     public function submit(Project $project, int $item, int $branch, string $target): ReviewRequest
     {
         return DB::transaction(function () use ($project, $item, $branch, $target): ReviewRequest {
-            [$content, $model, $type] = $this->resolve($project, $item, $branch, $target);
+            [$content, $model, $type] = $this->resolver->resolve($project, $item, $branch, $target);
             ContentBranch::query()->whereKey($model->id)->lockForUpdate()->firstOrFail();
-            $snapshot = $this->snapshot($content, $model, $type);
-            $canonical = $this->canonical($snapshot);
-            $version = '内容版本 '.substr(hash('sha256', json_encode($canonical, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRESERVE_ZERO_FRACTION | JSON_THROW_ON_ERROR)), 0, 16);
+            $snapshot = $this->resolver->snapshot($content, $model, $type);
+            $version = $this->resolver->versionLabelFromSnapshot($snapshot);
             // Lock pending rows too: a concurrent decision must not turn a pending
             // into a decided version between this check and create's pending lookup.
             $decided = ReviewRequest::query()
@@ -78,54 +63,6 @@ class ReviewSubmissionService
                 'preview' => ['kind' => 'items', 'items' => $items],
             ]);
         }, 3);
-    }
-
-    private function snapshot(ContentItem $item, ContentBranch $branch, ReviewTargetType $target): array
-    {
-        $scope = fn ($query) => $query->where('project_id', $item->project_id)->where('content_item_id', $item->id)->where('content_branch_id', $branch->id);
-        if ($target === ReviewTargetType::ArticleCopy) {
-            $article = $scope(ArticleContent::query())->first();
-            abort_unless($article, 422, '请先保存正式文章内容。');
-
-            return ['title' => $item->title, ...$article->only(['headline', 'summary', 'body', 'image_suggestions', 'cover_suggestion'])];
-        }
-        if ($target === ReviewTargetType::VideoProduction) {
-            $video = $scope(VideoContent::query())->first();
-            abort_unless($video, 422, '请先保存正式视频制作内容。');
-            // Saved units are authoritative: current source pages must not add unsaved defaults.
-            $units = array_map(fn (array $unit) => ['source_page_id' => (int) $unit['source_page_id'], 'dynamic_instruction' => (string) ($unit['dynamic_instruction'] ?? ''), 'duration_seconds' => (float) ($unit['duration_seconds'] ?? VideoSourceService::DEFAULT_DURATION_SECONDS), 'note' => $unit['note'] ?? null], $video->units ?? []);
-
-            return ['title' => $item->title, 'batch_instruction' => $video->batch_instruction, 'narration' => $video->narration, 'units' => $units,
-                'total_duration' => array_sum(array_column($units, 'duration_seconds'))];
-        }
-        $pages = $item->contentPages()->where('project_id', $item->project_id)->orderBy('page_no')->orderBy('id')->get();
-        if ($target === ReviewTargetType::ImagePostCopy) {
-            abort_unless($pages->contains(fn ($page) => trim((string) $page->final_copy) !== ''), 422, '请先保存正式页面内容。');
-
-            return ['title' => $item->title, 'core_message' => $item->core_message, 'story_line' => $item->story_line,
-                'pages' => $pages->map(fn ($page) => [...$page->only(['page_no', 'narrative_role', 'new_fact', 'final_copy', 'visual_evidence', 'continuity', 'production_note']), 'page_type' => $page->page_type->value])->all()];
-        }
-        $draft = $scope(ImageBatchDraft::query())->first();
-        abort_unless($draft, 422, '请先保存图片批次草稿。');
-        $settings = $draft->unitSettings()->get()->keyBy('content_page_id');
-        $units = $pages->map(fn ($page) => ['page_no' => $page->page_no, 'source_label' => (new VideoSourceService)->sourceLabel($page),
-            'special_requirement' => $settings->get($page->id)?->special_requirement ?? ''])->all();
-        abort_unless(trim((string) $draft->batch_instruction) !== '' || trim((string) $draft->batch_note) !== '' || collect($units)->contains(fn ($unit) => trim((string) $unit['special_requirement']) !== ''), 422, '请先保存图片批次制作说明或特殊要求。');
-
-        return ['title' => $item->title, 'batch_instruction' => $draft->batch_instruction, 'batch_note' => $draft->batch_note, 'units' => $units];
-    }
-
-    /** Sort object keys recursively while retaining the order of every list. */
-    private function canonical(mixed $value): mixed
-    {
-        if (! is_array($value)) {
-            return $value;
-        }
-        if (! array_is_list($value)) {
-            ksort($value, SORT_STRING);
-        }
-
-        return array_map(fn ($entry) => $this->canonical($entry), $value);
     }
 
     private function describe(array $values): string
