@@ -56,7 +56,7 @@ class ReviewRequestServiceTest extends TestCase
         $this->assertSame($branch->content_item_id, $request->content_item_id);
         $this->assertSame($branch->id, $request->content_branch_id);
         // label 由后端根据 type 提供，前端不猜。
-        $this->assertSame('小绿书内容', $request->review_target_label);
+        $this->assertSame('图片文章', $request->review_target_label);
         $this->assertSame(ReviewTargetType::ImagePostCopy, $request->review_target_type);
         $this->assertSame(['kind' => 'items', 'items' => [['label' => '正文', 'value' => 'x']]], $request->preview);
     }
