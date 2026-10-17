@@ -4,27 +4,37 @@ namespace App\Services\V2;
 
 use App\Enums\ReusableAssetStatus;
 use App\Enums\ReusableAssetType;
+use App\Exceptions\ReusableAssetNameConflictException;
 use App\Models\Project;
 use App\Models\ReusableAsset;
 use Carbon\CarbonInterface;
+use Illuminate\Database\QueryException;
 use InvalidArgumentException;
 
 /**
- * 复用资产索引的轻量写入 / 读取服务（B06）。
+ * 复用资产索引的轻量写入 / 读取服务（B06 + P5-I02）。
  *
  * 对内（后续 ImageBatch / Work 回传 / 资产建立流程）：
  *   markExisting(...)    —— 登记或更新为「已有稳定母版」
  *   markMissing(...)     —— 登记或更新为「缺失」
  *   touchLastUsed(...)   —— 更新最近被正式内容使用的时间
  *
- * 对外只有一个只读 GET。刻意不提供公开 CRUD / 后台管理 / 上传 / DAM。
+ * 公开（P5-I02 轻量资产管理入口）：
+ *   create(...)          —— 新增一条人物 / 场景（(type, name) 冲突 → 显式 422，不偷偷更新）
+ *   update(...)          —— 只改 status / thumbnail_url / description（显式 null = 清空）
+ *   findInProject(...)   —— 按 Project 作用域解析资产（跨 Project → 404）
+ *
+ * 刻意不提供：DELETE / rename / change type / 上传 / DAM / 文件夹 / 标签 / 版本 / 审批。
  *
  * 规则：
- *   1. 唯一键 = (project_id, type, name)，重复 mark 幂等（不会产生第二行）；
+ *   1. 唯一键 = (project_id, type, name)：内部 mark 幂等；公开 create 冲突显式报错；
  *   2. 可写元信息只有 thumbnail_url / description / last_used_at 三项，
  *      其它键一律拒绝（避免偷偷塞进 prompt / model / seed / owner 等字段）；
- *   3. null 表示「不修改」，已存在的值不会因为后续 mark 被清空；
- *   4. touchLastUsed 只更新已登记的条目，不存在则返回 null（使用记录不会凭空造出索引条目）。
+ *   3. 内部 mark 的 null 表示「不修改」（既有语义，保持不变）；
+ *      公开 update 的 null 表示「清空」（另建方法，不改变 mark 语义；
+ *      ImageBatch / 旧测试不受影响）；
+ *   4. touchLastUsed 只更新已登记的条目，不存在则返回 null（使用记录不会凭空造出索引条目）；
+ *   5. last_used_at 是系统字段：create / update 都不写它，只有正式 touch 流程才更新。
  */
 class ReusableAssetIndexService
 {
@@ -61,6 +71,111 @@ class ReusableAssetIndexService
             ->get();
 
         return (new ReusableAssetPresenter)->collection($assets);
+    }
+
+    /**
+     * 按 Project 作用域解析资产。跨 Project 的 id → ModelNotFoundException（HTTP 404）。
+     *
+     * 公开 PATCH 必须经此解析，禁止「只按 asset id 全局更新」。
+     */
+    public function findInProject(Project $project, int|string $id): ReusableAsset
+    {
+        return ReusableAsset::query()
+            ->where('project_id', $project->id)
+            ->findOrFail($id);
+    }
+
+    /**
+     * 公开创建：新增一条人物 / 场景索引条目。
+     *
+     * (project_id, type, name) 已存在 → ReusableAssetNameConflictException（Controller 映射 422）；
+     * 并发创建同一身份时，数据库唯一约束作为安全网兜底（捕获后同样映射为冲突，不会 500）。
+     *
+     * last_used_at 是系统字段，create 不写它（新条目一律「未使用」）。
+     */
+    public function create(
+        Project $project,
+        ReusableAssetType|string $type,
+        string $name,
+        ReusableAssetStatus|string $status,
+        ?string $thumbnailUrl = null,
+        ?string $description = null,
+    ): ReusableAsset {
+        $resolvedType = $this->resolveType($type);
+        $resolvedStatus = $this->resolveStatus($status);
+        $normalizedName = $this->normalizeName($name);
+
+        // 显式重复检查：不偷偷更新既有记录，直接冲突。
+        $exists = ReusableAsset::query()
+            ->where('project_id', $project->id)
+            ->where('type', $resolvedType->value)
+            ->where('name', $normalizedName)
+            ->exists();
+
+        if ($exists) {
+            throw new ReusableAssetNameConflictException($resolvedType, $normalizedName);
+        }
+
+        try {
+            return ReusableAsset::query()->create([
+                'project_id' => $project->id,
+                'type' => $resolvedType->value,
+                'name' => $normalizedName,
+                'status' => $resolvedStatus->value,
+                'thumbnail_url' => $thumbnailUrl,
+                'description' => $description,
+            ]);
+        } catch (QueryException $e) {
+            // 并发竞争兜底：唯一约束触发时同样按「同名已存在」处理（不 500）。
+            if (! $this->isUniqueViolation($e)) {
+                throw $e;
+            }
+
+            throw new ReusableAssetNameConflictException($resolvedType, $normalizedName);
+        }
+    }
+
+    /**
+     * 公开编辑：只允许改 status / thumbnail_url / description。
+     *
+     * 与内部 mark 的「null = 不修改」不同，这里 null 表示「主动清空」（用于清预览图 / 说明）。
+     * 因为语义不同，故独立成本方法；mark 语义保持不变。
+     *
+     * name / type 是稳定身份，本方法不接受，也不写 last_used_at。
+     *
+     * @param  array{status?: ReusableAssetStatus|string, thumbnail_url?: string|null, description?: string|null}  $attributes
+     */
+    public function update(Project $project, ReusableAsset $asset, array $attributes): ReusableAsset
+    {
+        // 只允许三键（Controller 已挡，这里再防御一次）。
+        foreach (array_keys($attributes) as $key) {
+            if (! in_array($key, ['status', 'thumbnail_url', 'description'], true)) {
+                throw new InvalidArgumentException("不支持的资产更新字段：{$key}。只允许 status / thumbnail_url / description。");
+            }
+        }
+
+        // 作用域防御：资产必须属于该 Project。
+        if ((int) $asset->project_id !== (int) $project->id) {
+            throw new InvalidArgumentException('复用资产不属于当前 Project。');
+        }
+
+        if (array_key_exists('status', $attributes)) {
+            $asset->status = $this->resolveStatus($attributes['status']);
+        }
+
+        if (array_key_exists('thumbnail_url', $attributes)) {
+            $asset->thumbnail_url = $attributes['thumbnail_url'];
+        }
+
+        if (array_key_exists('description', $attributes)) {
+            $asset->description = $attributes['description'];
+        }
+
+        if ($asset->isDirty()) {
+            $asset->save();
+        }
+
+        return $asset;
     }
 
     /**
@@ -229,6 +344,35 @@ class ReusableAssetIndexService
         }
 
         return $resolved;
+    }
+
+    private function resolveStatus(ReusableAssetStatus|string $status): ReusableAssetStatus
+    {
+        if ($status instanceof ReusableAssetStatus) {
+            return $status;
+        }
+
+        $resolved = ReusableAssetStatus::tryFrom($status);
+
+        if ($resolved === null) {
+            throw new InvalidArgumentException("不支持的资产状态：{$status}。只允许 existing / missing。");
+        }
+
+        return $resolved;
+    }
+
+    private function isUniqueViolation(QueryException $e): bool
+    {
+        $code = (string) $e->getCode();
+
+        if (in_array($code, ['23000', '23505', '1062', '2067', '2627'], true)) {
+            return true;
+        }
+
+        $message = $e->getMessage();
+
+        return str_contains($message, 'reusable_assets_project_type_name_unique')
+            || str_contains($message, 'UNIQUE constraint failed');
     }
 
     private function normalizeName(string $name): string

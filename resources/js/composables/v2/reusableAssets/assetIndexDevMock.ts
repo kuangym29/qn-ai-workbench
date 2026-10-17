@@ -9,12 +9,19 @@
 // 提供：
 //   1. buildMockWorkspace()：固定示例索引（人物 6 固定身份 / 场景 5 稳定母版），
 //      覆盖缺失、无缩略图、从未使用、长名称等边界。
-//   2. createMockAssetIndexClient()：内存实现 AssetIndexClient（仅 GET），
+//   2. createMockAssetIndexClient()：内存实现 AssetIndexClient（GET + POST + PATCH），
 //      并记录调用（calls），便于断言 URL。
 //   缩略图用内联 SVG data URI（无外链、无网络依赖）。
-import { createAssetIndexClient, type AssetIndexClient } from './assetIndexApi';
+import {
+  createAssetIndexClient,
+  type AssetIndexClient,
+  type ReusableAssetCreatePayload,
+  type ReusableAssetUpdatePayload,
+} from './assetIndexApi';
 import type {
   ReusableAssetItem,
+  ReusableAssetStatus,
+  ReusableAssetType,
   ReusableAssetWorkspace,
 } from '../../../types/v2/reusableAssets/reusableAssets';
 
@@ -77,7 +84,7 @@ export function buildMockWorkspace(): ReusableAssetWorkspace {
 }
 
 export interface MockAssetCall {
-  method: 'GET';
+  method: 'GET' | 'POST' | 'PATCH';
   url: string;
 }
 
@@ -92,12 +99,57 @@ export function createMockAssetIndexClient(initial?: ReusableAssetWorkspace): Mo
   const workspace: ReusableAssetWorkspace = structuredClone(initial ?? buildMockWorkspace());
   const calls: MockAssetCall[] = [];
 
+  const listOf = (type: ReusableAssetType): ReusableAssetItem[] =>
+    type === 'character' ? workspace.characters : workspace.scenes;
+
+  const nextId = (): number =>
+    Math.max(0, ...workspace.characters.map((i) => Number(i.id)), ...workspace.scenes.map((i) => Number(i.id))) + 1;
+
   const client = createAssetIndexClient({
     async get(url: string) {
       calls.push({ method: 'GET', url });
       // 模拟正式后端：HTTP 响应体即 workspace 本体（无 data 包裹），
       // 与 B06 ReusableAssetController 的 response()->json(workspace) 对齐。
       return { data: structuredClone(workspace) };
+    },
+
+    async post(url: string, body: unknown) {
+      calls.push({ method: 'POST', url });
+      const payload = body as ReusableAssetCreatePayload;
+      const list = listOf(payload.type);
+
+      // 模拟后端同名冲突（(type, name) 唯一）。
+      if (list.some((item) => item.name === payload.name)) {
+        throw new Error(payload.type === 'character' ? '同名人物已存在。' : '同名场景已存在。');
+      }
+
+      const created: ReusableAssetItem = {
+        id: nextId(),
+        type: payload.type,
+        name: payload.name,
+        status: payload.status,
+        thumbnail_url: payload.thumbnail_url ?? null,
+        description: payload.description ?? null,
+        last_used_at: null, // 系统字段：create 不写
+      };
+      list.push(created);
+
+      return { data: structuredClone(created) };
+    },
+
+    async patch(url: string, body: unknown) {
+      calls.push({ method: 'PATCH', url });
+      const id = Number(url.split('/').pop());
+      const target = [...workspace.characters, ...workspace.scenes].find((i) => Number(i.id) === id);
+
+      if (!target) throw new Error('资产不存在。');
+
+      const payload = body as ReusableAssetUpdatePayload;
+      if (payload.status !== undefined) target.status = payload.status as ReusableAssetStatus;
+      if (payload.thumbnail_url !== undefined) target.thumbnail_url = payload.thumbnail_url || null;
+      if (payload.description !== undefined) target.description = payload.description || null;
+
+      return { data: structuredClone(target) };
     },
   });
 

@@ -1,6 +1,7 @@
-// V2-P3-C06 DEV Mock 测试（node:test）。
+// V2-P3-C06 / P5-I02 DEV Mock 测试（node:test）。
 // 验证固定示例数据覆盖缺失 / 无缩略图 / 从未使用 / 长名称边界，
-// 以及内存 Mock client 只实现 GET 且返回 ApiResponse 包装。
+// 以及内存 Mock client 实现 GET + POST + PATCH（无 DELETE）、
+// 且 GET 返回 ApiResponse 包装。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildMockWorkspace, createMockAssetIndexClient } from '../../../../resources/js/composables/v2/reusableAssets/assetIndexDevMock.ts';
@@ -79,10 +80,35 @@ test('mock client 返回的是克隆，调用方修改不污染 store', async ()
   assert.equal(second.characters.length, 6);
 });
 
-test('第一阶段 mock client 没有任何写操作（无上传/编辑/生成）', () => {
+test('P5-I02 mock client 只提供索引读写，绝不提供删除 / 上传 / 生成', () => {
   const mock = createMockAssetIndexClient();
   assert.equal(typeof mock.client.loadWorkspace, 'function');
-  assert.equal((mock.client as unknown as Record<string, unknown>).prepare, undefined);
-  assert.equal((mock.client as unknown as Record<string, unknown>).upload, undefined);
-  assert.equal((mock.client as unknown as Record<string, unknown>).save, undefined);
+  assert.equal(typeof mock.client.createAsset, 'function');
+  assert.equal(typeof mock.client.updateAsset, 'function');
+
+  for (const forbidden of ['prepare', 'upload', 'save', 'remove', 'delete', 'destroy', 'rename', 'generate']) {
+    assert.equal((mock.client as unknown as Record<string, unknown>)[forbidden], undefined, `不得提供 ${forbidden}`);
+  }
+});
+
+test('P5-I02 mock client 内存支持 POST（新增）与 PATCH（编辑 / 清空）', async () => {
+  const mock = createMockAssetIndexClient();
+
+  const created = await mock.client.createAsset(1, {
+    type: 'character', name: '舅舅', status: 'missing', thumbnail_url: null, description: null,
+  });
+  assert.equal(created.name, '舅舅');
+  assert.equal(created.last_used_at, null, 'create 不得写 last_used_at');
+  assert.deepEqual(mock.calls.at(-1), { method: 'POST', url: '/api/projects/1/reusable-assets' });
+
+  const updated = await mock.client.updateAsset(1, created.id, { status: 'existing', thumbnail_url: null, description: '补充' });
+  assert.equal(updated.status, 'existing');
+  assert.equal(updated.description, '补充');
+  assert.deepEqual(mock.calls.at(-1), { method: 'PATCH', url: `/api/projects/1/reusable-assets/${created.id}` });
+
+  // 同名冲突
+  await assert.rejects(
+    () => mock.client.createAsset(1, { type: 'character', name: '舅舅', status: 'existing' }),
+    /同名人物已存在/,
+  );
 });

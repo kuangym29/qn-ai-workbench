@@ -132,13 +132,18 @@ test('筛选无结果时 isEmpty 为 true（如场景无缺失项）', async () 
   assert.equal(index.isEmpty.value, true);
 });
 
-test('composable 不调用任何写操作（准备建立只是组件 emit）', async () => {
+test('composable 暴露管理入口（P5-I02）且不提供删除 / 重命名 / 上传', async () => {
   const index = useReusableAssetIndex(1, fakeClient(buildMockWorkspace()));
   await index.load();
   assert.equal(typeof index.load, 'function');
+  assert.equal(typeof index.createAsset, 'function');
+  assert.equal(typeof index.updateAsset, 'function');
   assert.equal(typeof index.setTab, 'function');
   assert.equal(typeof index.setStatusFilter, 'function');
-  assert.equal((index as unknown as Record<string, unknown>).prepare, undefined);
+  const bag = index as unknown as Record<string, unknown>;
+  for (const forbidden of ['prepare', 'remove', 'delete', 'destroy', 'rename', 'upload', 'generate']) {
+    assert.equal(bag[forbidden], undefined, `不得提供 ${forbidden}`);
+  }
 });
 
 // ── 事件契约（prepare / view） ────────────────────────────────

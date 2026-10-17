@@ -278,4 +278,135 @@ class ReusableAssetIndexServiceTest extends TestCase
             array_keys((new ReusableAssetPresenter)->item($asset))
         );
     }
+
+    // ── P5-I02 公开 create / update ─────────────────────────────────
+
+    public function test_create_makes_character_and_scene(): void
+    {
+        $character = $this->service->create($this->project, ReusableAssetType::Character, '妈妈', ReusableAssetStatus::Missing);
+        $scene = $this->service->create($this->project, ReusableAssetType::Scene, '客厅', ReusableAssetStatus::Existing, 'https://cdn.test/living.png', '主场景');
+
+        $this->assertTrue($character->exists);
+        $this->assertSame(ReusableAssetType::Character, $character->type);
+        $this->assertSame(ReusableAssetStatus::Missing, $character->status);
+        $this->assertNull($character->last_used_at, 'create 不得写 last_used_at（系统字段）');
+
+        $this->assertSame(ReusableAssetType::Scene, $scene->type);
+        $this->assertSame('https://cdn.test/living.png', $scene->thumbnail_url);
+        $this->assertSame('主场景', $scene->description);
+    }
+
+    public function test_create_rejects_duplicate_type_name_without_updating_existing(): void
+    {
+        $first = $this->service->create($this->project, ReusableAssetType::Character, '妈妈', ReusableAssetStatus::Missing);
+        $first->description = '原始说明';
+        $first->save();
+
+        $thrown = null;
+        try {
+            $this->service->create($this->project, ReusableAssetType::Character, '妈妈', ReusableAssetStatus::Existing, null, '不该写入');
+        } catch (\App\Exceptions\ReusableAssetNameConflictException $e) {
+            $thrown = $e;
+        }
+
+        $this->assertNotNull($thrown, '重复 (type, name) 必须显式冲突');
+        $this->assertSame(1, ReusableAsset::query()->where('project_id', $this->project->id)->count());
+        $this->assertSame(ReusableAssetStatus::Missing, $first->fresh()->status, '既有记录不得被偷偷更新');
+        $this->assertSame('原始说明', $first->fresh()->description);
+    }
+
+    public function test_create_allows_same_name_across_types(): void
+    {
+        $this->service->create($this->project, ReusableAssetType::Character, '办公室', ReusableAssetStatus::Missing);
+        $this->service->create($this->project, ReusableAssetType::Scene, '办公室', ReusableAssetStatus::Missing);
+
+        $this->assertSame(2, ReusableAsset::query()->where('project_id', $this->project->id)->count());
+    }
+
+    public function test_update_only_touches_status_thumbnail_and_description(): void
+    {
+        $asset = $this->service->create($this->project, ReusableAssetType::Character, '妈妈', ReusableAssetStatus::Missing);
+        $asset->last_used_at = CarbonImmutable::parse('2026-10-16 08:00:00');
+        $asset->save();
+
+        $updated = $this->service->update($this->project, $asset, [
+            'status' => ReusableAssetStatus::Existing,
+            'thumbnail_url' => 'https://cdn.test/mom.png',
+            'description' => '固定身份',
+        ]);
+
+        $this->assertSame(ReusableAssetStatus::Existing, $updated->status);
+        $this->assertSame('https://cdn.test/mom.png', $updated->thumbnail_url);
+        $this->assertSame('固定身份', $updated->description);
+        $this->assertSame('妈妈', $updated->name, 'name 不可变');
+        $this->assertSame(ReusableAssetType::Character, $updated->type, 'type 不可变');
+        $this->assertSame('2026-10-16 08:00:00', $updated->last_used_at->toDateTimeString(), 'update 不得改 last_used_at');
+    }
+
+    public function test_update_explicit_null_clears_thumbnail_and_description(): void
+    {
+        $asset = $this->service->create(
+            $this->project,
+            ReusableAssetType::Scene,
+            '客厅',
+            ReusableAssetStatus::Existing,
+            'https://cdn.test/living.png',
+            '主场景',
+        );
+
+        $updated = $this->service->update($this->project, $asset, [
+            'thumbnail_url' => null,
+            'description' => null,
+        ]);
+
+        $this->assertNull($updated->thumbnail_url, '显式 null 必须清空预览图');
+        $this->assertNull($updated->description, '显式 null 必须清空说明');
+    }
+
+    public function test_update_rejects_unknown_keys(): void
+    {
+        $asset = $this->service->create($this->project, ReusableAssetType::Character, '妈妈', ReusableAssetStatus::Existing);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->service->update($this->project, $asset, ['name' => '爸爸']);
+    }
+
+    public function test_find_in_project_scopes_by_project(): void
+    {
+        $other = Project::factory()->create();
+        $asset = $this->service->create($other, ReusableAssetType::Character, '妈妈', ReusableAssetStatus::Existing);
+
+        $this->expectException(\Illuminate\Database\Eloquent\ModelNotFoundException::class);
+        $this->service->findInProject($this->project, $asset->id);
+    }
+
+    // ── mark 语义回归（P5-I02 不得改变） ───────────────────────────
+
+    public function test_mark_semantics_unchanged_null_means_do_not_modify(): void
+    {
+        $this->service->markExisting($this->project, ReusableAssetType::Character, '妈妈', [
+            'thumbnail_url' => 'https://cdn.test/mom.png',
+            'description' => '固定身份',
+        ]);
+
+        // 再次 mark 且 meta 为 null：既有值不得被清空。
+        $asset = $this->service->markMissing($this->project, ReusableAssetType::Character, '妈妈', [
+            'thumbnail_url' => null,
+            'description' => null,
+        ]);
+
+        $this->assertSame(ReusableAssetStatus::Missing, $asset->status);
+        $this->assertSame('https://cdn.test/mom.png', $asset->thumbnail_url);
+        $this->assertSame('固定身份', $asset->description);
+        $this->assertSame(1, ReusableAsset::query()->where('project_id', $this->project->id)->count());
+    }
+
+    public function test_mark_existing_and_missing_still_idempotent_after_update_method_added(): void
+    {
+        $a = $this->service->markExisting($this->project, ReusableAssetType::Scene, '客厅');
+        $b = $this->service->markExisting($this->project, ReusableAssetType::Scene, '客厅');
+
+        $this->assertTrue($a->is($b));
+        $this->assertSame(1, ReusableAsset::query()->where('project_id', $this->project->id)->count());
+    }
 }

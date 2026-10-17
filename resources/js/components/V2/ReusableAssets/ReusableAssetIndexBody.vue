@@ -35,6 +35,7 @@ const emit = defineEmits<{
   switchTab: [tab: AssetTab];
   changeFilter: [filter: AssetStatusFilter];
   retry: [];
+  create: [type: AssetTab];
   prepareCharacter: [item: ReusableAssetItem];
   prepareScene: [item: ReusableAssetItem];
   viewCharacter: [item: ReusableAssetItem];
@@ -83,7 +84,7 @@ function onCardView(item: ReusableAssetItem) {
       </p>
     </div>
 
-    <!-- Tab + 筛选 -->
+    <!-- Tab + 筛选 + 新增 -->
     <div class="flex flex-wrap items-center justify-between gap-3">
       <div class="flex rounded-lg border border-slate-200 bg-white p-1" data-v2-asset-tabs>
         <button
@@ -98,19 +99,30 @@ function onCardView(item: ReusableAssetItem) {
         </button>
       </div>
 
-      <div class="flex rounded-lg border border-slate-200 bg-white p-1" data-v2-asset-filters>
+      <div class="flex flex-wrap items-center gap-2">
+        <div class="flex rounded-lg border border-slate-200 bg-white p-1" data-v2-asset-filters>
+          <button
+            v-for="f in filters"
+            :key="f.key"
+            type="button"
+            class="rounded-md px-3 py-1.5 text-xs"
+            :class="statusFilter === f.key ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:bg-slate-50'"
+            @click="emit('changeFilter', f.key)"
+          >
+            {{ f.label }}
+            <span class="text-slate-400">{{
+              f.key === 'all' ? tabCounts.total : f.key === 'existing' ? tabCounts.existing : tabCounts.missing
+            }}</span>
+          </button>
+        </div>
+
         <button
-          v-for="f in filters"
-          :key="f.key"
           type="button"
-          class="rounded-md px-3 py-1.5 text-xs"
-          :class="statusFilter === f.key ? 'bg-slate-100 text-slate-800' : 'text-slate-500 hover:bg-slate-50'"
-          @click="emit('changeFilter', f.key)"
+          class="rounded-md bg-slate-800 px-3 py-1.5 text-xs text-white hover:bg-slate-700"
+          data-v2-asset-create
+          @click="emit('create', tab)"
         >
-          {{ f.label }}
-          <span class="text-slate-400">{{
-            f.key === 'all' ? tabCounts.total : f.key === 'existing' ? tabCounts.existing : tabCounts.missing
-          }}</span>
+          新增{{ tab === 'character' ? '人物' : '场景' }}
         </button>
       </div>
     </div>

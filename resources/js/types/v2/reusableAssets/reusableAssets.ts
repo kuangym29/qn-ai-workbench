@@ -46,6 +46,35 @@ export interface ReusableAssetWorkspace {
 }
 
 /**
+ * 新增人物 / 场景的正式载荷（服务器产生的 id / project_id / last_used_at 一律不提交）。
+ */
+export interface ReusableAssetCreatePayload {
+  type: ReusableAssetType;
+  name: string;
+  status: ReusableAssetStatus;
+  thumbnail_url?: string | null;
+  description?: string | null;
+}
+
+/**
+ * 编辑载荷：只允许 status / thumbnail_url / description。
+ * 显式 null（或空字符串）表示清空；缺省键表示不修改。name / type 是稳定身份，不可提交。
+ */
+export interface ReusableAssetUpdatePayload {
+  status?: ReusableAssetStatus;
+  thumbnail_url?: string | null;
+  description?: string | null;
+}
+
+/** 弹层表单的原始字符串态（提交前经 core 的纯函数归一 / 构造载荷）。 */
+export interface AssetEditorForm {
+  name: string;
+  status: ReusableAssetStatus;
+  thumbnail_url: string;
+  description: string;
+}
+
+/**
  * 「准备建立」事件名契约（第一阶段按钮只 emit，不调用 Work、不创建生成 API）：
  *   人物缺失 → emit('prepareCharacter', item)
  *   场景缺失 → emit('prepareScene', item)

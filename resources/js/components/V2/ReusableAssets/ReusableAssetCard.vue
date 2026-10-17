@@ -1,10 +1,11 @@
 <script setup lang="ts">
 // 复用资产单卡（人物固定身份 / 场景稳定母版共用）。
 // 缩略图辅助、不抢业务信息；缺失状态克制显示，操作只有 [查看] / [准备建立]。
+import { computed, ref, watch } from 'vue';
 import type { ReusableAssetItem } from '../../../types/v2/reusableAssets/reusableAssets';
 import { formatLastUsed, statusLabel } from '../../../composables/v2/reusableAssets/assetIndexCore';
 
-defineProps<{ item: ReusableAssetItem }>();
+const props = defineProps<{ item: ReusableAssetItem }>();
 const emit = defineEmits<{
   view: [item: ReusableAssetItem];
   prepare: [item: ReusableAssetItem];
@@ -14,25 +15,37 @@ const typeLabel: Record<ReusableAssetItem['type'], string> = {
   character: '人物',
   scene: '场景',
 };
+
+// 缩略图加载失败 → 回退占位，不让整张卡片报错 / 控制台刷屏。
+const thumbFailed = ref(false);
+watch(() => props.item.thumbnail_url, () => {
+  thumbFailed.value = false;
+});
+
+const showThumbnail = computed(() => Boolean(props.item.thumbnail_url) && !thumbFailed.value);
 </script>
 
 <template>
   <div
-    class="flex gap-3 rounded-lg border bg-white p-4"
+    class="flex min-w-0 gap-3 rounded-lg border bg-white p-4"
     :class="item.status === 'missing' ? 'border-amber-200' : 'border-slate-200'"
     data-v2-reusable-asset
   >
-    <!-- 缩略图（辅助）；无图显示占位 -->
+    <!-- 缩略图（辅助）；无图或加载失败显示占位 -->
     <div class="shrink-0">
       <img
-        v-if="item.thumbnail_url"
-        :src="item.thumbnail_url"
+        v-if="showThumbnail"
+        :src="item.thumbnail_url ?? ''"
         :alt="item.name"
+        loading="lazy"
         class="h-12 w-12 rounded-lg border border-slate-200 object-cover"
+        data-v2-asset-thumb
+        @error="thumbFailed = true"
       />
       <div
         v-else
         class="flex h-12 w-12 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 text-slate-300"
+        data-v2-asset-thumb-placeholder
       >
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
           <path

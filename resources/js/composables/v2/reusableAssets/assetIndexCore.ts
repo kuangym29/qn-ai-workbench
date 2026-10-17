@@ -7,12 +7,17 @@
 //   4. statusLabel()         状态中文展示
 //   5. formatLastUsed()      最近使用展示（null → 未使用；ISO → YYYY-MM-DD）
 //   6. groupByType()         按 type 分组（防御异常数据）
+//   7. normalizeOptionalText() / isAssetNameValid() / buildAssetCreatePayload() /
+//      buildAssetUpdatePayload()  —— P5-I02 新增 / 编辑表单的归一与载荷构造
 import type {
+  AssetEditorForm,
   AssetStatusFilter,
   AssetTab,
+  ReusableAssetCreatePayload,
   ReusableAssetItem,
   ReusableAssetStatus,
   ReusableAssetType,
+  ReusableAssetUpdatePayload,
   ReusableAssetWorkspace,
 } from '../../../types/v2/reusableAssets/reusableAssets';
 
@@ -74,4 +79,48 @@ export function groupByType(
     else if (item.type === 'scene') scenes.push(item);
   }
   return { character: characters, scene: scenes };
+}
+
+// ── P5-I02 表单归一 / 载荷构造（纯函数，可被 node:test 直接测试） ──────
+
+/**
+ * 可选文本归一：
+ *   前后空白裁掉；空字符串 → null（= 清除，不是「不修改」）。
+ * 后端把 null 视为清空，因此「用户清空输入框」能真实清掉预览图 / 说明。
+ */
+export function normalizeOptionalText(value: string | null | undefined): string | null {
+  if (value === null || value === undefined) return null;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
+/** 判断用户是否填了有效名称（创建时必填）。 */
+export function isAssetNameValid(value: string): boolean {
+  return value.trim() !== '';
+}
+
+/** 由弹层表单构造「新增」载荷；类型由当前 Tab 决定，客户端不提交 id / project_id / last_used_at。 */
+export function buildAssetCreatePayload(
+  type: ReusableAssetType,
+  form: AssetEditorForm,
+): ReusableAssetCreatePayload {
+  return {
+    type,
+    name: form.name.trim(),
+    status: form.status,
+    thumbnail_url: normalizeOptionalText(form.thumbnail_url),
+    description: normalizeOptionalText(form.description),
+  };
+}
+
+/**
+ * 由弹层表单构造「编辑」载荷；只含 status / thumbnail_url / description。
+ * 一律带上显式值（含 null），这样「清空」才会真正下发；name / type 绝不提交。
+ */
+export function buildAssetUpdatePayload(form: AssetEditorForm): ReusableAssetUpdatePayload {
+  return {
+    status: form.status,
+    thumbnail_url: normalizeOptionalText(form.thumbnail_url),
+    description: normalizeOptionalText(form.description),
+  };
 }
