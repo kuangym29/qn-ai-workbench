@@ -17,7 +17,8 @@ use InvalidArgumentException;
  * 不正则抽人名、不模糊匹配、不按 description 自动关联。没选就是空引用。
  *
  * 规则：
- *   1. replace 先锁当前 ContentPage，再校验 / 再原子替换；
+ *   1. replace 在同一个事务内先锁当前 ContentPage，再校验 / 再原子替换
+ *      （SELECT ... FOR UPDATE 必须位于事务内，否则并发替换会交错）；
  *   2. 所有资产必须属于同一 Project（asset.project_id == page.project_id），
  *      只验证「id 存在」不够，绝不跨项目绑定；
  *   3. character_asset_ids 必须全是 character；scene_asset_id 必须是 scene；
@@ -94,27 +95,38 @@ class ContentPageAssetReferenceService
     /**
      * 原子替换当前页的显式引用。
      *
+     * 事务边界（P5-I03-R1 修正）：页面锁必须在事务内取得。原先把
+     * lockForUpdate() 放在 DB::transaction() 之外，自动提交模式下锁拿到即释放，
+     * 并发 replace 会交错成「半套引用 / 混合人物场景 / 重复行」。现在完整顺序为：
+     *   transaction begin → SELECT ... FOR UPDATE → 校验 → delete → insert → commit。
+     * 纯内存归一（去重 / 转型 / 人物场景互斥）留在事务外，不占锁时间。
+     *
+     * 被 ImageBatchWorkspaceService::saveDraft() 调用时落在外层事务内（savepoint），
+     * 独立调用时自成事务，两种路径都正确。
+     *
      * @param  list<int|string>  $characterAssetIds
      * @return array{character_asset_ids: list<int>, scene_asset_id: int|null}
      */
     public function replace(ContentPage $page, array $characterAssetIds, ?int $sceneAssetId): array
     {
-        // 1. 锁定当前 ContentPage，避免并发替换交错。
-        $locked = ContentPage::query()->whereKey($page->id)->lockForUpdate()->first();
-        if ($locked === null) {
-            throw new InvalidArgumentException('页面不存在或已删除。');
-        }
-
-        // 2. 去重 + 归一（[5,5,5] 不得产生重复关系）。
+        // 1. 去重 + 归一（[5,5,5] 不得产生重复关系）—— 纯内存，事务外完成。
         $characterIds = $this->normalizeIds($characterAssetIds);
         $sceneId = $sceneAssetId === null ? null : (int) $sceneAssetId;
 
-        // 3. 同一资产不得同时是人物和场景。
+        // 2. 同一资产不得同时是人物和场景 —— 纯内存校验，事务外完成。
         if ($sceneId !== null && in_array($sceneId, $characterIds, true)) {
             throw new InvalidArgumentException('同一个资产不能同时作为人物和场景引用。');
         }
 
-        return DB::transaction(function () use ($locked, $characterIds, $sceneId): array {
+        return DB::transaction(function () use ($page, $characterIds, $sceneId): array {
+            // 3. 事务内锁定当前 ContentPage：并发替换在此串行化，
+            //    后到者必须看到前一次 replace 的完整结果再整体替换。
+            $locked = ContentPage::query()->whereKey($page->id)->lockForUpdate()->first();
+            if ($locked === null) {
+                throw new InvalidArgumentException('页面不存在或已删除。');
+            }
+
+            // 4. 同一事务内完成资产校验（跨项目 / 不存在 / 类型不符一律 422）。
             $assets = $this->resolveAssets($locked, [...$characterIds, ...($sceneId === null ? [] : [$sceneId])]);
 
             foreach ($characterIds as $id) {
@@ -131,6 +143,7 @@ class ContentPageAssetReferenceService
                 }
             }
 
+            // 5. 同一事务内原子替换：先删后插，绝不留半套引用。
             ContentPageReusableAssetReference::query()->where('content_page_id', $locked->id)->delete();
 
             foreach ([...$characterIds, ...($sceneId === null ? [] : [$sceneId])] as $id) {
