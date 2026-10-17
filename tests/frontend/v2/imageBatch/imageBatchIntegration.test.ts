@@ -22,7 +22,9 @@ function serverRef() {
       {
         id: 11, page_id: 21, page_no: 1, page_type: 'cover',
         final_copy: '封面文案', visual_evidence: '画面证据',
-        characters: [], scene: null, special_requirement: null,
+        characters: [], scene: null,
+        character_asset_ids: [], scene_asset_id: null,
+        special_requirement: null,
         status: 'pending', source_changed: false, source_change_summary: null,
       },
     ],

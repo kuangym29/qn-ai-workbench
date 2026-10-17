@@ -54,10 +54,14 @@ class ImageBatchCopyTaskService
             /** @var ImageBatchUnitSetting|null $setting */
             $setting = $settings->get($page->id);
             $typeLabel = self::PAGE_TYPE_LABELS[$page->page_type->value] ?? $page->page_type->value;
+            $characters = $this->assets->characters($page);
+            $scene = $this->assets->scene($page);
 
             $lines[] = 'P'.$page->page_no.'（'.$typeLabel.'）';
             $lines[] = '  最终文字：'.($page->final_copy ?? '（无）');
             $lines[] = '  画面证据：'.($page->visual_evidence ?? '（无）');
+            $lines[] = '  人物：'.($characters === [] ? '（无）' : implode('、', $characters));
+            $lines[] = '  场景：'.($scene ?? '（无）');
             $lines[] = '  特殊要求：'.($setting?->special_requirement ?? '（无）');
             $lines[] = '  当前状态：'.($setting?->status->label() ?? '待制作');
             $lines[] = '';

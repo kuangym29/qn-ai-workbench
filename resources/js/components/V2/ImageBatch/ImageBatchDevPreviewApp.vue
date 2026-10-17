@@ -3,8 +3,8 @@
 // 正式页面为 ImageBatchEditor.vue，数据由 WorkBuddy Phase 2 后端接线后提供。
 import { onMounted, shallowRef, ref } from 'vue';
 import { useImageBatch } from '../../../composables/v2/imageBatch/useImageBatch';
-import { buildMockWorkspace, applyMockRun, applyMockCopyTask, saveMockDraft, resolveMockSourceChange } from '../../../composables/v2/imageBatch/imageBatchDevMock';
-import type { ImageBatchDraftInput, ImageBatchSourceChangeInput } from '../../../types/v2/imageBatch/imageBatch';
+import { buildMockWorkspace, applyMockRun, applyMockCopyTask, saveMockDraft, resolveMockSourceChange, buildMockAssetOptions } from '../../../composables/v2/imageBatch/imageBatchDevMock';
+import type { ImageBatchDraftInput, ImageBatchSourceChangeInput, ImageBatchUnit } from '../../../types/v2/imageBatch/imageBatch';
 import ImageBatchWorkspaceBody from './ImageBatchWorkspaceBody.vue';
 
 const failSave = ref(false);
@@ -36,6 +36,11 @@ const devClient = {
 };
 
 const editor = shallowRef(useImageBatch(1, 1, 1, devClient));
+// DEV ONLY：可选人物 / 场景同样走 Mock（正式页面走 GET /reusable-assets）。
+const assetOptions = buildMockAssetOptions();
+function onUpdateUnitAssets(unit: ImageBatchUnit, patch: Pick<ImageBatchUnit, 'character_asset_ids' | 'scene_asset_id'>): void {
+  editor.value.updateUnitAssets(unit.id, patch);
+}
 
 onMounted(() => {
   void editor.value.load();
@@ -70,12 +75,16 @@ onMounted(() => {
       :all-selected="editor.allSelected.value"
       :changed-count="editor.changedUnits.value.length"
       :busy="editor.busy.value" :dirty="editor.dirty.value" :selected-unit-ids="editor.selectedUnitIds.value"
+      :character-options="assetOptions.character"
+      :scene-options="assetOptions.scene"
+      :asset-manage-url="'/projects/1/reusable-assets'"
       @update:batch-instruction="editor.updateBatchInstruction($event)"
       @update:batch-note="editor.updateBatchNote($event)"
       @toggle-unit="editor.toggleUnit($event.id)"
       @select-all="editor.selectAll()"
       @clear-selection="editor.clearSelection()"
       @update-unit="editor.updateUnit($event.id, { special_requirement: $event.special_requirement })"
+      @update-unit-assets="onUpdateUnitAssets"
       @run="editor.run($event)"
       @copy-task="editor.copyTask()"
       @toggle-history="editor.historyOpen.value = !editor.historyOpen.value"

@@ -22,16 +22,23 @@ use InvalidArgumentException;
  *   - 只有 format = image_post 且 channel = wechat_official 的分支可用，其它一律拒绝（422）。
  *   - units 全部来自 ContentPage，页面原文实时读取，不复制进表。
  *   - selected 不属于后端：既不在表里，也不出现在任何响应中。
- *   - PUT 白名单只有 batch_instruction / batch_note / units[].special_requirement；
+ *   - PUT 白名单只有 batch_instruction / batch_note / units[].special_requirement /
+ *     units[].character_asset_ids / units[].scene_asset_id；
  *     其余字段（final_copy / visual_evidence / characters / scene / page_type /
  *     status / source_changed / history …）一律由系统计算，写入即拒绝。
  *   - 用户只需维护「这一批怎么做」，页面结构由系统给出。
+ *
+ * P5-I03：units[].character_asset_ids / scene_asset_id 是「这一页显式引用了哪些
+ * 人物 / 哪个场景」的写入入口。字段完全未提交 → 保持已有引用不变（旧调用不会
+ * 意外清空资产引用）；[] → 清空该页人物；null → 清空该页场景。
+ * 人物 / 场景名字与状态一律实时来自 ReusableAssetIndexService，此处不复制第二套。
  */
 class ImageBatchWorkspaceService
 {
     public function __construct(
         private readonly ImageBatchSourceService $source,
         private readonly ImageBatchAssetResolver $assets,
+        private readonly ContentPageAssetReferenceService $assetReferences,
     ) {}
 
     /**
@@ -54,6 +61,7 @@ class ImageBatchWorkspaceService
             $units = $pages->map(function (ContentPage $page) use ($settings): array {
                 /** @var ImageBatchUnitSetting $setting */
                 $setting = $settings->get($page->id);
+                $referenceIds = $this->assetReferences->referenceIds($page);
 
                 return [
                     'id' => $setting->id,
@@ -64,6 +72,8 @@ class ImageBatchWorkspaceService
                     'visual_evidence' => $page->visual_evidence,
                     'characters' => $this->assets->characters($page),
                     'scene' => $this->assets->scene($page),
+                    'character_asset_ids' => $referenceIds['character_asset_ids'],
+                    'scene_asset_id' => $referenceIds['scene_asset_id'],
                     'special_requirement' => $setting->special_requirement,
                     'status' => $setting->status->value,
                     'source_changed' => $this->source->sourceChanged($setting, $page),
@@ -116,10 +126,53 @@ class ImageBatchWorkspaceService
                     ? null
                     : (string) $requirement;
                 $setting->save();
+
+                $this->applyAssetReferences($branch, $setting, $patch);
             }
 
             return $draft->refresh();
         });
+    }
+
+    /**
+     * P5-I03：把单元 patch 里的显式资产引用写进关系表。
+     *
+     * 语义（与 PUT 合同一致）：
+     *   character_asset_ids 缺省      → 人物引用保持不变
+     *   character_asset_ids = []      → 清空该页人物
+     *   scene_asset_id 缺省           → 场景引用保持不变
+     *   scene_asset_id = null         → 清空该页场景
+     *
+     * 因此只提交 special_requirement 的旧调用绝不会意外清空资产引用。
+     *
+     * @param  array<string, mixed>  $patch
+     */
+    private function applyAssetReferences(ContentBranch $branch, ImageBatchUnitSetting $setting, array $patch): void
+    {
+        $hasCharacters = array_key_exists('character_asset_ids', $patch);
+        $hasScene = array_key_exists('scene_asset_id', $patch);
+
+        if (! $hasCharacters && ! $hasScene) {
+            return;
+        }
+
+        // 页面必须属于当前分支的篇目（防止拿别的篇目 / 项目的页面 id 乱绑）。
+        $page = $branch->contentItem->contentPages()->whereKey($setting->content_page_id)->first();
+        if ($page === null) {
+            throw new InvalidArgumentException('units[].id 对应的页面不属于当前篇目。');
+        }
+
+        $current = $this->assetReferences->referenceIds($page);
+
+        $characterIds = $hasCharacters
+            ? array_values((array) $patch['character_asset_ids'])
+            : $current['character_asset_ids'];
+
+        $sceneId = $hasScene
+            ? ($patch['scene_asset_id'] === null ? null : (int) $patch['scene_asset_id'])
+            : $current['scene_asset_id'];
+
+        $this->assetReferences->replace($page, $characterIds, $sceneId);
     }
 
     /** 当前分支的草稿（不存在则建立空草稿）。 */
@@ -242,7 +295,7 @@ class ImageBatchWorkspaceService
         }
 
         foreach ($data['units'] ?? [] as $patch) {
-            $unitUnknown = array_values(array_diff(array_keys((array) $patch), ['id', 'special_requirement']));
+            $unitUnknown = array_values(array_diff(array_keys((array) $patch), ['id', 'special_requirement', 'character_asset_ids', 'scene_asset_id']));
             if ($unitUnknown !== []) {
                 throw new InvalidArgumentException('禁止提交字段：units[].'.implode(', ', $unitUnknown).'。');
             }

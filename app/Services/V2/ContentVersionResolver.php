@@ -27,7 +27,10 @@ use App\Models\VideoContent;
  */
 class ContentVersionResolver
 {
-    public function __construct(private readonly VideoSourceService $videoSource) {}
+    public function __construct(
+        private readonly VideoSourceService $videoSource,
+        private readonly ImageBatchAssetResolver $imageBatchAssets,
+    ) {}
 
     /**
      * 校验作用域与目标类型，返回 [content, branch, type]。
@@ -82,8 +85,13 @@ class ContentVersionResolver
         $draft = $scope(ImageBatchDraft::query())->first();
         abort_unless($draft, 422, '请先保存图片批次草稿。');
         $settings = $draft->unitSettings()->get()->keyBy('content_page_id');
+        // P5-I03：每个 unit 的快照必须包含本页显式资产引用（稳定名称）。
+        // 刻意不含 status：missing → existing 只是资产准备状态变化，不应使审核版本失效；
+        // 而 妈妈 → 爸爸 是正式生产语义变化，必须形成新 version_label。
         $units = $pages->map(fn ($page) => ['page_no' => $page->page_no, 'source_label' => $this->videoSource->sourceLabel($page),
-            'special_requirement' => $settings->get($page->id)?->special_requirement ?? ''])->all();
+            'special_requirement' => $settings->get($page->id)?->special_requirement ?? '',
+            'characters' => $this->imageBatchAssets->characters($page),
+            'scene' => $this->imageBatchAssets->scene($page)])->all();
         abort_unless(trim((string) $draft->batch_instruction) !== '' || trim((string) $draft->batch_note) !== '' || collect($units)->contains(fn ($unit) => trim((string) $unit['special_requirement']) !== ''), 422, '请先保存图片批次制作说明或特殊要求。');
 
         return ['title' => $item->title, 'batch_instruction' => $draft->batch_instruction, 'batch_note' => $draft->batch_note, 'units' => $units];

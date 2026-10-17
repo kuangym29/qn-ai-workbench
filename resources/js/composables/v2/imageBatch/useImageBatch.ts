@@ -16,7 +16,12 @@ export function useImageBatch(
   const savedReviewInput = ref('');
   const reviewInput = () => JSON.stringify(workspace.value ? {
     batch_instruction: workspace.value.batch_instruction, batch_note: workspace.value.batch_note,
-    units: workspace.value.units.map(u => ({ id: u.id, special_requirement: u.special_requirement })),
+    units: workspace.value.units.map(u => ({
+      id: u.id,
+      special_requirement: u.special_requirement,
+      character_asset_ids: [...u.character_asset_ids],
+      scene_asset_id: u.scene_asset_id,
+    })),
   } : null);
   const reviewDirty = computed(() => workspace.value !== null && reviewInput() !== savedReviewInput.value);
   const loading = ref(false);
@@ -62,6 +67,18 @@ export function useImageBatch(
     unit.special_requirement = patch.special_requirement;
     dirty.value = true; copied.value = false;
   }
+  /**
+   * P5-I03：更新本页显式资产引用（人物多选 / 场景单选）。
+   * 只改内存 Draft，保存仍跟随整批草稿保存，不每选一次就发一次 API。
+   */
+  function updateUnitAssets(id: number | string, patch: Pick<ImageBatchUnit, 'character_asset_ids' | 'scene_asset_id'>): void {
+    if (!workspace.value || busy.value) return;
+    const unit = units.value.find(u => u.id === id);
+    if (!unit) return;
+    unit.character_asset_ids = [...patch.character_asset_ids];
+    unit.scene_asset_id = patch.scene_asset_id;
+    dirty.value = true; copied.value = false;
+  }
   function toggleUnit(id: number | string): void {
     if (!workspace.value || busy.value || !units.value.some(u => u.id === id)) return;
     const next = new Set(selectedUnitIds.value);
@@ -74,7 +91,12 @@ export function useImageBatch(
     if (!workspace.value || !dirty.value) return;
     const input: ImageBatchDraftInput = {
       batch_instruction: workspace.value.batch_instruction, batch_note: workspace.value.batch_note,
-      units: units.value.map(u => ({ id: u.id, special_requirement: u.special_requirement })),
+      units: units.value.map(u => ({
+        id: u.id,
+        special_requirement: u.special_requirement,
+        character_asset_ids: [...u.character_asset_ids],
+        scene_asset_id: u.scene_asset_id,
+      })),
     };
     saving.value = true;
     try { await client.saveDraft(projectId, itemId, branchId, input); dirty.value = false; }
@@ -134,5 +156,5 @@ export function useImageBatch(
   const regenerate = (id: number | string) => resolveSourceChange(id, 'regenerate');
   return { workspace, selectedUnitIds, dirty, reviewDirty, loading, saving, copying, resolving, busy, loadError, runPhase, runError, copied, historyOpen,
     units, selection, allSelected, changedUnits, anySourceChange, load, saveDraft, updateBatchInstruction, updateBatchNote,
-    toggleUnit, selectAll, clearSelection, updateUnit, run, copyTask, viewChange, keepCurrent, regenerate };
+    toggleUnit, selectAll, clearSelection, updateUnit, updateUnitAssets, run, copyTask, viewChange, keepCurrent, regenerate };
 }
