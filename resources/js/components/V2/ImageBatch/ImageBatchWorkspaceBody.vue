@@ -16,6 +16,7 @@ import type {
   ImageBatchRunPhase,
   ImageBatchUnit,
 } from '../../../types/v2/imageBatch/imageBatch';
+import type { AssetOption } from '../../../composables/v2/imageBatch/assetOptions';
 import { executionLabel, selectionSummary } from '../../../composables/v2/imageBatch/imageBatchCore';
 import LoadingState from '../../LoadingState.vue';
 import ErrorState from '../../ErrorState.vue';
@@ -42,6 +43,11 @@ const props = defineProps<{
   busy: boolean;
   dirty: boolean;
   selectedUnitIds: ReadonlySet<number | string>;
+  /** P5-I03：可选人物 / 场景（来自正式 GET /reusable-assets）。 */
+  characterOptions: AssetOption[];
+  sceneOptions: AssetOption[];
+  assetOptionsLoading?: boolean;
+  assetManageUrl?: string;
 }>();
 
 const emit = defineEmits<{
@@ -51,6 +57,7 @@ const emit = defineEmits<{
   selectAll: [];
   clearSelection: [];
   updateUnit: [unit: ImageBatchUnit];
+  updateUnitAssets: [unit: ImageBatchUnit, patch: Pick<ImageBatchUnit, 'character_asset_ids' | 'scene_asset_id'>];
   run: [mode: ImageBatchExecutionMode];
   copyTask: [];
   saveDraft: [];
@@ -63,6 +70,9 @@ const emit = defineEmits<{
 
 const selection = computed(() => selectionSummary(props.units, props.selectedUnitIds));
 const disabled = computed(() => props.loading || props.busy);
+function onUpdateAssets(unit: ImageBatchUnit, patch: Pick<ImageBatchUnit, 'character_asset_ids' | 'scene_asset_id'>): void {
+  emit('updateUnitAssets', unit, patch);
+}
 </script>
 
 <template>
@@ -167,8 +177,13 @@ const disabled = computed(() => props.loading || props.busy);
             :unit="unit"
             :selected="selectedUnitIds.has(unit.id)"
             :disabled="disabled"
+            :character-options="characterOptions"
+            :scene-options="sceneOptions"
+            :asset-options-loading="assetOptionsLoading"
+            :asset-manage-url="assetManageUrl"
             @toggle="emit('toggleUnit', $event)"
             @update="emit('updateUnit', $event)"
+            @update-assets="onUpdateAssets"
             @view-change="emit('viewChange', $event)"
             @keep-current="emit('keepCurrent', $event)"
             @regenerate="emit('regenerate', $event)"

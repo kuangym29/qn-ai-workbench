@@ -11,7 +11,7 @@ use App\Models\ContentItem;
 use App\Models\ContentPage;
 use App\Models\Project;
 use App\Contracts\V2\ReusableAssetReferenceReader;
-use App\Services\V2\EmptyAssetReferenceReader;
+use App\Services\V2\ContentPageReusableAssetReferenceReader;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -37,7 +37,8 @@ class ImageBatchIntegrationTest extends TestCase
     /** 单元字段集合（不含 selected）。 */
     private const UNIT_KEYS = [
         'id', 'page_id', 'page_no', 'page_type', 'final_copy', 'visual_evidence',
-        'characters', 'scene', 'special_requirement', 'status', 'source_changed', 'source_change_summary',
+        'characters', 'scene', 'character_asset_ids', 'scene_asset_id',
+        'special_requirement', 'status', 'source_changed', 'source_change_summary',
     ];
 
     private function acting(ContentItem $item): void
@@ -316,18 +317,20 @@ class ImageBatchIntegrationTest extends TestCase
         $this->page($item, 1);
         $this->acting($item);
 
-        // I06B：ReusableAsset 资产索引已吸收，但默认引用读取器仍是 EmptyAssetReferenceReader，
-        // 未登记任何显式引用 → assets / characters / scene 默认全空。
+        // P5-I03：生产容器绑定的是显式引用读取器 ContentPageReusableAssetReferenceReader。
+        // 没有登记任何显式引用 → assets / characters / scene 默认全空（不推断、不猜测）。
         $this->assertInstanceOf(
-            EmptyAssetReferenceReader::class,
+            ContentPageReusableAssetReferenceReader::class,
             $this->app->make(ReusableAssetReferenceReader::class),
-            'I06B 默认引用读取器必须是 EmptyAssetReferenceReader（不推断）'
+            'P5-I03 生产引用读取器必须是 ContentPageReusableAssetReferenceReader'
         );
         $body = $this->show($item, $branch);
 
         $this->assertSame([], $body['assets']);
         $this->assertSame([], $body['units'][0]['characters']);
         $this->assertNull($body['units'][0]['scene']);
+        $this->assertSame([], $body['units'][0]['character_asset_ids']);
+        $this->assertNull($body['units'][0]['scene_asset_id']);
     }
 
     // ── 8. Page route / permissions ────────────────────────────────────────

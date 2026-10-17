@@ -84,7 +84,7 @@ class ReviewSubmissionService
             'headline' => '文章标题', 'summary' => '摘要', 'body' => '正文', 'image_suggestions' => '配图建议', 'cover_suggestion' => '封面建议',
             'batch_instruction' => '整批制作说明', 'batch_note' => '批次备注', 'narration' => '完整旁白稿', 'units' => '制作单元', 'total_duration' => '总时长（秒）',
             'source_page_id' => '来源页', 'source_label' => '来源标签', 'special_requirement' => '特殊要求', 'dynamic_instruction' => '动态说明', 'duration_seconds' => '时长（秒）', 'note' => '备注',
-            'position' => '位置', 'description' => '说明',
+            'position' => '位置', 'description' => '说明', 'characters' => '人物', 'scene' => '场景',
         ][$field] ?? $field;
     }
 }

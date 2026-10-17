@@ -14,8 +14,9 @@ use App\Models\ContentPage;
  *        → ReusableAssetIndexService（索引里有没有）
  *        → {type, name, status}（status = existing | missing）
  *
- * 默认读取器（EmptyAssetReferenceReader）为空，因此默认输出为空数组，
- * 等价于此前的 EmptyAssetNameSource 行为：不推断、不猜测。
+ * 默认读取器（P5-I03 前为 EmptyAssetReferenceReader，现为
+ * ContentPageReusableAssetReferenceReader）只回答「显式引用了哪些名字」，
+ * 因此输出恒为显式引用：不推断、不猜测。
  * 后续只需把 ReusableAssetReferenceReader 绑定到真实实现即可，本类无需改动。
  *
  * 刻意不做：new_in_batch 判定（那属于批次会话状态，未在本模块登记）。

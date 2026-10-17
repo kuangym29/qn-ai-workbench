@@ -40,8 +40,14 @@ export interface ImageBatchUnit {
   final_copy: string | null;
   /** 画面证据 */
   visual_evidence: string | null;
+  /** 本页显式引用的人物名（实时来自 ReusableAsset，保持稳定顺序） */
   characters: string[];
+  /** 本页显式引用的场景名（最多一个） */
   scene: string | null;
+  /** P5-I03：本页显式引用的人物资产 id（编辑身份，稳定顺序同 characters） */
+  character_asset_ids: number[];
+  /** P5-I03：本页显式引用的场景资产 id（null = 未引用场景） */
+  scene_asset_id: number | null;
   special_requirement: string | null;
   status: ImageBatchUnitStatus;
   /** 来源页后来有修改（由系统检测，前端只展示） */
@@ -81,7 +87,17 @@ export interface ImageBatchRunInput {
 export interface ImageBatchDraftInput {
   batch_instruction: string;
   batch_note: string | null;
-  units: { id: number | string; special_requirement: string | null }[];
+  /**
+   * P5-I03：除特殊要求外，还携带本页显式资产引用。
+   *   character_asset_ids / scene_asset_id 缺省 → 服务端保持已有引用不变；
+   *   character_asset_ids = [] → 清空该页人物；scene_asset_id = null → 清空该页场景。
+   */
+  units: {
+    id: number | string;
+    special_requirement: string | null;
+    character_asset_ids?: number[];
+    scene_asset_id?: number | null;
+  }[];
 }
 export type ImageBatchSourceChangeInput = { action: 'keep' | 'regenerate' };
 export type ImageBatchCopyResult = { task: string };

@@ -52,4 +52,10 @@ class ContentPage extends Model
     {
         return $this->hasMany(Asset::class);
     }
+
+    /** P5-I03：本页显式引用的复用资产（人物 / 场景）。 */
+    public function assetReferences(): HasMany
+    {
+        return $this->hasMany(ContentPageReusableAssetReference::class);
+    }
 }

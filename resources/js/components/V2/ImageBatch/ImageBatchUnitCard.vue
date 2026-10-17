@@ -2,15 +2,31 @@
 // V2 图片批次 —— 页面单元卡（系统自动拆页，用户查看 / 轻量修正 / 选择参与本次生成）。
 // 原则：每页不需要重新完整录入；卡片以「最终文字弱展示 + 画面证据 + 人物 + 场景」为主，
 // 制作备注 / 特殊要求弱化；单页状态轻量；来源内容变化给轻量提醒。
+//
+// P5-I03：人物 / 场景从只读展示升级为轻量编辑。点击「人物 / 场景」打开一个折叠区
+// （不是弹层、不占额外层），人物多选、场景单选，默认卡片仍然简洁。
+// 引用只能来自用户显式选择：没有可选资产时不猜测、不自动创建，只引导去复用索引建立。
 import { ref, watch } from 'vue';
 import type { ImageBatchUnit } from '../../../types/v2/imageBatch/imageBatch';
+import type { AssetOption } from '../../../composables/v2/imageBatch/assetOptions';
 import { pageLabel, pageTypeLabel, unitStatusLabel } from '../../../composables/v2/imageBatch/imageBatchCore';
 
-const props = defineProps<{ unit: ImageBatchUnit; selected: boolean; disabled?: boolean }>();
+const props = defineProps<{
+  unit: ImageBatchUnit;
+  selected: boolean;
+  disabled?: boolean;
+  /** 当前 Project 的可选人物 / 场景（来自正式 GET /reusable-assets）。 */
+  characterOptions: AssetOption[];
+  sceneOptions: AssetOption[];
+  assetOptionsLoading?: boolean;
+  /** 复用索引管理页链接（无可选资产时引导用户去建立）。 */
+  assetManageUrl?: string;
+}>();
 
 const emit = defineEmits<{
   toggle: [unit: ImageBatchUnit];
   update: [unit: ImageBatchUnit];
+  updateAssets: [unit: ImageBatchUnit, patch: Pick<ImageBatchUnit, 'character_asset_ids' | 'scene_asset_id'>];
   viewChange: [unit: ImageBatchUnit];
   keepCurrent: [unit: ImageBatchUnit];
   regenerate: [unit: ImageBatchUnit];
@@ -43,6 +59,42 @@ function cancelEdit(): void {
   if (props.disabled) return;
   emit('update', { ...props.unit, special_requirement: original.value || null });
   editing.value = false;
+}
+
+// ── P5-I03：人物 / 场景显式引用编辑（折叠区） ──────────────────────────────
+const assetsOpen = ref(false);
+function toggleAssets(): void {
+  if (props.disabled) return;
+  assetsOpen.value = !assetsOpen.value;
+}
+function nameOf(options: AssetOption[], id: number | null): string | null {
+  if (id === null) return null;
+  return options.find((option) => option.id === id)?.name ?? null;
+}
+const characterNames = (): string[] =>
+  props.unit.character_asset_ids
+    .map((id) => nameOf(props.characterOptions, id))
+    .filter((name): name is string => name !== null);
+const sceneName = (): string | null => nameOf(props.sceneOptions, props.unit.scene_asset_id);
+
+function toggleCharacter(id: number): void {
+  if (props.disabled) return;
+  const next = props.unit.character_asset_ids.includes(id)
+    ? props.unit.character_asset_ids.filter((kept) => kept !== id)
+    : [...props.unit.character_asset_ids, id];
+  emit('updateAssets', props.unit, { character_asset_ids: next, scene_asset_id: props.unit.scene_asset_id });
+}
+function selectScene(id: number): void {
+  if (props.disabled) return;
+  emit('updateAssets', props.unit, { character_asset_ids: props.unit.character_asset_ids, scene_asset_id: id });
+}
+function clearCharacters(): void {
+  if (props.disabled) return;
+  emit('updateAssets', props.unit, { character_asset_ids: [], scene_asset_id: props.unit.scene_asset_id });
+}
+function clearScene(): void {
+  if (props.disabled) return;
+  emit('updateAssets', props.unit, { character_asset_ids: props.unit.character_asset_ids, scene_asset_id: null });
 }
 </script>
 
@@ -136,17 +188,133 @@ function cancelEdit(): void {
       <span class="text-slate-400">画面证据：</span>{{ unit.visual_evidence ?? '—' }}
     </p>
 
-    <!-- 人物 / 场景 / 特殊要求 -->
-    <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-      <span>
+    <!-- 人物 / 场景 / 特殊要求（人物与场景为可点击的显式引用入口） -->
+    <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+      <button
+        type="button"
+        class="inline-flex items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-slate-100 hover:text-slate-700"
+        :disabled="disabled"
+        data-v2-asset-ref-trigger="characters"
+        :aria-expanded="assetsOpen"
+        @click="toggleAssets"
+      >
         <span class="text-slate-400">人物：</span>
-        <template v-if="unit.characters.length">{{ unit.characters.join('、') }}</template>
-        <template v-else>—</template>
-      </span>
-      <span><span class="text-slate-400">场景：</span>{{ unit.scene ?? '—' }}</span>
+        <span v-if="characterNames().length">{{ characterNames().join('、') }}</span>
+        <span v-else>—</span>
+      </button>
+      <button
+        type="button"
+        class="inline-flex items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-slate-100 hover:text-slate-700"
+        :disabled="disabled"
+        data-v2-asset-ref-trigger="scene"
+        :aria-expanded="assetsOpen"
+        @click="toggleAssets"
+      >
+        <span class="text-slate-400">场景：</span>
+        <span v-if="sceneName()">{{ sceneName() }}</span>
+        <span v-else>—</span>
+      </button>
       <span v-if="unit.special_requirement" class="text-slate-600">
         <span class="text-slate-400">特殊要求：</span>{{ unit.special_requirement }}
       </span>
+    </div>
+
+    <!-- 显式引用编辑折叠区：人物多选 + 场景单选（不引入第二套查询，选项来自正式 GET） -->
+    <div
+      v-if="assetsOpen"
+      class="mt-2 rounded-md border border-slate-200 bg-slate-50 p-3"
+      data-v2-asset-ref-editor
+    >
+      <p class="text-xs text-slate-500">
+        明确这一页使用了哪些人物、哪个场景。只登记你显式选择的引用，未选择即不引用。
+      </p>
+
+      <div class="mt-2">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs font-medium text-slate-700">人物（可多选）</span>
+          <button
+            v-if="unit.character_asset_ids.length"
+            type="button"
+            class="text-xs text-slate-400 underline hover:text-slate-600"
+            :disabled="disabled"
+            data-v2-asset-clear="characters"
+            @click="clearCharacters"
+          >
+            清空人物
+          </button>
+        </div>
+        <div v-if="characterOptions.length" class="mt-1 flex flex-col gap-1" data-v2-asset-option-list="characters">
+          <label
+            v-for="option in characterOptions"
+            :key="option.id"
+            class="flex items-center gap-2 rounded px-1 py-1 text-xs text-slate-700 hover:bg-white"
+          >
+            <input
+              type="checkbox"
+              class="h-4 w-4 rounded border-slate-300"
+              :checked="unit.character_asset_ids.includes(option.id)"
+              :disabled="disabled"
+              :data-v2-asset-option="`character-${option.id}`"
+              @change="toggleCharacter(option.id)"
+            />
+            <span class="min-w-0 flex-1 truncate">{{ option.name }}</span>
+            <span class="shrink-0 text-slate-400">{{ option.statusLabel }}</span>
+          </label>
+        </div>
+        <p v-else-if="assetOptionsLoading" class="mt-1 text-xs text-slate-400">正在加载可选人物…</p>
+        <p v-else class="mt-1 text-xs text-slate-400">
+          暂无人物，可先到<a
+            v-if="assetManageUrl"
+            :href="assetManageUrl"
+            class="text-slate-600 underline"
+            data-v2-asset-manage-link
+          >人物 / 场景复用索引</a><span v-else>人物 / 场景复用索引</span>中建立。
+        </p>
+      </div>
+
+      <div class="mt-3">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs font-medium text-slate-700">场景（单选）</span>
+          <button
+            v-if="unit.scene_asset_id !== null"
+            type="button"
+            class="text-xs text-slate-400 underline hover:text-slate-600"
+            :disabled="disabled"
+            data-v2-asset-clear="scene"
+            @click="clearScene"
+          >
+            清空场景
+          </button>
+        </div>
+        <div v-if="sceneOptions.length" class="mt-1 flex flex-col gap-1" data-v2-asset-option-list="scene">
+          <label
+            v-for="option in sceneOptions"
+            :key="option.id"
+            class="flex items-center gap-2 rounded px-1 py-1 text-xs text-slate-700 hover:bg-white"
+          >
+            <input
+              type="radio"
+              class="h-4 w-4 border-slate-300"
+              :checked="unit.scene_asset_id === option.id"
+              :disabled="disabled"
+              :name="`batch-scene-${unit.id}`"
+              :data-v2-asset-option="`scene-${option.id}`"
+              @change="selectScene(option.id)"
+            />
+            <span class="min-w-0 flex-1 truncate">{{ option.name }}</span>
+            <span class="shrink-0 text-slate-400">{{ option.statusLabel }}</span>
+          </label>
+        </div>
+        <p v-else-if="assetOptionsLoading" class="mt-1 text-xs text-slate-400">正在加载可选场景…</p>
+        <p v-else class="mt-1 text-xs text-slate-400">
+          暂无场景，可先到<a
+            v-if="assetManageUrl"
+            :href="assetManageUrl"
+            class="text-slate-600 underline"
+            data-v2-asset-manage-link
+          >人物 / 场景复用索引</a><span v-else>人物 / 场景复用索引</span>中建立。
+        </p>
+      </div>
     </div>
   </article>
 </template>

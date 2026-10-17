@@ -9,9 +9,25 @@ const result = await build({ entryPoints:['resources/js/composables/v2/imageBatc
 const {useImageBatch}=await import('data:text/javascript;base64,'+Buffer.from(result.outputFiles[0].text).toString('base64'));
 const clone=x=>JSON.parse(JSON.stringify(x));
 function fixture(){
- let data={content_title:'t',source_label:'s',batch_instruction:'initial',batch_note:null,assets:[],history:[],units:[{id:'u1',page_id:1,page_no:1,page_type:'content',final_copy:'system',visual_evidence:'system',characters:[],scene:null,special_requirement:null,status:'generated',source_changed:true}]};
+ let data={content_title:'t',source_label:'s',batch_instruction:'initial',batch_note:null,assets:[],history:[],units:[{id:'u1',page_id:1,page_no:1,page_type:'content',final_copy:'system',visual_evidence:'system',characters:[],scene:null,character_asset_ids:[],scene_asset_id:null,special_requirement:null,status:'generated',source_changed:true}]};
  const calls=[];
- const client={async loadWorkspace(){calls.push('get');return clone(data);},async saveDraft(p,i,b,input){calls.push(['put',clone(input)]);data={...data,...input,units:data.units.map(u=>({...u,special_requirement:input.units.find(x=>x.id===u.id).special_requirement}))};},async run(p,i,b,input){calls.push(['run',input]);return {status:'pending'};},async copyTask(){calls.push('copy');return {task:'SERVER TASK'};},async resolveSourceChange(p,i,b,id,input){calls.push(['source',id,input]);data.units[0].source_changed=false;data.units[0].status=input.action==='keep'?'generated':'needs_revision';}};
+ function applyDraft(input){
+  data={...data,batch_instruction:input.batch_instruction,batch_note:input.batch_note};
+  for(const patch of input.units){
+   const unit=data.units.find(x=>x.id===patch.id);
+   if(!unit) continue;
+   unit.special_requirement=patch.special_requirement;
+   if(patch.character_asset_ids!==undefined) unit.character_asset_ids=[...patch.character_asset_ids];
+   if('scene_asset_id' in patch) unit.scene_asset_id=patch.scene_asset_id;
+  }
+ }
+ const client={
+  async loadWorkspace(){calls.push('get');return clone(data);},
+  async saveDraft(p,i,b,input){calls.push(['put',clone(input)]);applyDraft(input);},
+  async run(p,i,b,input){calls.push(['run',input]);return {status:'pending'};},
+  async copyTask(){calls.push('copy');return {task:'SERVER TASK'};},
+  async resolveSourceChange(p,i,b,id,input){calls.push(['source',id,input]);data.units[0].source_changed=false;data.units[0].status=input.action==='keep'?'generated':'needs_revision';},
+ };
  const e=useImageBatch(1,2,3,client,async text=>calls.push(['clipboard',text]));return {e,client,calls};
 }
 test('selection is local; successful GET and reload clear selection and dirty',async()=>{const {e}=fixture();await e.load();e.toggleUnit('u1');assert.equal(e.selectedUnitIds.value.has('u1'),true);assert.equal('selected' in e.units.value[0],false);assert.equal(e.selection.value.selected,1);await e.load();assert.equal(e.selectedUnitIds.value.size,0);assert.equal(e.dirty.value,false);e.selectAll();assert.equal(e.allSelected.value,true);e.clearSelection();assert.equal(e.selection.value.selected,0);});
@@ -24,7 +40,7 @@ test('review dirty ignores selection, detects nested edits, resets after save GE
 test('explicit draft save preserves selected units that still exist',async()=>{
  const {e}=fixture();await e.load();e.selectAll();e.updateBatchNote('saved');await e.saveDraft();assert.equal(e.selectedUnitIds.value.has('u1'),true);
 });
-for(const [name,edit] of [['instruction',e=>e.updateBatchInstruction('new')],['note',e=>e.updateBatchNote('note')],['requirement',e=>e.updateUnit('u1',{special_requirement:'special'})]])test(`${name} marks dirty; successful PUT clears it`,async()=>{const {e,calls}=fixture();await e.load();edit(e);assert.equal(e.dirty.value,true);assert.equal(await e.saveDraft(),true);assert.equal(e.dirty.value,false);const input=calls.find(x=>Array.isArray(x)&&x[0]==='put')[1];assert.deepEqual(Object.keys(input).sort(),['batch_instruction','batch_note','units']);assert.deepEqual(Object.keys(input.units[0]).sort(),['id','special_requirement']);});
+for(const [name,edit] of [['instruction',e=>e.updateBatchInstruction('new')],['note',e=>e.updateBatchNote('note')],['requirement',e=>e.updateUnit('u1',{special_requirement:'special'})]])test(`${name} marks dirty; successful PUT clears it`,async()=>{const {e,calls}=fixture();await e.load();edit(e);assert.equal(e.dirty.value,true);assert.equal(await e.saveDraft(),true);assert.equal(e.dirty.value,false);const input=calls.find(x=>Array.isArray(x)&&x[0]==='put')[1];assert.deepEqual(Object.keys(input).sort(),['batch_instruction','batch_note','units']);assert.deepEqual(Object.keys(input.units[0]).sort(),['character_asset_ids','id','scene_asset_id','special_requirement']);assert.deepEqual(input.units[0].character_asset_ids,[]);assert.equal(input.units[0].scene_asset_id,null);});
 for(const mode of ['full','trial','partial'])test(`dirty ${mode}: PUT then run then GET; exact targets`,async()=>{const {e,calls}=fixture();await e.load();e.updateBatchInstruction('new');if(mode!=='full')e.toggleUnit('u1');assert.equal(await e.run(mode),true);assert.deepEqual(calls.map(x=>Array.isArray(x)?x[0]:x),['get','put','run','get']);assert.deepEqual(calls[2][1],{mode,unit_ids:mode==='full'?[]:['u1']});});
 for(const mode of ['trial','partial'])test(`${mode} rejects empty selection before saving`,async()=>{const {e,calls}=fixture();await e.load();e.updateBatchNote('n');assert.equal(await e.run(mode),false);assert.deepEqual(calls,['get']);});
 for(const action of ['run','copy','save','source'])test(`failed Draft remains dirty and stops ${action}`,async()=>{const {e,client,calls}=fixture();await e.load();e.updateBatchNote('n');client.saveDraft=async()=>{calls.push('failed put');throw Error('offline');};if(action==='run')await e.run('full');else if(action==='copy')await e.copyTask();else if(action==='source')await e.keepCurrent('u1');else await e.saveDraft();assert.equal(e.dirty.value,true);assert.deepEqual(calls,['get','failed put']);assert.match(e.runError.value,/保存失败/);});
@@ -52,5 +68,5 @@ test('post-action GET holds lock and clears local selection only after success',
 });
 test('source API failure retains server status and warning',async()=>{const {e,client}=fixture();await e.load();client.resolveSourceChange=async()=>{throw Error('rejected');};assert.equal(await e.regenerate('u1'),false);assert.equal(e.units.value[0].source_changed,true);assert.equal(e.units.value[0].status,'generated');assert.match(e.runError.value,/rejected/);});
 test('clipboard failure is reported without false copied state',async()=>{const {e,client,calls}=fixture();const editor=useImageBatch(1,2,3,client,async()=>{throw Error('clipboard denied');});await editor.load();assert.equal(await editor.copyTask(),false);assert.equal(editor.copied.value,false);assert.match(editor.runError.value,/clipboard denied/);assert.deepEqual(calls,['get','copy']);});
-test('runtime patch cannot overwrite system or source fields',async()=>{const {e,calls}=fixture();await e.load();e.updateUnit('u1',{special_requirement:'allowed',status:'approved',source_changed:false,final_copy:'forged',selected:true});assert.equal(e.units.value[0].status,'generated');assert.equal(e.units.value[0].source_changed,true);assert.equal(e.units.value[0].final_copy,'system');assert.equal('selected' in e.units.value[0],false);await e.saveDraft();assert.deepEqual(calls[1][1].units,[{id:'u1',special_requirement:'allowed'}]);});
+test('runtime patch cannot overwrite system or source fields',async()=>{const {e,calls}=fixture();await e.load();e.updateUnit('u1',{special_requirement:'allowed',status:'approved',source_changed:false,final_copy:'forged',selected:true,character_asset_ids:[9],scene_asset_id:9});assert.equal(e.units.value[0].status,'generated');assert.equal(e.units.value[0].source_changed,true);assert.equal(e.units.value[0].final_copy,'system');assert.equal(e.units.value[0].character_asset_ids.length,0);assert.equal(e.units.value[0].scene_asset_id,null);assert.equal('selected' in e.units.value[0],false);await e.saveDraft();assert.deepEqual(calls[1][1].units,[{id:'u1',special_requirement:'allowed',character_asset_ids:[],scene_asset_id:null}]);});
 test('DEV preview loads the production stylesheet for visual acceptance',()=>{assert.match(readFileSync('resources/js/v2-image-batch-preview.ts','utf8'),/import\s+['"]\.\.\/css\/app\.css['"]/);});

@@ -8,15 +8,26 @@ import AdminLayout from '../../../layouts/AdminLayout.vue';
 import Breadcrumb from '../../../components/Breadcrumb.vue';
 import ImageBatchWorkspaceBody from '../../../components/V2/ImageBatch/ImageBatchWorkspaceBody.vue';
 import { useImageBatch } from '../../../composables/v2/imageBatch/useImageBatch';
+import { createAssetOptionClient } from '../../../composables/v2/imageBatch/assetOptions';
+import { useAssetOptions } from '../../../composables/v2/imageBatch/useAssetOptions';
+import { http } from '../../../api/http';
+import type { AssetIndexTransport } from '../../../composables/v2/reusableAssets/assetIndexApi';
+import type { ImageBatchUnit } from '../../../types/v2/imageBatch/imageBatch';
 
 const props = defineProps<{ projectId: string | number; itemId: string | number; branchId: string | number; columnName: string }>();
 
 const editor = shallowRef(useImageBatch(props.projectId, props.itemId, props.branchId));
+// P5-I03：可选人物 / 场景直接复用 P5-I02 的正式 GET /reusable-assets（0 DEV Mock）。
+const assetOptions = useAssetOptions(createAssetOptionClient(http as unknown as AssetIndexTransport));
+function onUpdateUnitAssets(unit: ImageBatchUnit, patch: Pick<ImageBatchUnit, 'character_asset_ids' | 'scene_asset_id'>): void {
+  editor.value.updateUnitAssets(unit.id, patch);
+}
 watch(
   () => [props.projectId, props.itemId, props.branchId],
   () => {
     editor.value = useImageBatch(props.projectId, props.itemId, props.branchId);
     void editor.value.load();
+    void assetOptions.load(props.projectId);
   },
   { immediate: true },
 );
@@ -52,12 +63,17 @@ watch(
       :all-selected="editor.allSelected.value"
       :changed-count="editor.changedUnits.value.length"
       :busy="editor.busy.value" :dirty="editor.dirty.value" :selected-unit-ids="editor.selectedUnitIds.value"
+      :character-options="assetOptions.options.value.character"
+      :scene-options="assetOptions.options.value.scene"
+      :asset-options-loading="assetOptions.loading.value"
+      :asset-manage-url="'/projects/' + projectId + '/reusable-assets'"
       @update:batch-instruction="editor.updateBatchInstruction($event)"
       @update:batch-note="editor.updateBatchNote($event)"
       @toggle-unit="editor.toggleUnit($event.id)"
       @select-all="editor.selectAll()"
       @clear-selection="editor.clearSelection()"
       @update-unit="editor.updateUnit($event.id, { special_requirement: $event.special_requirement })"
+      @update-unit-assets="onUpdateUnitAssets"
       @run="editor.run($event)"
       @copy-task="editor.copyTask()"
       @save-draft="editor.saveDraft()"

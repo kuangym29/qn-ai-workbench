@@ -6,10 +6,10 @@ use App\Contracts\V2\ReusableAssetReferenceReader;
 use App\Models\ContentPage;
 
 /**
- * 默认引用读取器：Foundation 还没有「页面 → 资产」的显式登记，返回空引用。
+ * 空引用读取器：返回空引用，绝不从正文猜人名 / 场景。
  *
- * ReusableAssetNameSource 因此默认返回空数组，行为与 ImageBatch 现有的
- * EmptyAssetNameSource 完全一致，接入前不会改变 ImageBatch 任何结果。
+ * P5-I03 起生产容器已绑定 ContentPageReusableAssetReferenceReader（显式引用真源），
+ * 本类不再进入生产容器，仅保留为测试 / fallback 桩使用。
  */
 class EmptyAssetReferenceReader implements ReusableAssetReferenceReader
 {

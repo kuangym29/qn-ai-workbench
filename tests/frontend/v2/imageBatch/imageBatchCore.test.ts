@@ -34,6 +34,8 @@ function makeUnit(overrides: Partial<ImageBatchUnit> = {}): ImageBatchUnit {
     visual_evidence: '画面描述',
     characters: ['妈妈'],
     scene: '客厅',
+    character_asset_ids: [1],
+    scene_asset_id: 4,
     special_requirement: null,
 
     status: 'pending',

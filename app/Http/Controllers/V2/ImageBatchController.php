@@ -71,6 +71,11 @@ class ImageBatchController extends Controller
             'units' => ['sometimes', 'array'],
             'units.*.id' => ['required_with:units', 'integer'],
             'units.*.special_requirement' => ['sometimes', 'nullable', 'string'],
+            // P5-I03：本页显式引用了哪些人物 / 哪个场景。
+            //   数组 → 替换人物引用（[] = 清空）；null → 清空场景；缺省 → 保持已有引用。
+            'units.*.character_asset_ids' => ['sometimes', 'array'],
+            'units.*.character_asset_ids.*' => ['integer', 'min:1'],
+            'units.*.scene_asset_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
         ]);
 
         try {
@@ -143,6 +148,10 @@ class ImageBatchController extends Controller
     /**
      * PUT 白名单之外的字段一律拒绝（不做静默忽略，避免前端误以为已写入）。
      *
+     * 显式资产引用的写入合同只有 units[].character_asset_ids / units[].scene_asset_id；
+     * characters / scene / asset_names / asset_status / project_id / page_id /
+     * reusable_asset 对象 / last_used_at 等都不是写入合同，出现即 422。
+     *
      * @return list<string>
      */
     private function forbiddenKeys(Request $request): array
@@ -152,7 +161,7 @@ class ImageBatchController extends Controller
         );
 
         foreach ((array) $request->input('units', []) as $index => $patch) {
-            foreach (array_diff(array_keys((array) $patch), ['id', 'special_requirement']) as $key) {
+            foreach (array_diff(array_keys((array) $patch), ['id', 'special_requirement', 'character_asset_ids', 'scene_asset_id']) as $key) {
                 $forbidden[] = 'units.'.$index.'.'.$key;
             }
         }

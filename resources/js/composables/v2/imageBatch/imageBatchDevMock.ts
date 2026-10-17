@@ -15,6 +15,7 @@ import type {
   ImageBatchDraftInput,
   ImageBatchSourceChangeInput,
 } from '../../../types/v2/imageBatch/imageBatch';
+import type { AssetOption } from './assetOptions';
 
 interface MockState {
   workspace: ImageBatchWorkspace;
@@ -29,6 +30,9 @@ function iso(daysAgo: number, hour: number): string {
 }
 
 function buildMockUnits(): ImageBatchUnit[] {
+  // P5-I03：DEV 预览的显式资产 id 与名称一一对应（同一套演示资产）。
+  const CHARACTER_IDS: Record<string, number> = { 妈妈: 1, 爸爸: 2, 姐姐: 3 };
+  const SCENE_IDS: Record<string, number> = { 客厅: 4, 玄关门口: 6, 小区楼下: 7, 儿童房: 5 };
   const base = [
     { page_no: 1, page_type: 'cover' as const, final_copy: '孩子说“我自己来”时，先别急着帮', visual_evidence: '妈妈在门口微微弯腰，视线平齐，等待孩子自己系鞋带' },
     { page_no: 2, page_type: 'content' as const, final_copy: '出门前，孩子总有自己的节奏。', visual_evidence: '清晨玄关，孩子坐在地上穿鞋，妈妈站在一旁' },
@@ -40,21 +44,44 @@ function buildMockUnits(): ImageBatchUnit[] {
     { page_no: 8, page_type: 'content' as const, final_copy: '你等的这一会儿，是她自己来的底气。', visual_evidence: '门口逆光，孩子迈出门，妈妈在身后微笑' },
     { page_no: 9, page_type: 'content' as const, final_copy: '别急着帮，孩子正在长大。', visual_evidence: '小区楼下，孩子自己走在前，妈妈跟在几步后' },
     { page_no: 10, page_type: 'column_closing' as const, final_copy: '你在身边，“我自己来”更有底气。', visual_evidence: '黄昏，母子并肩走在回家路上' },
-  ].map<ImageBatchUnit>((p, idx) => ({
-    id: `u${p.page_no}`,
-    page_id: 100 + idx,
-    page_no: p.page_no,
-    page_type: p.page_type,
-    final_copy: p.final_copy,
-    visual_evidence: p.visual_evidence,
-    characters: p.page_no === 3 ? ['姐姐'] : ['妈妈', '姐姐'],
-    scene: p.page_no <= 4 ? '客厅' : p.page_no <= 8 ? '玄关门口' : '小区楼下',
-    special_requirement: p.page_no === 4 ? '表情特写，眼睛要亮' : p.page_no === 10 ? '黄昏暖光，逆光剪影' : null,
-    status: p.page_no <= 2 ? ('generated' as const) : p.page_no === 3 ? ('needs_revision' as const) : ('pending' as const),
-    source_changed: p.page_no === 4 || p.page_no === 5 ? true : false,
-    source_change_summary: p.page_no === 4 ? '最终文字有更新：补充了“眼睛亮亮地”的表述。' : p.page_no === 5 ? '最终文字微调：把“等一等”提前到句首。' : null,
-  }));
+  ].map<ImageBatchUnit>((p, idx) => {
+    const characters = p.page_no === 3 ? ['姐姐'] : ['妈妈', '姐姐'];
+    const scene = p.page_no <= 4 ? '客厅' : p.page_no <= 8 ? '玄关门口' : '小区楼下';
+    return {
+      id: `u${p.page_no}`,
+      page_id: 100 + idx,
+      page_no: p.page_no,
+      page_type: p.page_type,
+      final_copy: p.final_copy,
+      visual_evidence: p.visual_evidence,
+      characters,
+      character_asset_ids: characters.map((name) => CHARACTER_IDS[name] ?? 0).filter((id) => id > 0),
+      scene,
+      scene_asset_id: SCENE_IDS[scene] ?? null,
+      special_requirement: p.page_no === 4 ? '表情特写，眼睛要亮' : p.page_no === 10 ? '黄昏暖光，逆光剪影' : null,
+      status: p.page_no <= 2 ? ('generated' as const) : p.page_no === 3 ? ('needs_revision' as const) : ('pending' as const),
+      source_changed: p.page_no === 4 || p.page_no === 5 ? true : false,
+      source_change_summary: p.page_no === 4 ? '最终文字有更新：补充了“眼睛亮亮地”的表述。' : p.page_no === 5 ? '最终文字微调：把“等一等”提前到句首。' : null,
+    };
+  });
   return base;
+}
+
+/** DEV ONLY：可选人物 / 场景（与 mock units 同一套演示资产，含 missing）。 */
+export function buildMockAssetOptions(): { character: AssetOption[]; scene: AssetOption[] } {
+  return {
+    character: [
+      { id: 1, name: '妈妈', statusLabel: '已有' },
+      { id: 2, name: '爸爸', statusLabel: '已有' },
+      { id: 3, name: '姐姐', statusLabel: '待建立' },
+    ],
+    scene: [
+      { id: 4, name: '客厅', statusLabel: '已有' },
+      { id: 5, name: '儿童房', statusLabel: '已有' },
+      { id: 6, name: '玄关门口', statusLabel: '已有' },
+      { id: 7, name: '小区楼下', statusLabel: '待建立' },
+    ],
+  };
 }
 
 function buildMockAssets(): AssetCheck[] {
@@ -147,7 +174,11 @@ export async function saveMockDraft(input: ImageBatchDraftInput): Promise<void> 
   mockImageBatchStore.workspace.batch_note = input.batch_note;
   for (const patch of input.units) {
     const unit = mockImageBatchStore.workspace.units.find(u => u.id === patch.id);
-    if (unit) unit.special_requirement = patch.special_requirement;
+    if (!unit) continue;
+    unit.special_requirement = patch.special_requirement;
+    // P5-I03：显式资产引用跟随整批草稿保存；缺省键表示不修改。
+    if (patch.character_asset_ids) unit.character_asset_ids = [...patch.character_asset_ids];
+    if (patch.scene_asset_id !== undefined) unit.scene_asset_id = patch.scene_asset_id;
   }
 }
 

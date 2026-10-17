@@ -5,6 +5,7 @@ namespace Tests\Feature\V2;
 use App\Contracts\V2\AssetNameSource;
 use App\Contracts\V2\ReusableAssetReferenceReader;
 use App\Models\Project;
+use App\Services\V2\ContentPageReusableAssetReferenceReader;
 use App\Services\V2\EmptyAssetReferenceReader;
 use App\Services\V2\ReusableAssetNameSource;
 use Illuminate\Http\Request;
@@ -90,6 +91,10 @@ class PromotionStage2BIntegrationTest extends TestCase
     public function test_production_asset_bindings_keep_the_explicit_empty_reference_boundary(): void
     {
         $this->assertInstanceOf(ReusableAssetNameSource::class, app(AssetNameSource::class));
-        $this->assertInstanceOf(EmptyAssetReferenceReader::class, app(ReusableAssetReferenceReader::class));
+        // P5-I03：「页面显式引用了哪些人物 / 场景」首次有正式真源，生产容器绑定
+        // ContentPageReusableAssetReferenceReader，正式替换 EmptyAssetReferenceReader
+        // （后者保留为测试 / fallback 类，生产容器不再绑定它）。
+        $this->assertInstanceOf(ContentPageReusableAssetReferenceReader::class, app(ReusableAssetReferenceReader::class));
+        $this->assertNotInstanceOf(EmptyAssetReferenceReader::class, app(ReusableAssetReferenceReader::class));
     }
 }
